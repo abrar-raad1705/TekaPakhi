@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
+    <data-source source="LOCAL" name="TekaPakhi" uuid="0dee3c36-290b-47c3-86c4-b5a6e64c81ac">
+      <driver-ref>postgresql</driver-ref>
+      <synchronize>true</synchronize>
+      <jdbc-driver>org.postgresql.Driver</jdbc-driver>
+      <jdbc-url>jdbc:postgresql://localhost:5432/tekapakhi_db</jdbc-url>
+      <working-dir>$ProjectFileDir$</working-dir>
+      <init-script>SET search_path TO tp, public;</init-script>
+    </data-source>
+  </component>
+</project>
