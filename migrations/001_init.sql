@@ -15,7 +15,7 @@ CREATE TABLE profiles (
     nid_number VARCHAR(20),
     is_phone_verified BOOLEAN DEFAULT FALSE,
     registration_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
---type_id
+    --type_id
     CONSTRAINT check_bd_phone CHECK (phone_number ~ '^01[3-9][0-9]{8}$')
 );
 
@@ -102,14 +102,12 @@ CREATE TABLE transaction_types (
     type_name VARCHAR(50) UNIQUE NOT NULL, -- 'Send Money', 'Cash Out' etc.
     fee_percentage DECIMAL(5, 2) DEFAULT 0.00,
     fee_flat_amount DECIMAL(10, 2) DEFAULT 0.00,
-  --fee_min_amount
-  --fee_max_amount
     fee_bearer fee_bearer_type
 );
 
 CREATE TABLE transactions (
     transaction_id BIGSERIAL PRIMARY KEY,
-    transaction_ref VARCHAR(40) UNIQUE NOT NULL, -- UUID or Generated String
+    transaction_ref VARCHAR(40) UNIQUE NOT NULL,
     amount DECIMAL(15, 2) NOT NULL CHECK (amount > 0),
 
     fee_amount DECIMAL(10, 2) DEFAULT 0.00,
@@ -124,7 +122,7 @@ CREATE TABLE transactions (
     type_id INTEGER NOT NULL REFERENCES transaction_types(type_id),
 
     -- For Reversals
-    --original_transaction_id BIGINT REFERENCES transactions(transaction_id),
+    original_transaction_id BIGINT REFERENCES transactions(transaction_id),
 
     CONSTRAINT check_different_wallets CHECK (sender_wallet_id != receiver_wallet_id)
 );
@@ -160,43 +158,4 @@ CREATE TABLE commission_entries (
     beneficiary_wallet_id BIGINT NOT NULL REFERENCES wallets(wallet_id),
 
     commission_amount DECIMAL(10, 2) NOT NULL
-);
-
-INSERT INTO profile_types (type_name, description) VALUES 
-('CUSTOMER', 'Regular user'),
-('AGENT', 'Cash-in/Cash-out point'),
-('MERCHANT', 'Business account'),
-('DISTRIBUTOR', 'Agent manager'),
-('BILLER', 'Utility provider'),
-('SYSTEM', 'The Platform Revenue Profile');
-
--- Creation of platform wallet
-INSERT INTO profiles (
-    phone_number, 
-    full_name, 
-    email, 
-    security_pin_hash, 
-    is_phone_verified,
-    registration_date
-)
-VALUES (
-    '01999999999',
-    'Platform Revenue', 
-    'admin@tekapakhi.com', 
-    'hashed_super_secret_pin', 
-    TRUE,
-    CURRENT_TIMESTAMP
-);
-
-INSERT INTO wallets (
-    profile_id, 
-    balance, 
-    max_balance, 
-    last_activity_date
-)
-VALUES (
-    (SELECT profile_id FROM profiles WHERE phone_number = '01999999999'),
-    0.00,
-    1000000000.00,
-    CURRENT_TIMESTAMP
 );
