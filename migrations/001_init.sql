@@ -1,0 +1,202 @@
+-- 1. ENUM TYPES (For fixed categories)
+CREATE TYPE profile_status AS ENUM ('ACTIVE', 'SUSPENDED', 'PENDING_KYC', 'BLOCKED');
+CREATE TYPE transaction_status AS ENUM ('PENDING', 'COMPLETED', 'FAILED', 'REVERSED');
+CREATE TYPE fee_bearer_type AS ENUM ('SENDER', 'RECEIVER');
+
+-- 2. PROFILE & AUTHENTICATION
+
+-- Base Profile Table (Parent)
+CREATE TABLE profiles (
+    profile_id BIGSERIAL PRIMARY KEY,
+    phone_number VARCHAR(15) UNIQUE NOT NULL,
+    full_name VARCHAR(100) NOT NULL,
+    email VARCHAR(100),
+    security_pin_hash VARCHAR(255) NOT NULL,
+    nid_number VARCHAR(20),
+    is_phone_verified BOOLEAN DEFAULT FALSE,
+    registration_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+--type_id
+    CONSTRAINT check_bd_phone CHECK (phone_number ~ '^01[3-9][0-9]{8}$')
+);
+
+CREATE INDEX idx_profile_phone ON profiles(phone_number);
+
+CREATE TABLE profile_types (
+    type_id SERIAL PRIMARY KEY,
+    type_name VARCHAR(50) UNIQUE NOT NULL, -- 'Customer', 'Agent', etc.
+    description TEXT
+);
+
+-- 3. PROFILE SUBTYPES (Inheritance via Shared PK)
+
+-- Customer Profile
+CREATE TABLE customer_profiles (
+    profile_id BIGINT PRIMARY KEY REFERENCES profiles(profile_id) ON DELETE CASCADE,
+    approved_date TIMESTAMP WITH TIME ZONE,
+    status profile_status DEFAULT 'ACTIVE'
+);
+
+-- Agent Profile
+CREATE TABLE agent_profiles (
+    profile_id BIGINT PRIMARY KEY REFERENCES profiles(profile_id) ON DELETE CASCADE,
+    agent_code VARCHAR(20) UNIQUE NOT NULL,
+    shop_name VARCHAR(100) NOT NULL,
+    shop_address TEXT,
+    approved_date TIMESTAMP WITH TIME ZONE,
+    status profile_status DEFAULT 'PENDING_KYC'
+);
+
+-- Distributor Profile
+CREATE TABLE distributor_profiles (
+    profile_id BIGINT PRIMARY KEY REFERENCES profiles(profile_id) ON DELETE CASCADE,
+    region VARCHAR(100),
+    approved_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    status profile_status DEFAULT 'ACTIVE'
+);
+
+-- Merchant Profile
+CREATE TABLE merchant_profiles (
+    profile_id BIGINT PRIMARY KEY REFERENCES profiles(profile_id) ON DELETE CASCADE,
+    merchant_code VARCHAR(20) UNIQUE NOT NULL,
+    business_name VARCHAR(100) NOT NULL,
+    business_type VARCHAR(50),
+    approved_date TIMESTAMP WITH TIME ZONE,
+    status profile_status DEFAULT 'PENDING_KYC'
+);
+
+-- Biller Profile (Electricity, Water, etc.)
+CREATE TABLE biller_profiles (
+    profile_id BIGINT PRIMARY KEY REFERENCES profiles(profile_id) ON DELETE CASCADE,
+    biller_code VARCHAR(20) UNIQUE NOT NULL,
+    service_name VARCHAR(100) NOT NULL,
+    category VARCHAR(50),
+    status profile_status DEFAULT 'ACTIVE'
+);
+
+-- 4. CORE FINANCE (Wallets)
+
+CREATE TABLE wallets (
+    wallet_id BIGSERIAL PRIMARY KEY,
+    profile_id BIGINT UNIQUE NOT NULL REFERENCES profiles(profile_id) ON DELETE RESTRICT,
+    balance DECIMAL(15, 2) DEFAULT 0.00 CHECK (balance >= 0),
+    max_balance DECIMAL(15, 2) DEFAULT 500000.00,
+    last_activity_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 5. CONTACTS
+
+CREATE TABLE saved_recipients (
+    recipient_id SERIAL PRIMARY KEY,
+    saver_profile_id BIGINT NOT NULL REFERENCES profiles(profile_id) ON DELETE CASCADE,
+    target_profile_id BIGINT NOT NULL REFERENCES profiles(profile_id) ON DELETE CASCADE,
+    nickname VARCHAR(50),
+    added_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE(saver_profile_id, target_profile_id)
+);
+
+-- 6. TRANSACTIONS & RULES
+
+CREATE TABLE transaction_types (
+    type_id SERIAL PRIMARY KEY,
+    type_name VARCHAR(50) UNIQUE NOT NULL, -- 'Send Money', 'Cash Out' etc.
+    fee_percentage DECIMAL(5, 2) DEFAULT 0.00,
+    fee_flat_amount DECIMAL(10, 2) DEFAULT 0.00,
+  --fee_min_amount
+  --fee_max_amount
+    fee_bearer fee_bearer_type
+);
+
+CREATE TABLE transactions (
+    transaction_id BIGSERIAL PRIMARY KEY,
+    transaction_ref VARCHAR(40) UNIQUE NOT NULL, -- UUID or Generated String
+    amount DECIMAL(15, 2) NOT NULL CHECK (amount > 0),
+
+    fee_amount DECIMAL(10, 2) DEFAULT 0.00,
+    
+    transaction_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    status transaction_status DEFAULT 'PENDING',
+    user_note VARCHAR(255),
+
+    -- Participants
+    sender_wallet_id BIGINT REFERENCES wallets(wallet_id),
+    receiver_wallet_id BIGINT REFERENCES wallets(wallet_id),
+    type_id INTEGER NOT NULL REFERENCES transaction_types(type_id),
+
+    -- For Reversals
+    --original_transaction_id BIGINT REFERENCES transactions(transaction_id),
+
+    CONSTRAINT check_different_wallets CHECK (sender_wallet_id != receiver_wallet_id)
+);
+
+CREATE INDEX idx_txn_sender ON transactions(sender_wallet_id);
+CREATE INDEX idx_txn_receiver ON transactions(receiver_wallet_id);
+
+-- Limits (Policies)
+CREATE TABLE transaction_limits (
+    profile_type_id INTEGER REFERENCES profile_types(type_id),
+    transaction_type_id INTEGER REFERENCES transaction_types(type_id),
+    daily_limit DECIMAL(15, 2),
+    monthly_limit DECIMAL(15, 2),
+
+    PRIMARY KEY (profile_type_id, transaction_type_id)
+);
+
+-- 7. COMMISSIONS
+
+CREATE TABLE commission_policies (
+    profile_type_id INTEGER REFERENCES profile_types(type_id), -- e.g., 'Agent'
+    transaction_type_id INTEGER REFERENCES transaction_types(type_id), -- e.g., 'Cash Out'
+    commission_share DECIMAL(5, 2) NOT NULL, -- Percentage (e.g., 2.00)
+
+    PRIMARY KEY (profile_type_id, transaction_type_id)
+);
+
+CREATE TABLE commission_entries (
+    commission_id BIGSERIAL PRIMARY KEY,
+    transaction_id BIGINT NOT NULL REFERENCES transactions(transaction_id),
+
+    -- Beneficiary can be Agent, Distributor, OR System Wallet
+    beneficiary_wallet_id BIGINT NOT NULL REFERENCES wallets(wallet_id),
+
+    commission_amount DECIMAL(10, 2) NOT NULL
+);
+
+INSERT INTO profile_types (type_name, description) VALUES 
+('CUSTOMER', 'Regular user'),
+('AGENT', 'Cash-in/Cash-out point'),
+('MERCHANT', 'Business account'),
+('DISTRIBUTOR', 'Agent manager'),
+('BILLER', 'Utility provider'),
+('SYSTEM', 'The Platform Revenue Profile');
+
+-- Creation of platform wallet
+INSERT INTO profiles (
+    phone_number, 
+    full_name, 
+    email, 
+    security_pin_hash, 
+    is_phone_verified,
+    registration_date
+)
+VALUES (
+    '01999999999',
+    'Platform Revenue', 
+    'admin@tekapakhi.com', 
+    'hashed_super_secret_pin', 
+    TRUE,
+    CURRENT_TIMESTAMP
+);
+
+INSERT INTO wallets (
+    profile_id, 
+    balance, 
+    max_balance, 
+    last_activity_date
+)
+VALUES (
+    (SELECT profile_id FROM profiles WHERE phone_number = '01999999999'),
+    0.00,
+    1000000000.00,
+    CURRENT_TIMESTAMP
+);
