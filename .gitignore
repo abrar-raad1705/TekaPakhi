@@ -1,8 +1,10 @@
 # dependencies
 node_modules/
 
-# env
+# env files
 .env
+server/.env
+client/.env
 
 # IDEs
 .idea/
@@ -13,5 +15,12 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# files
+# build output
+client/dist/
+
+# system files
+.DS_Store
+Thumbs.db
+
+# database dumps
 migrations/tp.sql

@@ -1,15 +1,15 @@
 {
   "name": "tekapakhi",
   "version": "1.0.0",
-  "main": "index.js",
+  "private": true,
+  "description": "TekaPakhi - Mobile Financial Services (MFS) Platform",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "server": "cd server && npm start",
+    "server:dev": "cd server && npm run dev",
+    "client": "cd client && npm run dev",
+    "install:all": "cd server && npm install && cd ../client && npm install"
   },
-  "keywords": [],
+  "keywords": ["mfs", "mobile-finance", "pern"],
   "author": "",
-  "license": "ISC",
-  "description": "",
-  "dependencies": {
-    "pg": "^8.17.2"
-  }
+  "license": "ISC"
 }
