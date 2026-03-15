@@ -1,10 +1,5 @@
-const AppError = require('../utils/AppError');
+import AppError from '../utils/AppError.js';
 
-/**
- * Zod schema validation middleware
- * Validates req.body against the provided Zod schema
- * Attaches validated data to req.validatedBody
- */
 const validate = (schema) => (req, res, next) => {
   const result = schema.safeParse(req.body);
 
@@ -21,4 +16,4 @@ const validate = (schema) => (req, res, next) => {
   next();
 };
 
-module.exports = validate;
+export default validate;

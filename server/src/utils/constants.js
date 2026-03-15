@@ -1,4 +1,4 @@
-const PROFILE_TYPES = {
+export const PROFILE_TYPES = {
   CUSTOMER: 1,
   AGENT: 2,
   MERCHANT: 3,
@@ -7,7 +7,7 @@ const PROFILE_TYPES = {
   SYSTEM: 6,
 };
 
-const PROFILE_TYPE_NAMES = {
+export const PROFILE_TYPE_NAMES = {
   1: 'CUSTOMER',
   2: 'AGENT',
   3: 'MERCHANT',
@@ -16,29 +16,21 @@ const PROFILE_TYPE_NAMES = {
   6: 'SYSTEM',
 };
 
-const PROFILE_STATUS = {
+export const PROFILE_STATUS = {
   ACTIVE: 'ACTIVE',
   SUSPENDED: 'SUSPENDED',
   PENDING_KYC: 'PENDING_KYC',
   BLOCKED: 'BLOCKED',
 };
 
-const TRANSACTION_STATUS = {
+export const TRANSACTION_STATUS = {
   PENDING: 'PENDING',
   COMPLETED: 'COMPLETED',
   FAILED: 'FAILED',
   REVERSED: 'REVERSED',
 };
 
-const OTP_PURPOSE = {
+export const OTP_PURPOSE = {
   VERIFY_PHONE: 'VERIFY_PHONE',
   RESET_PIN: 'RESET_PIN',
-};
-
-module.exports = {
-  PROFILE_TYPES,
-  PROFILE_TYPE_NAMES,
-  PROFILE_STATUS,
-  TRANSACTION_STATUS,
-  OTP_PURPOSE,
 };

@@ -15,3 +15,5 @@ TRUNCATE TABLE
     profile_types
 RESTART IDENTITY
 CASCADE;
+
+SELECT * FROM profiles

@@ -1,13 +1,13 @@
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
-const pool = require('../config/db');
-const env = require('../config/env');
-const AppError = require('../utils/AppError');
-const profileModel = require('../models/profileModel');
-const otpService = require('./otpService');
-const { hashToken, generateAgentCode, generateMerchantCode } = require('../utils/helpers');
-const { PROFILE_TYPES } = require('../utils/constants');
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
+import pool from '../config/db.js';
+import env from '../config/env.js';
+import AppError from '../utils/AppError.js';
+import profileModel from '../models/profileModel.js';
+import otpService from './otpService.js';
+import { hashToken, generateAgentCode, generateMerchantCode } from '../utils/helpers.js';
+import { PROFILE_TYPES } from '../utils/constants.js';
 
 const SALT_ROUNDS = 12;
 
@@ -367,4 +367,4 @@ const authService = {
   },
 };
 
-module.exports = authService;
+export default authService;

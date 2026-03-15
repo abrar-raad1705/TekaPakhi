@@ -1,15 +1,15 @@
-const pool = require('../config/db');
-const AppError = require('../utils/AppError');
-const { generateTxRef } = require('../utils/helpers');
-const { PROFILE_TYPES } = require('../utils/constants');
-const profileModel = require('../models/profileModel');
-const walletModel = require('../models/walletModel');
-const transactionModel = require('../models/transactionModel');
-const transactionTypeModel = require('../models/transactionTypeModel');
-const feeService = require('./feeService');
-const limitService = require('./limitService');
-const commissionService = require('./commissionService');
-const authService = require('./authService');
+import pool from '../config/db.js';
+import AppError from '../utils/AppError.js';
+import { generateTxRef } from '../utils/helpers.js';
+import { PROFILE_TYPES } from '../utils/constants.js';
+import profileModel from '../models/profileModel.js';
+import walletModel from '../models/walletModel.js';
+import transactionModel from '../models/transactionModel.js';
+import transactionTypeModel from '../models/transactionTypeModel.js';
+import feeService from './feeService.js';
+import limitService from './limitService.js';
+import commissionService from './commissionService.js';
+import authService from './authService.js';
 
 /**
  * Role validation rules: which profile types can send/receive for each tx type
@@ -24,34 +24,27 @@ const ROLE_RULES = {
 };
 
 const transactionService = {
-  /**
-   * Execute a transaction — the universal pipeline
-   *
-   * Flow: resolve parties → validate roles → verify PIN → calculate fee
-   *       → check limits → check balances → BEGIN → debit/credit → insert tx
-   *       → distribute commissions → COMMIT → return receipt
-   */
   async execute({ senderProfileId, receiverPhone, amount, typeCode, pin, note }) {
-    // ── 1. Resolve transaction type ──
+    // Resolve transaction type
     const txType = await transactionTypeModel.findByName(typeCode);
     if (!txType) {
       throw new AppError(`Unknown transaction type: ${typeCode}`, 400);
     }
 
-    // ── 2. Resolve sender profile ──
+    // Resolve sender profile
     const sender = await profileModel.findById(senderProfileId);
     if (!sender) throw new AppError('Sender profile not found.', 404);
 
-    // ── 3. Resolve receiver profile ──
+    // Resolve receiver profile
     const receiver = await profileModel.findByPhone(receiverPhone);
     if (!receiver) throw new AppError('Recipient not found. Please check the phone number.', 404);
 
-    // ── 4. Can't send to yourself ──
+    // Can't send to yourself
     if (sender.profile_id === receiver.profile_id) {
       throw new AppError('You cannot send money to yourself.', 400);
     }
 
-    // ── 5. Validate roles ──
+    // Validate roles
     const rules = ROLE_RULES[typeCode];
     if (rules) {
       if (!rules.sender.includes(sender.type_id)) {
@@ -62,7 +55,7 @@ const transactionService = {
       }
     }
 
-    // ── 6. Check KYC status — block PENDING_KYC accounts ──
+    // Check KYC status — block PENDING_KYC accounts
     const senderStatus = await profileModel.getAccountStatus(sender.profile_id, sender.type_name);
     if (senderStatus === 'PENDING_KYC') {
       throw new AppError('Your account is pending verification. Please wait for admin approval before transacting.', 403);
@@ -70,11 +63,10 @@ const transactionService = {
     if (senderStatus === 'SUSPENDED' || senderStatus === 'BLOCKED') {
       throw new AppError(`Your account is ${senderStatus.toLowerCase()}. Contact support.`, 403);
     }
-
-    // ── 7. Verify PIN (with brute force protection) ──
+    // Verify PIN (with brute force protection)
     await authService.verifyTransactionPin(senderProfileId, pin);
 
-    // ── 7. Atomic transaction ──
+    // Transaction
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -86,7 +78,7 @@ const transactionService = {
       if (!senderWallet) throw new AppError('Sender wallet not found.', 404);
       if (!receiverWallet) throw new AppError('Receiver wallet not found.', 404);
 
-      // ── 8. Calculate fee (tiered for SEND_MONEY, standard for others) ──
+      //Calculate fee
       let fee;
       if (typeCode === 'SEND_MONEY') {
         const monthlyTotal = await transactionModel.getMonthlyTotalForUpdate(client, sender.profile_id, txType.type_id);
@@ -96,10 +88,10 @@ const transactionService = {
       }
       const { senderDebit, receiverCredit } = feeService.applyFeeBearer(amount, fee, txType.fee_bearer);
 
-      // ── 9. Check limits ──
+      // Check limits
       await limitService.check(client, sender.type_id, txType.type_id, sender.profile_id, amount);
 
-      // ── 10. Check sender balance ──
+      // Check sender balance
       if (parseFloat(senderWallet.balance) < senderDebit) {
         throw new AppError(
           `Insufficient balance. You need ৳${senderDebit.toFixed(2)} but have ৳${parseFloat(senderWallet.balance).toFixed(2)}.`,
@@ -107,18 +99,18 @@ const transactionService = {
         );
       }
 
-      // ── 11. Check receiver max balance ──
+      // Check receiver max balance
       if (parseFloat(receiverWallet.balance) + receiverCredit > parseFloat(receiverWallet.max_balance)) {
         throw new AppError("Transaction would exceed the recipient's maximum wallet balance.", 400);
       }
 
-      // ── 12. Debit sender ──
+      // Debit sender
       await walletModel.debit(client, senderWallet.wallet_id, senderDebit);
 
-      // ── 13. Credit receiver ──
+      // Credit receiver
       await walletModel.credit(client, receiverWallet.wallet_id, receiverCredit);
 
-      // ── 14. Insert transaction record ──
+      // Insert transaction record
       const txRef = generateTxRef();
       const transaction = await transactionModel.create(client, {
         txRef,
@@ -131,7 +123,7 @@ const transactionService = {
         status: 'COMPLETED',
       });
 
-      // ── 15. Distribute commissions ──
+      // Distribute commissions
       await commissionService.distribute(
         client,
         txType.type_id,
@@ -147,7 +139,7 @@ const transactionService = {
 
       await client.query('COMMIT');
 
-      // ── 16. Return receipt ──
+      // Return receipt
       return {
         transactionRef: txRef,
         transactionId: transaction.transaction_id,
@@ -250,4 +242,4 @@ const transactionService = {
   },
 };
 
-module.exports = transactionService;
+export default transactionService;

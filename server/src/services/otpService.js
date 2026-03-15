@@ -1,7 +1,7 @@
-const pool = require('../config/db');
-const env = require('../config/env');
-const { generateOTP } = require('../utils/helpers');
-const AppError = require('../utils/AppError');
+import pool from '../config/db.js';
+import env from '../config/env.js';
+import { generateOTP } from '../utils/helpers.js';
+import AppError from '../utils/AppError.js';
 
 const otpService = {
   /**
@@ -25,7 +25,6 @@ const otpService = {
       [phoneNumber, otpCode, purpose, expiresAt]
     );
 
-    // TODO: Integrate with SMS gateway (e.g., BulkSMSBD, SSL Wireless)
     if (env.NODE_ENV === 'development') {
       console.log(`[DEV OTP] ${phoneNumber} → ${otpCode} (${purpose})`);
     }
@@ -33,7 +32,7 @@ const otpService = {
     return {
       message: 'OTP sent successfully.',
       expiresInMinutes: env.OTP_EXPIRY_MINUTES,
-      // Only expose OTP in development
+      // Exposing OTP in development
       ...(env.NODE_ENV === 'development' && { otp: otpCode }),
     };
   },
@@ -66,4 +65,4 @@ const otpService = {
   },
 };
 
-module.exports = otpService;
+export default otpService;

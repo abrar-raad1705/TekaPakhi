@@ -1,8 +1,8 @@
-const { z } = require('zod');
+import { z } from 'zod';
 
 const bdPhoneRegex = /^01[3-9][0-9]{8}$/;
 
-const registerSchema = z.object({
+export const registerSchema = z.object({
   phoneNumber: z
     .string()
     .regex(bdPhoneRegex, 'Invalid Bangladeshi phone number (e.g., 01712345678)'),
@@ -35,7 +35,7 @@ const registerSchema = z.object({
   }
 });
 
-const loginSchema = z.object({
+export const loginSchema = z.object({
   phoneNumber: z
     .string()
     .regex(bdPhoneRegex, 'Invalid Bangladeshi phone number'),
@@ -46,13 +46,13 @@ const loginSchema = z.object({
     .regex(/^\d+$/, 'PIN must contain only digits'),
 });
 
-const requestOtpSchema = z.object({
+export const requestOtpSchema = z.object({
   phoneNumber: z
     .string()
     .regex(bdPhoneRegex, 'Invalid Bangladeshi phone number'),
 });
 
-const verifyOtpSchema = z.object({
+export const verifyOtpSchema = z.object({
   phoneNumber: z
     .string()
     .regex(bdPhoneRegex, 'Invalid Bangladeshi phone number'),
@@ -62,7 +62,7 @@ const verifyOtpSchema = z.object({
     .regex(/^\d{6}$/, 'OTP must contain only digits'),
 });
 
-const resetPinSchema = z.object({
+export const resetPinSchema = z.object({
   phoneNumber: z
     .string()
     .regex(bdPhoneRegex, 'Invalid Bangladeshi phone number'),
@@ -76,7 +76,7 @@ const resetPinSchema = z.object({
     .regex(/^\d{5}$/, 'PIN must contain only digits'),
 });
 
-const changePinSchema = z.object({
+export const changePinSchema = z.object({
   oldPin: z
     .string()
     .min(4, 'PIN must be at least 4 digits')
@@ -88,16 +88,6 @@ const changePinSchema = z.object({
     .regex(/^\d{5}$/, 'New PIN must contain only digits'),
 });
 
-const refreshTokenSchema = z.object({
+export const refreshTokenSchema = z.object({
   refreshToken: z.string().min(1, 'Refresh token is required'),
 });
-
-module.exports = {
-  registerSchema,
-  loginSchema,
-  requestOtpSchema,
-  verifyOtpSchema,
-  resetPinSchema,
-  changePinSchema,
-  refreshTokenSchema,
-};

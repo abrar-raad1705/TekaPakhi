@@ -1,15 +1,15 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
-const env = require('./config/env');
-const routes = require('./routes');
-const errorHandler = require('./middleware/errorHandler');
-const { generalLimiter } = require('./middleware/rateLimiter');
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import env from './config/env.js';
+import routes from './routes/index.js';
+import errorHandler from './middleware/errorHandler.js';
+import { generalLimiter } from './middleware/rateLimiter.js';
 
 const app = express();
 
-// ─── Security ────────────────────────────────────────────
+// Security
 app.use(helmet());
 app.use(cors({
   origin: env.NODE_ENV === 'development'
@@ -18,22 +18,22 @@ app.use(cors({
   credentials: true,
 }));
 
-// ─── Rate Limiting ───────────────────────────────────────
+// Rate Limiting
 app.use(generalLimiter);
 
-// ─── Body Parsing ────────────────────────────────────────
+// Body Parsing
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// ─── Request Logging ─────────────────────────────────────
+// Request Logging
 if (env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-// ─── API Routes ──────────────────────────────────────────
+// API Routes
 app.use('/api/v1', routes);
 
-// ─── 404 Handler ─────────────────────────────────────────
+// 404 Handler
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -44,4 +44,4 @@ app.use((req, res) => {
 // ─── Global Error Handler ────────────────────────────────
 app.use(errorHandler);
 
-module.exports = app;
+export default app;

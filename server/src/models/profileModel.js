@@ -1,4 +1,4 @@
-const pool = require('../config/db');
+import pool from '../config/db.js';
 
 const profileModel = {
   /**
@@ -253,4 +253,4 @@ const profileModel = {
   },
 };
 
-module.exports = profileModel;
+export default profileModel;

@@ -1,10 +1,10 @@
-const { Router } = require('express');
-const authRoutes = require('./authRoutes');
-const profileRoutes = require('./profileRoutes');
-const walletRoutes = require('./walletRoutes');
-const transactionRoutes = require('./transactionRoutes');
-const recipientRoutes = require('./recipientRoutes');
-const adminRoutes = require('./adminRoutes');
+import { Router } from 'express';
+import authRoutes from './authRoutes.js';
+import profileRoutes from './profileRoutes.js';
+import walletRoutes from './walletRoutes.js';
+import transactionRoutes from './transactionRoutes.js';
+import recipientRoutes from './recipientRoutes.js';
+import adminRoutes from './adminRoutes.js';
 
 const router = Router();
 
@@ -21,4 +21,4 @@ router.use('/transactions', transactionRoutes);
 router.use('/recipients', recipientRoutes);
 router.use('/admin', adminRoutes);
 
-module.exports = router;
+export default router;

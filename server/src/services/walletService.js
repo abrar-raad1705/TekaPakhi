@@ -1,5 +1,5 @@
-const walletModel = require('../models/walletModel');
-const AppError = require('../utils/AppError');
+import walletModel from '../models/walletModel.js';
+import AppError from '../utils/AppError.js';
 
 const walletService = {
   /**
@@ -26,4 +26,4 @@ const walletService = {
   },
 };
 
-module.exports = walletService;
+export default walletService;

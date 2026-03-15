@@ -1,5 +1,5 @@
-const pool = require('../config/db');
-const AppError = require('../utils/AppError');
+import pool from '../config/db.js';
+import AppError from '../utils/AppError.js';
 
 const walletModel = {
   /**
@@ -72,4 +72,4 @@ const walletModel = {
   },
 };
 
-module.exports = walletModel;
+export default walletModel;

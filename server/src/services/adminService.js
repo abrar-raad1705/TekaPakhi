@@ -1,12 +1,12 @@
-const bcrypt = require('bcrypt');
-const pool = require('../config/db');
-const AppError = require('../utils/AppError');
-const { generateTxRef } = require('../utils/helpers');
-const { PROFILE_TYPES } = require('../utils/constants');
-const adminModel = require('../models/adminModel');
-const profileModel = require('../models/profileModel');
-const walletModel = require('../models/walletModel');
-const commissionModel = require('../models/commissionModel');
+import bcrypt from 'bcrypt';
+import pool from '../config/db.js';
+import AppError from '../utils/AppError.js';
+import { generateTxRef } from '../utils/helpers.js';
+import { PROFILE_TYPES } from '../utils/constants.js';
+import adminModel from '../models/adminModel.js';
+import profileModel from '../models/profileModel.js';
+import walletModel from '../models/walletModel.js';
+import commissionModel from '../models/commissionModel.js';
 
 const SALT_ROUNDS = 12;
 
@@ -352,4 +352,4 @@ const adminService = {
   },
 };
 
-module.exports = adminService;
+export default adminService;

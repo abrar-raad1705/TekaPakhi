@@ -1,6 +1,6 @@
-const limitModel = require('../models/limitModel');
-const transactionModel = require('../models/transactionModel');
-const AppError = require('../utils/AppError');
+import limitModel from '../models/limitModel.js';
+import transactionModel from '../models/transactionModel.js';
+import AppError from '../utils/AppError.js';
 
 const limitService = {
   /**
@@ -71,4 +71,4 @@ const limitService = {
   },
 };
 
-module.exports = limitService;
+export default limitService;

@@ -1,6 +1,6 @@
-const pool = require('../config/db');
-const profileModel = require('../models/profileModel');
-const AppError = require('../utils/AppError');
+import pool from '../config/db.js';
+import profileModel from '../models/profileModel.js';
+import AppError from '../utils/AppError.js';
 
 const profileController = {
   /**
@@ -98,4 +98,4 @@ const profileController = {
   },
 };
 
-module.exports = profileController;
+export default profileController;

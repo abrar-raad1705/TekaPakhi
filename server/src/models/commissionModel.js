@@ -1,4 +1,4 @@
-const pool = require('../config/db');
+import pool from '../config/db.js';
 
 const commissionModel = {
   /**
@@ -46,4 +46,4 @@ const commissionModel = {
   },
 };
 
-module.exports = commissionModel;
+export default commissionModel;

@@ -1,4 +1,4 @@
-const transactionService = require('../services/transactionService');
+import transactionService from '../services/transactionService.js';
 
 const transactionController = {
   /**
@@ -178,4 +178,4 @@ const transactionController = {
   },
 };
 
-module.exports = transactionController;
+export default transactionController;

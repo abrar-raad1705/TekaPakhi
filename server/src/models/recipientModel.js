@@ -1,4 +1,4 @@
-const pool = require('../config/db');
+import pool from '../config/db.js';
 
 const recipientModel = {
   async findBySaver(saverProfileId) {
@@ -36,4 +36,4 @@ const recipientModel = {
   },
 };
 
-module.exports = recipientModel;
+export default recipientModel;

@@ -1,8 +1,8 @@
-const { Router } = require('express');
-const recipientController = require('../controllers/recipientController');
-const authenticate = require('../middleware/authenticate');
-const validate = require('../middleware/validate');
-const { savedRecipientSchema } = require('../validations/transactionValidation');
+import { Router } from 'express';
+import recipientController from '../controllers/recipientController.js';
+import authenticate from '../middleware/authenticate.js';
+import validate from '../middleware/validate.js';
+import { savedRecipientSchema } from '../validations/transactionValidation.js';
 
 const router = Router();
 
@@ -12,4 +12,4 @@ router.get('/', recipientController.list);
 router.post('/', validate(savedRecipientSchema), recipientController.create);
 router.delete('/:id', recipientController.delete);
 
-module.exports = router;
+export default router;

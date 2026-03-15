@@ -1,6 +1,6 @@
-const recipientModel = require('../models/recipientModel');
-const profileModel = require('../models/profileModel');
-const AppError = require('../utils/AppError');
+import recipientModel from '../models/recipientModel.js';
+import profileModel from '../models/profileModel.js';
+import AppError from '../utils/AppError.js';
 
 const recipientController = {
   /**
@@ -54,4 +54,4 @@ const recipientController = {
   },
 };
 
-module.exports = recipientController;
+export default recipientController;

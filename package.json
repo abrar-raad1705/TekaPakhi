@@ -9,7 +9,7 @@
     "client": "cd client && npm run dev",
     "install:all": "cd server && npm install && cd ../client && npm install"
   },
-  "keywords": ["mfs", "mobile-finance", "pern"],
+  "keywords": ["mfs", "mobile-finance"],
   "author": "",
   "license": "ISC"
 }

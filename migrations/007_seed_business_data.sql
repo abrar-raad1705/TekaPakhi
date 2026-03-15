@@ -8,7 +8,7 @@ INSERT INTO "tp"."transaction_types" ("type_id", "type_name", "fee_percentage", 
 (5, 'PAY_BILL', 1.00, 0.00, 'SENDER', NULL, 30.00),
 (6, 'B2B', 0.00, 0.00, 'SENDER', NULL, NULL);
 
--- [ROLE: CUSTOMER (ID: 1)] - Personal Usage Limits
+-- [ROLE: CUSTOMER] - Personal Usage Limits
 INSERT INTO "tp"."transaction_limits" 
 ("profile_type_id", "transaction_type_id", "max_count_daily", "max_count_monthly", "min_per_transaction", "max_per_transaction", "daily_limit", "monthly_limit") 
 VALUES
@@ -17,7 +17,7 @@ VALUES
 (1, 3, 50, 100, 0.01, 100000.00, 500000.00, 300000.00),  -- Send Money
 (1, 4, NULL, NULL, 1.00, NULL, NULL, NULL);              -- Payment
 
--- [ROLE: AGENT (ID: 2)] - Operational/Aggregate Volume Limits
+-- [ROLE: AGENT] - Operational/Aggregate Volume Limits
 -- Limits the total "Float" an agent can move in a day to prevent money laundering.
 INSERT INTO "tp"."transaction_limits" 
 ("profile_type_id", "transaction_type_id", "max_count_daily", "max_count_monthly", "min_per_transaction", "max_per_transaction", "daily_limit", "monthly_limit") 
@@ -26,14 +26,14 @@ VALUES
 (2, 2, NULL, NULL, 50.00, 30000.00, 500000.00, 5000000.00), -- Total Cash Out volume
 (2, 6, 50, 500, 1000.00, 200000.00, 200000.00, 5000000.00); -- B2B Restocking
 
--- [ROLE: MERCHANT (ID: 3)] - Receiving and Payout Limits
+-- [ROLE: MERCHANT] - Receiving and Payout Limits
 INSERT INTO "tp"."transaction_limits" 
 ("profile_type_id", "transaction_type_id", "max_count_daily", "max_count_monthly", "min_per_transaction", "max_per_transaction", "daily_limit", "monthly_limit") 
 VALUES
 (3, 4, NULL, NULL, 1.00, NULL, NULL, NULL),                -- Receive Payment: Unlimited
 (3, 6, 100, 1000, 10.00, 100000.00, 500000.00, 5000000.00);-- Merchant Payments Out
 
--- [ROLE: DISTRIBUTOR (ID: 4)] - Supply Chain Limits
+-- [ROLE: DISTRIBUTOR] - Supply Chain Limits
 INSERT INTO "tp"."transaction_limits" 
 ("profile_type_id", "transaction_type_id", "max_count_daily", "max_count_monthly", "min_per_transaction", "max_per_transaction", "daily_limit", "monthly_limit") 
 VALUES

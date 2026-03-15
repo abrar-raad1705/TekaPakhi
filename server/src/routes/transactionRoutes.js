@@ -1,8 +1,8 @@
-const { Router } = require('express');
-const transactionController = require('../controllers/transactionController');
-const authenticate = require('../middleware/authenticate');
-const validate = require('../middleware/validate');
-const { executeTransactionSchema, previewTransactionSchema } = require('../validations/transactionValidation');
+import { Router } from 'express';
+import transactionController from '../controllers/transactionController.js';
+import authenticate from '../middleware/authenticate.js';
+import validate from '../middleware/validate.js';
+import { executeTransactionSchema, previewTransactionSchema } from '../validations/transactionValidation.js';
 
 const router = Router();
 
@@ -25,4 +25,4 @@ router.get('/history', transactionController.history);
 router.get('/mini-statement', transactionController.miniStatement);
 router.get('/:id', transactionController.detail);
 
-module.exports = router;
+export default router;

@@ -1,4 +1,4 @@
-const pool = require('../config/db');
+import pool from '../config/db.js';
 
 const adminModel = {
   // ── Dashboard Stats ──────────────────────────────────────────
@@ -507,4 +507,4 @@ const adminModel = {
   },
 };
 
-module.exports = adminModel;
+export default adminModel;

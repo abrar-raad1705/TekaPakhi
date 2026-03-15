@@ -1,6 +1,6 @@
-const { z } = require('zod');
+import { z } from 'zod';
 
-const updateProfileSchema = z.object({
+export const updateProfileSchema = z.object({
   fullName: z
     .string()
     .min(2, 'Name must be at least 2 characters')
@@ -21,7 +21,3 @@ const updateProfileSchema = z.object({
   (data) => data.fullName || data.email !== undefined || data.nidNumber !== undefined,
   { message: 'At least one field must be provided for update' }
 );
-
-module.exports = {
-  updateProfileSchema,
-};

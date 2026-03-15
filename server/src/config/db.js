@@ -1,5 +1,6 @@
-const { Pool } = require('pg');
-const env = require('./env');
+import pkg from 'pg';
+const { Pool } = pkg;
+import env from './env.js';
 
 const pool = new Pool({
   host: env.DB_HOST,
@@ -17,7 +18,7 @@ pool.on('connect', () => {
 
 pool.on('error', (err) => {
   console.error('[DB] Unexpected error on idle client:', err.message);
-  process.exit(-1);
+  process.exit(1);
 });
 
-module.exports = pool;
+export default pool;

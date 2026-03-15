@@ -1,9 +1,9 @@
-const { Router } = require('express');
-const authController = require('../controllers/authController');
-const validate = require('../middleware/validate');
-const authenticate = require('../middleware/authenticate');
-const { authLimiter, otpLimiter } = require('../middleware/rateLimiter');
-const {
+import { Router } from 'express';
+import authController from '../controllers/authController.js';
+import validate from '../middleware/validate.js';
+import authenticate from '../middleware/authenticate.js';
+import { authLimiter, otpLimiter } from '../middleware/rateLimiter.js';
+import {
   registerSchema,
   loginSchema,
   requestOtpSchema,
@@ -11,7 +11,7 @@ const {
   resetPinSchema,
   changePinSchema,
   refreshTokenSchema,
-} = require('../validations/authValidation');
+} from '../validations/authValidation.js';
 
 const router = Router();
 
@@ -28,4 +28,4 @@ router.post('/reset-pin', authLimiter, validate(resetPinSchema), authController.
 router.post('/change-pin', authenticate, validate(changePinSchema), authController.changePin);
 router.post('/logout', authenticate, authController.logout);
 
-module.exports = router;
+export default router;

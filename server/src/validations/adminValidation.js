@@ -1,6 +1,6 @@
-const { z } = require('zod');
+import { z } from 'zod';
 
-const userListQuerySchema = z.object({
+export const userListQuerySchema = z.object({
   page: z.number({ coerce: true }).int().positive().optional().default(1),
   limit: z.number({ coerce: true }).int().positive().max(100).optional().default(20),
   search: z.string().optional(),
@@ -8,11 +8,11 @@ const userListQuerySchema = z.object({
   status: z.enum(['ACTIVE', 'SUSPENDED', 'PENDING_KYC', 'BLOCKED']).optional(),
 });
 
-const updateStatusSchema = z.object({
+export const updateStatusSchema = z.object({
   status: z.enum(['ACTIVE', 'SUSPENDED', 'BLOCKED']),
 });
 
-const transactionListQuerySchema = z.object({
+export const transactionListQuerySchema = z.object({
   page: z.number({ coerce: true }).int().positive().optional().default(1),
   limit: z.number({ coerce: true }).int().positive().max(100).optional().default(20),
   search: z.string().optional(),
@@ -22,7 +22,7 @@ const transactionListQuerySchema = z.object({
   toDate: z.string().optional(),
 });
 
-const updateTxTypeSchema = z.object({
+export const updateTxTypeSchema = z.object({
   fee_percentage: z.number({ coerce: true }).min(0).max(100).optional(),
   fee_flat_amount: z.number({ coerce: true }).min(0).optional(),
   fee_bearer: z.enum(['SENDER', 'RECEIVER']).optional(),
@@ -30,7 +30,7 @@ const updateTxTypeSchema = z.object({
   fee_max_amount: z.number({ coerce: true }).min(0).nullable().optional(),
 });
 
-const upsertLimitSchema = z.object({
+export const upsertLimitSchema = z.object({
   profileTypeId: z.number({ coerce: true }).int().positive(),
   transactionTypeId: z.number({ coerce: true }).int().positive(),
   dailyLimit: z.number({ coerce: true }).min(0).nullable().optional(),
@@ -41,13 +41,13 @@ const upsertLimitSchema = z.object({
   maxPerTransaction: z.number({ coerce: true }).min(0).nullable().optional(),
 });
 
-const upsertCommissionSchema = z.object({
+export const upsertCommissionSchema = z.object({
   profileTypeId: z.number({ coerce: true }).int().positive(),
   transactionTypeId: z.number({ coerce: true }).int().positive(),
   commissionShare: z.number({ coerce: true }).min(0).max(100),
 });
 
-const createProfileSchema = z.object({
+export const createProfileSchema = z.object({
   phoneNumber: z.string().regex(/^01[3-9][0-9]{8}$/, 'Invalid Bangladeshi phone number'),
   fullName: z.string().min(2).max(100),
   securityPin: z.string().length(5).regex(/^\d{5}$/, 'PIN must be 5 digits'),
@@ -65,24 +65,12 @@ const createProfileSchema = z.object({
   }
 });
 
-const loadWalletSchema = z.object({
+export const loadWalletSchema = z.object({
   amount: z.number({ coerce: true }).positive('Amount must be positive'),
 });
 
-const reportQuerySchema = z.object({
+export const reportQuerySchema = z.object({
   fromDate: z.string(),
   toDate: z.string(),
   groupBy: z.enum(['day', 'week', 'month']).optional().default('day'),
 });
-
-module.exports = {
-  userListQuerySchema,
-  updateStatusSchema,
-  createProfileSchema,
-  transactionListQuerySchema,
-  updateTxTypeSchema,
-  upsertLimitSchema,
-  upsertCommissionSchema,
-  loadWalletSchema,
-  reportQuerySchema,
-};

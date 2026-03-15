@@ -1,12 +1,11 @@
-const { Router } = require('express');
-const walletController = require('../controllers/walletController');
-const authenticate = require('../middleware/authenticate');
+import { Router } from 'express';
+import walletController from '../controllers/walletController.js';
+import authenticate from '../middleware/authenticate.js';
 
 const router = Router();
 
-// All wallet routes require authentication
 router.use(authenticate);
 
 router.get('/balance', walletController.getBalance);
 
-module.exports = router;
+export default router;

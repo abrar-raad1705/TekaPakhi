@@ -1,8 +1,7 @@
-const adminService = require('../services/adminService');
+import adminService from '../services/adminService.js';
 
 const adminController = {
-  // ── Dashboard ────────────────────────────────────────────────
-
+  // Dashboard 
   async dashboard(req, res, next) {
     try {
       const data = await adminService.getDashboard();
@@ -12,8 +11,7 @@ const adminController = {
     }
   },
 
-  // ── User Management ──────────────────────────────────────────
-
+  // User Management
   async listUsers(req, res, next) {
     try {
       const data = await adminService.listUsers(req.query);
@@ -63,7 +61,7 @@ const adminController = {
     }
   },
 
-  // ── Transaction Management ───────────────────────────────────
+  // Transaction Management
 
   async listTransactions(req, res, next) {
     try {
@@ -83,7 +81,7 @@ const adminController = {
     }
   },
 
-  // ── Config: Transaction Types ────────────────────────────────
+  // Config: Transaction Types
 
   async getTransactionTypes(req, res, next) {
     try {
@@ -103,7 +101,7 @@ const adminController = {
     }
   },
 
-  // ── Config: Transaction Limits ───────────────────────────────
+  // Config: Transaction Limits
 
   async getTransactionLimits(req, res, next) {
     try {
@@ -132,7 +130,7 @@ const adminController = {
     }
   },
 
-  // ── Config: Commission Policies ──────────────────────────────
+  // Config: Commission Policies
 
   async getCommissionPolicies(req, res, next) {
     try {
@@ -161,8 +159,7 @@ const adminController = {
     }
   },
 
-  // ── Reports ──────────────────────────────────────────────────
-
+  // Reports 
   async transactionReport(req, res, next) {
     try {
       const data = await adminService.getTransactionReport(req.query);
@@ -182,4 +179,4 @@ const adminController = {
   },
 };
 
-module.exports = adminController;
+export default adminController;

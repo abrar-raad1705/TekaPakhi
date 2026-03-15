@@ -1,4 +1,4 @@
-const pool = require('../config/db');
+import pool from '../config/db.js';
 
 const transactionModel = {
   /**
@@ -213,4 +213,4 @@ const transactionModel = {
   },
 };
 
-module.exports = transactionModel;
+export default transactionModel;

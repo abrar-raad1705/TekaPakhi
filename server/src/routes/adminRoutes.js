@@ -1,16 +1,16 @@
-const { Router } = require('express');
-const adminController = require('../controllers/adminController');
-const authenticate = require('../middleware/authenticate');
-const roleGuard = require('../middleware/roleGuard');
-const validate = require('../middleware/validate');
-const {
+import { Router } from 'express';
+import adminController from '../controllers/adminController.js';
+import authenticate from '../middleware/authenticate.js';
+import roleGuard from '../middleware/roleGuard.js';
+import validate from '../middleware/validate.js';
+import {
   updateStatusSchema,
   createProfileSchema,
   loadWalletSchema,
   updateTxTypeSchema,
   upsertLimitSchema,
   upsertCommissionSchema,
-} = require('../validations/adminValidation');
+} from '../validations/adminValidation.js';
 
 const router = Router();
 
@@ -50,4 +50,4 @@ router.delete('/config/commissions/:profileTypeId/:txTypeId', adminController.de
 router.get('/reports/transactions', adminController.transactionReport);
 router.get('/reports/user-growth', adminController.userGrowthReport);
 
-module.exports = router;
+export default router;

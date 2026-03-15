@@ -1,11 +1,7 @@
-const commissionModel = require('../models/commissionModel');
-const walletModel = require('../models/walletModel');
-const { PROFILE_TYPES } = require('../utils/constants');
+import commissionModel from '../models/commissionModel.js';
+import walletModel from '../models/walletModel.js';
+import { PROFILE_TYPES } from '../utils/constants.js';
 
-/**
- * System profile ID (Platform Revenue wallet)
- * This is the profile created in migration 005 with phone 01999999999
- */
 const SYSTEM_PROFILE_ID = 1;
 
 const commissionService = {
@@ -29,7 +25,7 @@ const commissionService = {
     const entries = [];
 
     for (const policy of policies) {
-      const shareAmount = Math.round((feeAmount * parseFloat(policy.commission_share) / 100) * 100) / 100;
+      const shareAmount = Number((feeAmount * policy.commission_share / 100).toFixed(2));
       if (shareAmount <= 0) continue;
 
       // Determine which wallet to credit
@@ -69,4 +65,4 @@ const commissionService = {
   },
 };
 
-module.exports = commissionService;
+export default commissionService;

@@ -1,10 +1,6 @@
-const AppError = require('../utils/AppError');
+import AppError from '../utils/AppError.js';
 
-/**
- * Role-based access control middleware
- * Accepts profile type IDs or type names
- * Usage: roleGuard(1, 2) or roleGuard('CUSTOMER', 'AGENT')
- */
+// Role-based access control middleware
 const roleGuard = (...allowedTypes) => {
   return (req, res, next) => {
     if (!req.user) {
@@ -23,4 +19,4 @@ const roleGuard = (...allowedTypes) => {
   };
 };
 
-module.exports = roleGuard;
+export default roleGuard;

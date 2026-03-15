@@ -1,8 +1,8 @@
-const { z } = require('zod');
+import { z } from 'zod';
 
 const bdPhoneRegex = /^01[3-9][0-9]{8}$/;
 
-const executeTransactionSchema = z.object({
+export const executeTransactionSchema = z.object({
   receiverPhone: z
     .string()
     .regex(bdPhoneRegex, 'Invalid Bangladeshi phone number'),
@@ -12,9 +12,7 @@ const executeTransactionSchema = z.object({
     .max(50000000, 'Amount exceeds maximum allowed'),
   pin: z
     .string()
-    .min(4, 'PIN must be at least 4 digits')
-    .max(6, 'PIN must be at most 6 digits')
-    .regex(/^\d+$/, 'PIN must contain only digits'),
+    .regex(/^\d{5}$/, 'PIN must be exactly 5 digits'),
   note: z
     .string()
     .max(255, 'Note must be at most 255 characters')
@@ -22,7 +20,7 @@ const executeTransactionSchema = z.object({
     .nullable(),
 });
 
-const previewTransactionSchema = z.object({
+export const previewTransactionSchema = z.object({
   receiverPhone: z
     .string()
     .regex(bdPhoneRegex, 'Invalid Bangladeshi phone number'),
@@ -31,7 +29,7 @@ const previewTransactionSchema = z.object({
     .positive('Amount must be greater than 0'),
 });
 
-const historyQuerySchema = z.object({
+export const historyQuerySchema = z.object({
   page: z.number({ coerce: true }).int().positive().optional().default(1),
   limit: z.number({ coerce: true }).int().positive().max(100).optional().default(20),
   type: z.enum(['CASH_IN', 'CASH_OUT', 'SEND_MONEY', 'PAYMENT', 'PAY_BILL', 'B2B']).optional(),
@@ -39,7 +37,7 @@ const historyQuerySchema = z.object({
   toDate: z.string().datetime().optional(),
 });
 
-const savedRecipientSchema = z.object({
+export const savedRecipientSchema = z.object({
   phoneNumber: z
     .string()
     .regex(bdPhoneRegex, 'Invalid Bangladeshi phone number'),
@@ -48,10 +46,3 @@ const savedRecipientSchema = z.object({
     .min(1, 'Nickname is required')
     .max(50, 'Nickname must be at most 50 characters'),
 });
-
-module.exports = {
-  executeTransactionSchema,
-  previewTransactionSchema,
-  historyQuerySchema,
-  savedRecipientSchema,
-};

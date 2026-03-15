@@ -1,4 +1,4 @@
-const walletService = require('../services/walletService');
+import walletService from '../services/walletService.js';
 
 const walletController = {
   /**
@@ -14,4 +14,4 @@ const walletController = {
   },
 };
 
-module.exports = walletController;
+export default walletController;

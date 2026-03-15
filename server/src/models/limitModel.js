@@ -1,4 +1,4 @@
-const pool = require('../config/db');
+import pool from '../config/db.js';
 
 const limitModel = {
   /**
@@ -14,4 +14,4 @@ const limitModel = {
   },
 };
 
-module.exports = limitModel;
+export default limitModel;

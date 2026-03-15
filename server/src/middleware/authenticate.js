@@ -1,6 +1,6 @@
-const jwt = require('jsonwebtoken');
-const env = require('../config/env');
-const AppError = require('../utils/AppError');
+import jwt from 'jsonwebtoken';
+import env from '../config/env.js';
+import AppError from '../utils/AppError.js';
 
 /**
  * JWT Authentication Middleware
@@ -37,4 +37,4 @@ const authenticate = (req, res, next) => {
   }
 };
 
-module.exports = authenticate;
+export default authenticate;

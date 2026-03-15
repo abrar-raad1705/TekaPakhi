@@ -1,9 +1,6 @@
-const env = require('../config/env');
+import env from '../config/env.js';
 
-/**
- * Global error handling middleware
- * Catches all errors and returns consistent JSON response
- */
+// Global error handling middleware. Catches all errors and returns consistent JSON response
 const errorHandler = (err, req, res, next) => {
   const statusCode = err.statusCode || 500;
   const message = err.isOperational ? err.message : 'Internal server error';
@@ -19,8 +16,8 @@ const errorHandler = (err, req, res, next) => {
   res.status(statusCode).json({
     success: false,
     message,
-    ...(env.NODE_ENV === 'development' && !err.isOperational && { stack: err.stack }),
+    ...(env.NODE_ENV === 'development' && !err.isOperational && { stack: err.stack }), // ... is used for conditional property addition
   });
 };
 
-module.exports = errorHandler;
+export default errorHandler;
