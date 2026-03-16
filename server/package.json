@@ -2,7 +2,7 @@
   "name": "tekapakhi-server",
   "version": "1.0.0",
   "type": "module",
-  "description": "TekaPakhi MFS - Backend API Server",
+  "description": "TekaPakhi - Backend API Server",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -13,8 +13,6 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^5.1.0",
-    "express-rate-limit": "^7.5.0",
-    "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "pg": "^8.13.3",

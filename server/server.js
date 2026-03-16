@@ -11,9 +11,8 @@ const startServer = async () => {
 
     // Start Express server
     app.listen(env.PORT, () => {
-      console.log(`[Server] TekaPakhi API running on port ${env.PORT}`);
+      console.log(`[Server] API running on port ${env.PORT}`);
       console.log(`[Server] Environment: ${env.NODE_ENV}`);
-      console.log(`[Server] Health check: http://localhost:${env.PORT}/api/v1/health`);
     });
   } catch (error) {
     console.error('[Server] Failed to start:', error.message);
