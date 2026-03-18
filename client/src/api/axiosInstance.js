@@ -27,8 +27,11 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // If 401 and not already retrying, attempt token refresh
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Skip token refresh for auth endpoints — let their errors propagate normally
+    const isAuthEndpoint = originalRequest.url?.startsWith('/auth/');
+
+    // If 401 and not already retrying and not an auth endpoint, attempt token refresh
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
 
       try {
