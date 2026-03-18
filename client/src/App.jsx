@@ -42,14 +42,14 @@ import ConfigPage from './pages/admin/ConfigPage';
 import ReportsPage from './pages/admin/ReportsPage';
 
 export default function App() {
-  const { isAuthenticated, getHomeRoute } = useAuth();
+  const { isAuthenticated, user, getHomeRoute } = useAuth();
   const homeRoute = getHomeRoute();
 
   return (
     <Routes>
       {/* Public routes */}
-      <Route path="/login" element={isAuthenticated ? <Navigate to={homeRoute} replace /> : <LoginPage />} />
-      <Route path="/register" element={isAuthenticated ? <Navigate to={homeRoute} replace /> : <RegisterPage />} />
+      <Route path="/login" element={isAuthenticated ? (user?.isPhoneVerified ? <Navigate to={homeRoute} replace /> : <Navigate to="/verify-phone" state={{ phoneNumber: user?.phoneNumber }} replace />) : <LoginPage />} />
+      <Route path="/register" element={isAuthenticated ? (user?.isPhoneVerified ? <Navigate to={homeRoute} replace /> : <Navigate to="/verify-phone" state={{ phoneNumber: user?.phoneNumber }} replace />) : <RegisterPage />} />
       <Route path="/verify-phone" element={<VerifyPhonePage />} />
       <Route path="/forgot-pin" element={<ForgotPinPage />} />
       <Route path="/reset-pin" element={<ResetPinPage />} />

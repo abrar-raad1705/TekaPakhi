@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { authApi } from '../../api/authApi';
+import { useAuth } from '../../context/AuthContext';
 import OTPInput from '../../components/common/OTPInput';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -8,18 +9,44 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 export default function VerifyPhonePage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, setUser, logout, isAuthenticated } = useAuth();
   const { phoneNumber, otp: initialOtp } = location.state || {};
   const [currentDevOtp, setCurrentDevOtp] = useState(initialOtp);
-
   const [loading, setLoading] = useState(false);
+  const [requesting, setRequesting] = useState(false);
 
+  // If we arrived here without an OTP (e.g. via PrivateRoute guard), request one automatically
+  useEffect(() => {
+    if (phoneNumber && !initialOtp) {
+      handleResend(true);
+    }
+  }, [phoneNumber, initialOtp]);
 
   const handleVerify = async (otpCode) => {
     setLoading(true);
     try {
       await authApi.verifyOtp({ phoneNumber, otpCode, purpose: 'VERIFY_PHONE' });
-      toast.success('Phone verified! Please login.');
-      setTimeout(() => navigate('/login', { replace: true }), 1500);
+      toast.success('Phone verified!');
+
+      // If user is logged in, update their profile and go to dashboard
+      if (isAuthenticated && user) {
+        const updatedUser = { ...user, isPhoneVerified: true };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        setUser(updatedUser);
+        setTimeout(() => {
+          const routeMap = {
+            SYSTEM: '/admin',
+            AGENT: '/agent',
+            MERCHANT: '/merchant',
+            DISTRIBUTOR: '/distributor',
+            BILLER: '/biller',
+          };
+          navigate(routeMap[user.typeName] || '/dashboard', { replace: true });
+        }, 1000);
+      } else {
+        // Not logged in (came from registration), go to login
+        setTimeout(() => navigate('/login', { replace: true }), 1500);
+      }
     } catch (error) {
       toast.error(error.response?.data?.message || 'Verification failed');
     } finally {
@@ -27,16 +54,25 @@ export default function VerifyPhonePage() {
     }
   };
 
-  const handleResend = async () => {
+  const handleResend = async (isAuto = false) => {
+    if (requesting) return;
+    setRequesting(true);
     try {
       const { data } = await authApi.requestOtp({ phoneNumber, purpose: 'VERIFY_PHONE' });
       if (data.data.otp) {
         setCurrentDevOtp(data.data.otp);
       }
-      toast.success('OTP resent successfully');
+      if (!isAuto) toast.success('OTP resent successfully');
     } catch (error) {
-      toast.error('Failed to resend OTP');
+      if (!isAuto) toast.error('Failed to resend OTP');
+    } finally {
+      setRequesting(false);
     }
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login', { replace: true });
   };
 
   if (!phoneNumber) {
@@ -46,7 +82,6 @@ export default function VerifyPhonePage() {
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-gradient-to-b from-primary-600 to-primary-800 px-4">
-
 
       <div className="w-full max-w-sm">
         <div className="rounded-2xl bg-white p-6 shadow-xl">
@@ -73,10 +108,25 @@ export default function VerifyPhonePage() {
             <OTPInput onComplete={handleVerify} />
           )}
 
-          <div className="mt-6 text-center">
-            <button onClick={handleResend} className="text-sm font-medium text-primary-600 hover:text-primary-700">
-              Resend OTP
+          <div className="mt-6 flex flex-col gap-4 text-center">
+            <button
+              onClick={() => handleResend(false)}
+              disabled={requesting}
+              className="text-sm font-medium text-primary-600 hover:text-primary-700 disabled:opacity-50"
+            >
+              {requesting ? 'Requesting...' : 'Resend OTP'}
             </button>
+
+            {isAuthenticated && (
+              <div className="border-t border-gray-100 pt-4 text-center">
+                <button
+                  onClick={handleLogout}
+                  className="text-sm font-medium text-gray-500 hover:text-red-500 transition-colors duration-200"
+                >
+                  Log out
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

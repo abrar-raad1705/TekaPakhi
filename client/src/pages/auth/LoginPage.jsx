@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { authApi } from '../../api/authApi';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
@@ -25,8 +26,26 @@ export default function LoginPage() {
 
     const result = await login(phoneNumber, securityPin);
     if (result.success) {
+      const profile = result.data.profile;
+
+      // If phone is not verified, redirect to verify-phone page
+      if (!profile.isPhoneVerified) {
+        try {
+          const { data } = await authApi.requestOtp({ phoneNumber, purpose: 'VERIFY_PHONE' });
+          navigate('/verify-phone', {
+            state: { phoneNumber, otp: data.data.otp },
+            replace: true,
+          });
+        } catch {
+          navigate('/verify-phone', {
+            state: { phoneNumber },
+            replace: true,
+          });
+        }
+        return;
+      }
+
       // Navigate to role-specific dashboard based on the profile returned from login
-      const typeName = result.data.profile.typeName;
       const routeMap = {
         SYSTEM: '/admin',
         AGENT: '/agent',
@@ -34,7 +53,7 @@ export default function LoginPage() {
         DISTRIBUTOR: '/distributor',
         BILLER: '/biller',
       };
-      navigate(routeMap[typeName] || '/dashboard', { replace: true });
+      navigate(routeMap[profile.typeName] || '/dashboard', { replace: true });
     } else {
       toast.error(result.message);
     }
@@ -42,7 +61,6 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-gradient-to-b from-primary-600 to-primary-800 px-4">
-
 
       <div className="w-full max-w-sm">
         {/* Logo area */}
@@ -111,5 +129,6 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+    //
   );
 }
