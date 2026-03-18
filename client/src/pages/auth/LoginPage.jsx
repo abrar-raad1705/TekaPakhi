@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { authApi } from '../../api/authApi';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import PinInput from '../../components/common/PinInput';
 
 export default function LoginPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -92,18 +93,11 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Security PIN</label>
-              <input
-                type="password"
-                value={securityPin}
-                onChange={(e) => setSecurityPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                placeholder="Enter your PIN"
-                inputMode="numeric"
-                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
-                maxLength={6}
-              />
-            </div>
+            <PinInput
+              length={5}
+              onChange={(pin) => setSecurityPin(pin)}
+              label="Security PIN"
+            />
 
             <button
               type="submit"

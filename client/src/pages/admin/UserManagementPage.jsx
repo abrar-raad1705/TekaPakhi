@@ -4,6 +4,7 @@ import { adminApi } from '../../api/adminApi';
 import { formatBDT } from '../../utils/formatCurrency';
 import AdminLayout from '../../components/admin/AdminLayout';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import PinInput from '../../components/common/PinInput';
 import toast from 'react-hot-toast';
 
 const profileTypes = [
@@ -301,10 +302,11 @@ function CreateProfileForm({ onCreated }) {
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
         </div>
         <div>
-          <label className="mb-1 block text-xs text-gray-500">PIN (5 digits)</label>
-          <input type="password" required value={form.securityPin} maxLength={5} inputMode="numeric"
-            onChange={(e) => setForm((p) => ({ ...p, securityPin: e.target.value.replace(/\D/g, '').slice(0, 5) }))}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+          <PinInput
+            length={5}
+            onChange={(pin) => setForm((p) => ({ ...p, securityPin: pin }))}
+            label="PIN (5 digits)"
+          />
         </div>
       </div>
 

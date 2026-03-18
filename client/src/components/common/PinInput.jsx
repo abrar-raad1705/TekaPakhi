@@ -1,79 +1,50 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
+import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 
-export default function PinInput({ length = 5, onComplete, label = 'Enter PIN', error = '' }) {
-  const [values, setValues] = useState(Array(length).fill(''));
-  const inputRefs = useRef([]);
+export default function PinInput({ length = 5, onComplete, onChange, label = 'Enter PIN', error = '' }) {
+  const [value, setValue] = useState('');
+  const [showPin, setShowPin] = useState(false);
 
-  const handleChange = (index, value) => {
-    if (!/^\d?$/.test(value)) return;
+  const handleChange = (e) => {
+    const val = e.target.value.replace(/\D/g, '').slice(0, length);
+    setValue(val);
+    onChange?.(val);
 
-    const newValues = [...values];
-    newValues[index] = value;
-    setValues(newValues);
-
-    // Auto-focus next input
-    if (value && index < length - 1) {
-      inputRefs.current[index + 1]?.focus();
+    if (val.length === length) {
+      onComplete?.(val);
     }
-
-    // Call onComplete when all digits entered
-    if (newValues.every((v) => v !== '')) {
-      onComplete?.(newValues.join(''));
-    }
-  };
-
-  const handleKeyDown = (index, e) => {
-    if (e.key === 'Backspace' && !values[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const handlePaste = (e) => {
-    e.preventDefault();
-    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, length);
-    if (!pasted) return;
-
-    const newValues = [...values];
-    for (let i = 0; i < pasted.length; i++) {
-      newValues[i] = pasted[i];
-    }
-    setValues(newValues);
-
-    const nextIndex = Math.min(pasted.length, length - 1);
-    inputRefs.current[nextIndex]?.focus();
-
-    if (newValues.every((v) => v !== '')) {
-      onComplete?.(newValues.join(''));
-    }
-  };
-
-  const reset = () => {
-    setValues(Array(length).fill(''));
-    inputRefs.current[0]?.focus();
   };
 
   return (
     <div className="space-y-2">
       {label && <label className="block text-sm font-medium text-gray-700">{label}</label>}
-      <div className="flex justify-center gap-3">
-        {values.map((val, i) => (
-          <input
-            key={i}
-            ref={(el) => (inputRefs.current[i] = el)}
-            type="password"
-            inputMode="numeric"
-            maxLength={1}
-            value={val}
-            onChange={(e) => handleChange(i, e.target.value)}
-            onKeyDown={(e) => handleKeyDown(i, e)}
-            onPaste={handlePaste}
-            className={`h-12 w-12 rounded-lg border-2 text-center text-xl font-bold
-              focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200
-              ${error ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-white'}`}
-          />
-        ))}
+      <div className="relative">
+        <input
+          type={showPin ? 'text' : 'password'}
+          inputMode="numeric"
+          maxLength={length}
+          value={value}
+          onChange={handleChange}
+          placeholder={`Enter ${length}-digit PIN`}
+          className={`w-full rounded-lg border px-4 py-3 text-sm transition-all focus:outline-none focus:ring-2
+            ${error
+              ? 'border-red-400 focus:border-red-500 focus:ring-red-200'
+              : 'border-gray-300 focus:border-primary-500 focus:ring-primary-200'}`}
+        />
+        <button
+          type="button"
+          onClick={() => setShowPin(!showPin)}
+          className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 focus:outline-none"
+          title={showPin ? 'Hide PIN' : 'Show PIN'}
+        >
+          {showPin ? (
+            <EyeSlashIcon className="h-5 w-5" />
+          ) : (
+            <EyeIcon className="h-5 w-5" />
+          )}
+        </button>
       </div>
-      {error && <p className="text-center text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-red-600">{error}</p>}
     </div>
   );
 }

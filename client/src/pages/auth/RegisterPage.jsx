@@ -3,11 +3,15 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import PinInput from '../../components/common/PinInput';
 
 const accountTypes = [
-  { id: 'CUSTOMER', label: 'Personal', desc: 'Send money, pay bills, cash out' },
-  { id: 'AGENT', label: 'Agent', desc: 'Cash in/out point for customers' },
-  { id: 'MERCHANT', label: 'Merchant', desc: 'Accept payments from customers' },
+  // { id: 'CUSTOMER', label: 'Personal', desc: 'Send money, pay bills, cash out' },
+  // { id: 'AGENT', label: 'Agent', desc: 'Cash in/out point for customers' },
+  // { id: 'MERCHANT', label: 'Merchant', desc: 'Accept payments from customers' },
+  { id: 'CUSTOMER', label: 'Personal' },
+  { id: 'AGENT', label: 'Agent' },
+  { id: 'MERCHANT', label: 'Merchant' },
 ];
 
 export default function RegisterPage() {
@@ -108,7 +112,7 @@ export default function RegisterPage() {
                     key={type.id}
                     type="button"
                     onClick={() => setForm((prev) => ({ ...prev, accountType: type.id }))}
-                    className={`rounded-lg border-2 px-2 py-2.5 text-center transition-colors
+                    className={`rounded-lg border-2 px-2 py-2 text-center transition-colors
                       ${form.accountType === type.id
                         ? 'border-primary-500 bg-primary-50 text-primary-700'
                         : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
@@ -204,31 +208,17 @@ export default function RegisterPage() {
             )}
 
             {/* PIN Fields */}
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Set PIN (5 digits)</label>
-              <input
-                type="password"
-                value={form.securityPin}
-                onChange={updateField('securityPin')}
-                placeholder="Enter 5-digit PIN"
-                inputMode="numeric"
-                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
-                maxLength={5}
-              />
-            </div>
+            <PinInput
+              length={5}
+              onChange={(pin) => setForm((prev) => ({ ...prev, securityPin: pin }))}
+              label="Set PIN (5 digits)"
+            />
 
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Confirm PIN</label>
-              <input
-                type="password"
-                value={form.confirmPin}
-                onChange={updateField('confirmPin')}
-                placeholder="Re-enter your PIN"
-                inputMode="numeric"
-                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
-                maxLength={5}
-              />
-            </div>
+            <PinInput
+              length={5}
+              onChange={(pin) => setForm((prev) => ({ ...prev, confirmPin: pin }))}
+              label="Confirm PIN"
+            />
 
             <button
               type="submit"

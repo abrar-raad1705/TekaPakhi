@@ -4,6 +4,7 @@ import { authApi } from '../../api/authApi';
 import Header from '../../components/layout/Header';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import PinInput from '../../components/common/PinInput';
 
 export default function ChangePinPage() {
   const navigate = useNavigate();
@@ -11,9 +12,6 @@ export default function ChangePinPage() {
   const [loading, setLoading] = useState(false);
 
 
-  const updateField = (field) => (e) => {
-    setForm((prev) => ({ ...prev, [field]: e.target.value.replace(/\D/g, '').slice(0, 5) }));
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -45,43 +43,24 @@ export default function ChangePinPage() {
       <Header title="Change PIN" showBack />
 
       <div className="mx-auto max-w-md px-4 py-4">
-        <form onSubmit={handleSubmit} className="space-y-4 rounded-2xl bg-white p-5 shadow-sm">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Current PIN</label>
-            <input
-              type="password"
-              value={form.oldPin}
-              onChange={updateField('oldPin')}
-              placeholder="Enter current PIN"
-              inputMode="numeric"
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
-              maxLength={5}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">New PIN (5 digits)</label>
-            <input
-              type="password"
-              value={form.newPin}
-              onChange={updateField('newPin')}
-              placeholder="Enter new PIN"
-              inputMode="numeric"
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
-              maxLength={5}
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Confirm New PIN</label>
-            <input
-              type="password"
-              value={form.confirmPin}
-              onChange={updateField('confirmPin')}
-              placeholder="Re-enter new PIN"
-              inputMode="numeric"
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
-              maxLength={5}
-            />
-          </div>
+        <form onSubmit={handleSubmit} className="space-y-6 rounded-2xl bg-white p-5 shadow-sm">
+          <PinInput
+            length={5}
+            onChange={(pin) => setForm(prev => ({ ...prev, oldPin: pin }))}
+            label="Current PIN"
+          />
+
+          <PinInput
+            length={5}
+            onChange={(pin) => setForm(prev => ({ ...prev, newPin: pin }))}
+            label="New PIN (5 digits)"
+          />
+
+          <PinInput
+            length={5}
+            onChange={(pin) => setForm(prev => ({ ...prev, confirmPin: pin }))}
+            label="Confirm New PIN"
+          />
 
           <button
             type="submit"

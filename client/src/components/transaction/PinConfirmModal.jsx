@@ -1,37 +1,15 @@
-import { useState, useRef, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import LoadingSpinner from '../common/LoadingSpinner';
+import PinInput from '../common/PinInput';
 
 export default function PinConfirmModal({ isOpen, onClose, onConfirm, loading = false, title = 'Enter PIN to Confirm' }) {
-  const [values, setValues] = useState(Array(5).fill(''));
-  const inputRefs = useRef([]);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (isOpen) {
-      setValues(Array(5).fill(''));
-      setTimeout(() => inputRefs.current[0]?.focus(), 100);
+      setError('');
     }
   }, [isOpen]);
-
-  const handleChange = (index, value) => {
-    if (!/^\d?$/.test(value)) return;
-    const newValues = [...values];
-    newValues[index] = value;
-    setValues(newValues);
-
-    if (value && index < 4) {
-      inputRefs.current[index + 1]?.focus();
-    }
-
-    if (newValues.every((v) => v !== '')) {
-      onConfirm(newValues.join(''));
-    }
-  };
-
-  const handleKeyDown = (index, e) => {
-    if (e.key === 'Backspace' && !values[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
-  };
 
   if (!isOpen) return null;
 
@@ -50,22 +28,12 @@ export default function PinConfirmModal({ isOpen, onClose, onConfirm, loading = 
         {loading ? (
           <LoadingSpinner size="lg" className="py-8" />
         ) : (
-          <div className="flex justify-center gap-3">
-            {values.map((val, i) => (
-              <input
-                key={i}
-                ref={(el) => (inputRefs.current[i] = el)}
-                type="password"
-                inputMode="numeric"
-                maxLength={1}
-                value={val}
-                onChange={(e) => handleChange(i, e.target.value)}
-                onKeyDown={(e) => handleKeyDown(i, e)}
-                className="h-14 w-12 rounded-xl border-2 border-gray-300 text-center text-2xl font-bold
-                  focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200"
-              />
-            ))}
-          </div>
+          <PinInput
+            length={5}
+            onComplete={(pin) => onConfirm(pin)}
+            error={error}
+            label="" // No label since we're using the modal title
+          />
         )}
       </div>
     </div>
