@@ -5,10 +5,11 @@ import OTPInput from '../../components/common/OTPInput';
 import Toast from '../../components/common/Toast';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
-export default function VerifyOTPPage() {
+export default function VerifyPhonePage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { phoneNumber, otp: devOtp } = location.state || {};
+  const { phoneNumber, otp: initialOtp } = location.state || {};
+  const [currentDevOtp, setCurrentDevOtp] = useState(initialOtp);
 
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: '', type: 'error' });
@@ -16,7 +17,7 @@ export default function VerifyOTPPage() {
   const handleVerify = async (otpCode) => {
     setLoading(true);
     try {
-      await authApi.verifyOtp({ phoneNumber, otpCode });
+      await authApi.verifyOtp({ phoneNumber, otpCode, purpose: 'VERIFY_PHONE' });
       setToast({ message: 'Phone verified! Please login.', type: 'success' });
       setTimeout(() => navigate('/login', { replace: true }), 1500);
     } catch (error) {
@@ -28,8 +29,11 @@ export default function VerifyOTPPage() {
 
   const handleResend = async () => {
     try {
-      const { data } = await authApi.requestOtp({ phoneNumber });
-      setToast({ message: `OTP resent${data.data.otp ? ` (Dev: ${data.data.otp})` : ''}`, type: 'success' });
+      const { data } = await authApi.requestOtp({ phoneNumber, purpose: 'VERIFY_PHONE' });
+      if (data.data.otp) {
+        setCurrentDevOtp(data.data.otp);
+      }
+      setToast({ message: 'OTP resent successfully', type: 'success' });
     } catch (error) {
       setToast({ message: 'Failed to resend OTP', type: 'error' });
     }
@@ -56,9 +60,9 @@ export default function VerifyOTPPage() {
             <p className="mt-1 text-sm text-gray-500">
               Enter the 6-digit code sent to <span className="font-medium text-gray-700">{phoneNumber}</span>
             </p>
-            {devOtp && (
+            {currentDevOtp && (
               <p className="mt-2 rounded bg-yellow-50 px-2 py-1 text-xs text-yellow-700">
-                Dev OTP: <span className="font-mono font-bold">{devOtp}</span>
+                Dev OTP: <span className="font-mono font-bold">{currentDevOtp}</span>
               </p>
             )}
           </div>

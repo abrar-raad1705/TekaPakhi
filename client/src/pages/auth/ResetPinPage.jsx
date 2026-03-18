@@ -8,7 +8,8 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 export default function ResetPinPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { phoneNumber, otp: devOtp } = location.state || {};
+  const { phoneNumber, otp: initialOtp } = location.state || {};
+  const [currentDevOtp, setCurrentDevOtp] = useState(initialOtp);
 
   const [step, setStep] = useState('otp'); // 'otp' or 'newPin'
   const [otpCode, setOtpCode] = useState('');
@@ -17,9 +18,29 @@ export default function ResetPinPage() {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ message: '', type: 'error' });
 
-  const handleOtpComplete = (code) => {
-    setOtpCode(code);
-    setStep('newPin');
+  const handleOtpComplete = async (code) => {
+    setLoading(true);
+    try {
+      await authApi.verifyOtp({ phoneNumber, otpCode: code, purpose: 'RESET_PIN' });
+      setOtpCode(code);
+      setStep('newPin');
+    } catch (error) {
+      setToast({ message: error.response?.data?.message || 'OTP verification failed', type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    try {
+      const { data } = await authApi.requestOtp({ phoneNumber, purpose: 'RESET_PIN' });
+      if (data.data.otp) {
+        setCurrentDevOtp(data.data.otp);
+      }
+      setToast({ message: 'OTP resent successfully', type: 'success' });
+    } catch (error) {
+      setToast({ message: 'Failed to resend OTP', type: 'error' });
+    }
   };
 
   const handleResetPin = async (e) => {
@@ -61,13 +82,24 @@ export default function ResetPinPage() {
                 <p className="mt-1 text-sm text-gray-500">
                   Code sent to <span className="font-medium">{phoneNumber}</span>
                 </p>
-                {devOtp && (
+                {currentDevOtp && (
                   <p className="mt-2 rounded bg-yellow-50 px-2 py-1 text-xs text-yellow-700">
-                    Dev OTP: <span className="font-mono font-bold">{devOtp}</span>
+                    Dev OTP: <span className="font-mono font-bold">{currentDevOtp}</span>
                   </p>
                 )}
               </div>
-              <OTPInput onComplete={handleOtpComplete} />
+              {loading ? (
+                <LoadingSpinner size="lg" className="py-8" />
+              ) : (
+                <>
+                  <OTPInput onComplete={handleOtpComplete} />
+                  <div className="mt-6 text-center">
+                    <button onClick={handleResend} className="text-sm font-medium text-primary-600 hover:text-primary-700">
+                      Resend OTP
+                    </button>
+                  </div>
+                </>
+              )}
             </>
           ) : (
             <>

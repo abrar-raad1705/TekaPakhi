@@ -6,7 +6,7 @@ import AdminRoute from './routes/AdminRoute';
 // Auth pages
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
-import VerifyOTPPage from './pages/auth/VerifyOTPPage';
+import VerifyPhonePage from './pages/auth/VerifyPhonePage';
 import ForgotPinPage from './pages/auth/ForgotPinPage';
 import ResetPinPage from './pages/auth/ResetPinPage';
 import ChangePinPage from './pages/auth/ChangePinPage';
@@ -50,7 +50,7 @@ export default function App() {
       {/* Public routes */}
       <Route path="/login" element={isAuthenticated ? <Navigate to={homeRoute} replace /> : <LoginPage />} />
       <Route path="/register" element={isAuthenticated ? <Navigate to={homeRoute} replace /> : <RegisterPage />} />
-      <Route path="/verify-otp" element={<VerifyOTPPage />} />
+      <Route path="/verify-phone" element={<VerifyPhonePage />} />
       <Route path="/forgot-pin" element={<ForgotPinPage />} />
       <Route path="/reset-pin" element={<ResetPinPage />} />
 

@@ -43,8 +43,8 @@ const authController = {
    */
   async requestOtp(req, res, next) {
     try {
-      const { phoneNumber } = req.validatedBody;
-      const result = await authService.forgotPin(phoneNumber);
+      const { phoneNumber, purpose } = req.validatedBody;
+      const result = await authService.requestOtp(phoneNumber, purpose);
       res.status(200).json({ success: true, data: result });
     } catch (error) {
       next(error);
@@ -56,7 +56,7 @@ const authController = {
    */
   async verifyOtp(req, res, next) {
     try {
-      const result = await authService.verifyPhone(req.validatedBody);
+      const result = await authService.verifyOtp(req.validatedBody);
       res.status(200).json({ success: true, data: result });
     } catch (error) {
       next(error);
@@ -69,7 +69,7 @@ const authController = {
   async forgotPin(req, res, next) {
     try {
       const { phoneNumber } = req.validatedBody;
-      const result = await authService.forgotPin(phoneNumber);
+      const result = await authService.requestOtp(phoneNumber, 'RESET_PIN');
       res.status(200).json({ success: true, data: result });
     } catch (error) {
       next(error);

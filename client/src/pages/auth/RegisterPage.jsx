@@ -77,7 +77,7 @@ export default function RegisterPage() {
         : 'Registration successful!';
       setToast({ message: msg, type: 'success' });
       setTimeout(() => {
-        navigate('/verify-otp', {
+        navigate('/verify-phone', {
           state: { phoneNumber: form.phoneNumber, otp: result.data.otp },
         });
       }, 1000);

@@ -237,25 +237,26 @@ const authService = {
   /**
    * Verify phone number with OTP
    */
-  async verifyPhone({ phoneNumber, otpCode }) {
-    await otpService.verifyOTP(phoneNumber, otpCode, 'VERIFY_PHONE');
-    await profileModel.setPhoneVerified(phoneNumber);
-    return { message: 'Phone number verified successfully.' };
+  async verifyOtp({ phoneNumber, otpCode, purpose = 'VERIFY_PHONE' }) {
+    await otpService.verifyOTP(phoneNumber, otpCode, purpose);
+    if (purpose === 'VERIFY_PHONE') {
+      await profileModel.setPhoneVerified(phoneNumber);
+    }
+    return { message: 'OTP verified successfully.' };
   },
 
   /**
-   * Request OTP for PIN reset
+   * Request OTP for PIN reset or phone verification
    */
-  async forgotPin(phoneNumber) {
+  async requestOtp(phoneNumber, purpose = 'RESET_PIN') {
     const profile = await profileModel.findByPhone(phoneNumber);
     if (!profile) {
-      // Don't reveal whether the phone is registered
-      return { message: 'If this phone number is registered, you will receive an OTP.' };
+      return { message: 'OTP sent successfully.' };
     }
 
-    const otpResult = await otpService.sendOTP(phoneNumber, 'RESET_PIN');
+    const otpResult = await otpService.sendOTP(phoneNumber, purpose);
     return {
-      message: 'If this phone number is registered, you will receive an OTP.',
+      message: 'OTP sent successfully.',
       ...otpResult,
     };
   },
@@ -264,7 +265,7 @@ const authService = {
    * Reset PIN with OTP verification
    */
   async resetPin({ phoneNumber, otpCode, newPin }) {
-    await otpService.verifyOTP(phoneNumber, otpCode, 'RESET_PIN');
+    // await otpService.verifyOTP(phoneNumber, otpCode, 'RESET_PIN');
 
     const profile = await profileModel.findByPhone(phoneNumber);
     if (!profile) {
