@@ -4,7 +4,7 @@ import { adminApi } from '../../api/adminApi';
 import { formatBDT } from '../../utils/formatCurrency';
 import AdminLayout from '../../components/admin/AdminLayout';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import Toast from '../../components/common/Toast';
+import toast from 'react-hot-toast';
 
 const profileTypes = [
   { id: '', label: 'All Types' },
@@ -38,7 +38,7 @@ export default function UserManagementPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [showCreate, setShowCreate] = useState(false);
-  const [toast, setToast] = useState(null);
+
 
   const page = parseInt(searchParams.get('page') || '1', 10);
   const typeId = searchParams.get('typeId') || '';
@@ -97,7 +97,6 @@ export default function UserManagementPage() {
       {showCreate && (
         <CreateProfileForm
           onCreated={() => { setShowCreate(false); fetchUsers(); }}
-          setToast={setToast}
         />
       )}
 
@@ -224,14 +223,14 @@ export default function UserManagementPage() {
         )}
       </div>
 
-      {toast && <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} />}
+
     </AdminLayout>
   );
 }
 
 // ── Create Profile Form (Distributor / Biller) ────────────────
 
-function CreateProfileForm({ onCreated, setToast }) {
+function CreateProfileForm({ onCreated }) {
   const [form, setForm] = useState({
     phoneNumber: '', fullName: '', securityPin: '',
     accountType: 'DISTRIBUTOR',
@@ -258,10 +257,10 @@ function CreateProfileForm({ onCreated, setToast }) {
         payload.category = form.category || undefined;
       }
       await adminApi.createProfile(payload);
-      setToast({ type: 'success', message: `${form.accountType} profile created successfully.` });
+      toast.success(`${form.accountType} profile created successfully.`);
       onCreated();
     } catch (err) {
-      setToast({ type: 'error', message: err.response?.data?.message || 'Failed to create profile.' });
+      toast.error(err.response?.data?.message || 'Failed to create profile.');
     } finally {
       setSaving(false);
     }

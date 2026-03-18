@@ -5,7 +5,7 @@ import { profileApi } from '../../api/profileApi';
 import Header from '../../components/layout/Header';
 import BottomNav from '../../components/layout/BottomNav';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import Toast from '../../components/common/Toast';
+import toast from 'react-hot-toast';
 
 export default function SavedRecipientsPage() {
   const navigate = useNavigate();
@@ -16,7 +16,7 @@ export default function SavedRecipientsPage() {
   const [nickname, setNickname] = useState('');
   const [lookupResult, setLookupResult] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState(null);
+
 
   useEffect(() => { fetchRecipients(); }, []);
 
@@ -25,7 +25,7 @@ export default function SavedRecipientsPage() {
       const { data } = await recipientApi.getAll();
       setRecipients(data.data);
     } catch {
-      setToast({ type: 'error', message: 'Failed to load recipients.' });
+      toast.error('Failed to load recipients.');
     } finally {
       setLoading(false);
     }
@@ -39,7 +39,7 @@ export default function SavedRecipientsPage() {
       if (!nickname) setNickname(data.data.fullName);
     } catch {
       setLookupResult(null);
-      setToast({ type: 'error', message: 'No account found with this number.' });
+      toast.error('No account found with this number.');
     }
   };
 
@@ -48,14 +48,14 @@ export default function SavedRecipientsPage() {
     setSaving(true);
     try {
       await recipientApi.create({ phoneNumber: phone, nickname });
-      setToast({ type: 'success', message: 'Recipient saved!' });
+      toast.success('Recipient saved!');
       setShowAddForm(false);
       setPhone('');
       setNickname('');
       setLookupResult(null);
       fetchRecipients();
     } catch (err) {
-      setToast({ type: 'error', message: err.response?.data?.message || 'Failed to save recipient.' });
+      toast.error(err.response?.data?.message || 'Failed to save recipient.');
     } finally {
       setSaving(false);
     }
@@ -66,9 +66,9 @@ export default function SavedRecipientsPage() {
     try {
       await recipientApi.delete(id);
       setRecipients((prev) => prev.filter((r) => r.recipient_id !== id));
-      setToast({ type: 'success', message: 'Recipient removed.' });
+      toast.success('Recipient removed.');
     } catch {
-      setToast({ type: 'error', message: 'Failed to remove recipient.' });
+      toast.error('Failed to remove recipient.');
     }
   };
 
@@ -199,7 +199,7 @@ export default function SavedRecipientsPage() {
       </div>
 
       <BottomNav />
-      {toast && <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} />}
+
     </div>
   );
 }

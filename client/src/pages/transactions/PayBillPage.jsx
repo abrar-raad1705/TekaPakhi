@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { profileApi } from '../../api/profileApi';
 import { transactionApi } from '../../api/transactionApi';
 import Header from '../../components/layout/Header';
-import Toast from '../../components/common/Toast';
+import toast from 'react-hot-toast';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import PinConfirmModal from '../../components/transaction/PinConfirmModal';
 import TransactionReceipt from '../../components/transaction/TransactionReceipt';
@@ -18,12 +18,11 @@ export default function PayBillPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [pinOpen, setPinOpen] = useState(false);
-  const [toast, setToast] = useState({ message: '', type: 'error' });
 
   useEffect(() => {
     profileApi.getBillers()
       .then((res) => setBillers(res.data.data))
-      .catch(() => setToast({ message: 'Failed to load billers', type: 'error' }))
+      .catch(() => toast.error('Failed to load billers'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -34,7 +33,7 @@ export default function PayBillPage() {
 
   const handleReview = async () => {
     const amount = parseFloat(form.amount);
-    if (!amount || amount <= 0) return setToast({ message: 'Enter a valid amount', type: 'error' });
+    if (!amount || amount <= 0) return toast.error('Enter a valid amount');
 
     setSubmitting(true);
     try {
@@ -45,7 +44,7 @@ export default function PayBillPage() {
       setPreview(data.data);
       setStep('review');
     } catch (error) {
-      setToast({ message: error.response?.data?.message || 'Preview failed', type: 'error' });
+      toast.error(error.response?.data?.message || 'Preview failed');
     } finally {
       setSubmitting(false);
     }
@@ -64,7 +63,7 @@ export default function PayBillPage() {
       setStep('receipt');
       setPinOpen(false);
     } catch (error) {
-      setToast({ message: error.response?.data?.message || 'Payment failed', type: 'error' });
+      toast.error(error.response?.data?.message || 'Payment failed');
     } finally {
       setSubmitting(false);
     }
@@ -84,7 +83,6 @@ export default function PayBillPage() {
 
   return (
     <div className="min-h-dvh bg-gray-50">
-      <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'error' })} />
       <Header title="Pay Bill" showBack />
       <PinConfirmModal isOpen={pinOpen} onClose={() => setPinOpen(false)} onConfirm={handleConfirmPin} loading={submitting} />
 

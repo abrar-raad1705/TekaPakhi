@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { authApi } from '../../api/authApi';
 import OTPInput from '../../components/common/OTPInput';
-import Toast from '../../components/common/Toast';
+import toast from 'react-hot-toast';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 export default function VerifyPhonePage() {
@@ -12,16 +12,16 @@ export default function VerifyPhonePage() {
   const [currentDevOtp, setCurrentDevOtp] = useState(initialOtp);
 
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState({ message: '', type: 'error' });
+
 
   const handleVerify = async (otpCode) => {
     setLoading(true);
     try {
       await authApi.verifyOtp({ phoneNumber, otpCode, purpose: 'VERIFY_PHONE' });
-      setToast({ message: 'Phone verified! Please login.', type: 'success' });
+      toast.success('Phone verified! Please login.');
       setTimeout(() => navigate('/login', { replace: true }), 1500);
     } catch (error) {
-      setToast({ message: error.response?.data?.message || 'Verification failed', type: 'error' });
+      toast.error(error.response?.data?.message || 'Verification failed');
     } finally {
       setLoading(false);
     }
@@ -33,9 +33,9 @@ export default function VerifyPhonePage() {
       if (data.data.otp) {
         setCurrentDevOtp(data.data.otp);
       }
-      setToast({ message: 'OTP resent successfully', type: 'success' });
+      toast.success('OTP resent successfully');
     } catch (error) {
-      setToast({ message: 'Failed to resend OTP', type: 'error' });
+      toast.error('Failed to resend OTP');
     }
   };
 
@@ -46,7 +46,7 @@ export default function VerifyPhonePage() {
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-gradient-to-b from-primary-600 to-primary-800 px-4">
-      <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'error' })} />
+
 
       <div className="w-full max-w-sm">
         <div className="rounded-2xl bg-white p-6 shadow-xl">

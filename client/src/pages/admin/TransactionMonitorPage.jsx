@@ -4,7 +4,7 @@ import { adminApi } from '../../api/adminApi';
 import { formatBDT } from '../../utils/formatCurrency';
 import AdminLayout from '../../components/admin/AdminLayout';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import Toast from '../../components/common/Toast';
+import toast from 'react-hot-toast';
 
 const txTypes = [
   { id: '', label: 'All Types' },
@@ -36,7 +36,7 @@ export default function TransactionMonitorPage() {
   const [data, setData] = useState({ transactions: [], total: 0, page: 1, totalPages: 0 });
   const [loading, setLoading] = useState(true);
   const [reversing, setReversing] = useState(null);
-  const [toast, setToast] = useState(null);
+
   const [search, setSearch] = useState(searchParams.get('search') || '');
 
   const page = parseInt(searchParams.get('page') || '1', 10);
@@ -79,10 +79,10 @@ export default function TransactionMonitorPage() {
     setReversing(txId);
     try {
       await adminApi.reverseTransaction(txId);
-      setToast({ type: 'success', message: 'Transaction reversed successfully.' });
+      toast.success('Transaction reversed successfully.');
       fetchTxns();
     } catch (err) {
-      setToast({ type: 'error', message: err.response?.data?.message || 'Failed to reverse transaction.' });
+      toast.error(err.response?.data?.message || 'Failed to reverse transaction.');
     } finally {
       setReversing(null);
     }
@@ -223,7 +223,7 @@ export default function TransactionMonitorPage() {
         )}
       </div>
 
-      {toast && <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} />}
+
     </AdminLayout>
   );
 }

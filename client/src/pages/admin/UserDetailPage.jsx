@@ -4,7 +4,7 @@ import { adminApi } from '../../api/adminApi';
 import { formatBDT } from '../../utils/formatCurrency';
 import AdminLayout from '../../components/admin/AdminLayout';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import Toast from '../../components/common/Toast';
+import toast from 'react-hot-toast';
 
 const statusBadge = {
   ACTIVE: 'bg-green-100 text-green-700',
@@ -25,21 +25,21 @@ export default function UserDetailPage() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
-  const [toast, setToast] = useState(null);
+
   const [loadAmount, setLoadAmount] = useState('');
   const [loadingWallet, setLoadingWallet] = useState(false);
 
   useEffect(() => {
     adminApi.getUserDetail(id)
       .then((res) => setUser(res.data.data))
-      .catch(() => setToast({ type: 'error', message: 'User not found.' }))
+      .catch(() => toast.error('User not found.'))
       .finally(() => setLoading(false));
   }, [id]);
 
   const handleLoadWallet = async () => {
     const amount = parseFloat(loadAmount);
     if (!amount || amount <= 0) {
-      return setToast({ type: 'error', message: 'Enter a valid positive amount.' });
+      return toast.error('Enter a valid positive amount.');
     }
     const confirmMsg = `Load ৳${amount.toLocaleString()} to ${user.full_name}'s wallet?\nThis creates new e-money backed by physical cash deposit.`;
     if (!confirm(confirmMsg)) return;
@@ -47,13 +47,13 @@ export default function UserDetailPage() {
     setLoadingWallet(true);
     try {
       const res = await adminApi.loadWallet(id, amount);
-      setToast({ type: 'success', message: res.data.message });
+      toast.success(res.data.message);
       setLoadAmount('');
       // Refresh user data
       const refreshed = await adminApi.getUserDetail(id);
       setUser(refreshed.data.data);
     } catch (err) {
-      setToast({ type: 'error', message: err.response?.data?.message || 'Failed to load wallet.' });
+      toast.error(err.response?.data?.message || 'Failed to load wallet.');
     } finally {
       setLoadingWallet(false);
     }
@@ -66,12 +66,12 @@ export default function UserDetailPage() {
     setUpdating(true);
     try {
       await adminApi.updateUserStatus(id, newStatus);
-      setToast({ type: 'success', message: `Status updated to ${newStatus}.` });
+      toast.success(`Status updated to ${newStatus}.`);
       // Refresh
       const res = await adminApi.getUserDetail(id);
       setUser(res.data.data);
     } catch (err) {
-      setToast({ type: 'error', message: err.response?.data?.message || 'Failed to update status.' });
+      toast.error(err.response?.data?.message || 'Failed to update status.');
     } finally {
       setUpdating(false);
     }
@@ -275,7 +275,7 @@ export default function UserDetailPage() {
         </div>
       </div>
 
-      {toast && <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} />}
+
     </AdminLayout>
   );
 }

@@ -6,14 +6,14 @@ import { formatPhone } from '../../utils/formatCurrency';
 import Header from '../../components/layout/Header';
 import BottomNav from '../../components/layout/BottomNav';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import Toast from '../../components/common/Toast';
+import toast from 'react-hot-toast';
 
 export default function ProfilePage() {
   const { logout } = useAuth();
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState({ message: '', type: 'error' });
+
 
   useEffect(() => {
     fetchProfile();
@@ -24,7 +24,7 @@ export default function ProfilePage() {
       const { data } = await profileApi.getProfile();
       setProfile(data.data);
     } catch (error) {
-      setToast({ message: 'Failed to load profile', type: 'error' });
+      toast.error('Failed to load profile');
     } finally {
       setLoading(false);
     }
@@ -40,7 +40,7 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-dvh bg-gray-50 pb-20">
-      <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'error' })} />
+
       <Header title="Profile" />
 
       <div className="mx-auto max-w-md px-4 py-4">

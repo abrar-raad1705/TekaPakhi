@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { transactionApi } from '../../api/transactionApi';
 import Header from '../../components/layout/Header';
-import Toast from '../../components/common/Toast';
+import toast from 'react-hot-toast';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import PinConfirmModal from '../../components/transaction/PinConfirmModal';
 import TransactionReceipt from '../../components/transaction/TransactionReceipt';
@@ -15,23 +15,22 @@ export default function CashOutPage() {
   const [receipt, setReceipt] = useState(null);
   const [loading, setLoading] = useState(false);
   const [pinOpen, setPinOpen] = useState(false);
-  const [toast, setToast] = useState({ message: '', type: 'error' });
 
   const handleLookup = async () => {
     if (!/^01[3-9][0-9]{8}$/.test(form.receiverPhone)) {
-      return setToast({ message: 'Enter a valid agent phone number', type: 'error' });
+      return toast.error('Enter a valid agent phone number');
     }
     setLoading(true);
     try {
       const { data } = await transactionApi.lookupRecipient(form.receiverPhone);
       if (data.data.typeName !== 'AGENT') {
-        setToast({ message: 'This number does not belong to an agent.', type: 'error' });
+        toast.error('This number does not belong to an agent.');
         setRecipient(null);
       } else {
         setRecipient(data.data);
       }
     } catch (error) {
-      setToast({ message: error.response?.data?.message || 'Agent not found', type: 'error' });
+      toast.error(error.response?.data?.message || 'Agent not found');
       setRecipient(null);
     } finally {
       setLoading(false);
@@ -40,8 +39,8 @@ export default function CashOutPage() {
 
   const handleReview = async () => {
     const amount = parseFloat(form.amount);
-    if (!amount || amount <= 0) return setToast({ message: 'Enter a valid amount', type: 'error' });
-    if (!recipient) return setToast({ message: 'Look up an agent first', type: 'error' });
+    if (!amount || amount <= 0) return toast.error('Enter a valid amount');
+    if (!recipient) return toast.error('Look up an agent first');
 
     setLoading(true);
     try {
@@ -51,7 +50,7 @@ export default function CashOutPage() {
       setPreview(data.data);
       setStep('review');
     } catch (error) {
-      setToast({ message: error.response?.data?.message || 'Preview failed', type: 'error' });
+      toast.error(error.response?.data?.message || 'Preview failed');
     } finally {
       setLoading(false);
     }
@@ -69,7 +68,7 @@ export default function CashOutPage() {
       setStep('receipt');
       setPinOpen(false);
     } catch (error) {
-      setToast({ message: error.response?.data?.message || 'Transaction failed', type: 'error' });
+      toast.error(error.response?.data?.message || 'Transaction failed');
     } finally {
       setLoading(false);
     }
@@ -81,7 +80,6 @@ export default function CashOutPage() {
 
   return (
     <div className="min-h-dvh bg-gray-50">
-      <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'error' })} />
       <Header title="Cash Out" showBack />
       <PinConfirmModal isOpen={pinOpen} onClose={() => setPinOpen(false)} onConfirm={handleConfirmPin} loading={loading} />
 

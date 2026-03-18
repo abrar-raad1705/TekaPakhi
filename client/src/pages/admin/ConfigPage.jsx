@@ -3,7 +3,7 @@ import { adminApi } from '../../api/adminApi';
 import { formatBDT } from '../../utils/formatCurrency';
 import AdminLayout from '../../components/admin/AdminLayout';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import Toast from '../../components/common/Toast';
+import toast from 'react-hot-toast';
 
 const tabs = [
   { id: 'types', label: 'Transaction Types' },
@@ -13,7 +13,7 @@ const tabs = [
 
 export default function ConfigPage() {
   const [activeTab, setActiveTab] = useState('types');
-  const [toast, setToast] = useState(null);
+
 
   return (
     <AdminLayout>
@@ -39,18 +39,16 @@ export default function ConfigPage() {
         ))}
       </div>
 
-      {activeTab === 'types' && <TransactionTypesTab setToast={setToast} />}
-      {activeTab === 'limits' && <LimitsTab setToast={setToast} />}
-      {activeTab === 'commissions' && <CommissionsTab setToast={setToast} />}
-
-      {toast && <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} />}
+      {activeTab === 'types' && <TransactionTypesTab />}
+      {activeTab === 'limits' && <LimitsTab />}
+      {activeTab === 'commissions' && <CommissionsTab />}
     </AdminLayout>
   );
 }
 
 // ── Transaction Types Tab ──────────────────────────────────────
 
-function TransactionTypesTab({ setToast }) {
+function TransactionTypesTab() {
   const [types, setTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
@@ -59,7 +57,7 @@ function TransactionTypesTab({ setToast }) {
   useEffect(() => {
     adminApi.getTransactionTypes()
       .then((res) => setTypes(res.data.data))
-      .catch(() => setToast({ type: 'error', message: 'Failed to load types.' }))
+      .catch(() => toast.error('Failed to load types.'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -80,12 +78,12 @@ function TransactionTypesTab({ setToast }) {
       if (payload.fee_min_amount === '') payload.fee_min_amount = null;
       if (payload.fee_max_amount === '') payload.fee_max_amount = null;
       await adminApi.updateTransactionType(typeId, payload);
-      setToast({ type: 'success', message: 'Updated successfully.' });
+      toast.success('Updated successfully.');
       setEditing(null);
       const res = await adminApi.getTransactionTypes();
       setTypes(res.data.data);
     } catch (err) {
-      setToast({ type: 'error', message: err.response?.data?.message || 'Update failed.' });
+      toast.error(err.response?.data?.message || 'Update failed.');
     }
   };
 
@@ -175,7 +173,7 @@ function TransactionTypesTab({ setToast }) {
 
 // ── Limits Tab ─────────────────────────────────────────────────
 
-function LimitsTab({ setToast }) {
+function LimitsTab() {
   const [limits, setLimits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -188,7 +186,7 @@ function LimitsTab({ setToast }) {
     try {
       const res = await adminApi.getTransactionLimits();
       setLimits(res.data.data);
-    } catch { setToast({ type: 'error', message: 'Failed to load limits.' }); }
+    } catch { toast.error('Failed to load limits.'); }
     finally { setLoading(false); }
   };
 
@@ -198,13 +196,13 @@ function LimitsTab({ setToast }) {
     e.preventDefault();
     try {
       await adminApi.upsertTransactionLimit(form);
-      setToast({ type: 'success', message: 'Limit saved.' });
+      toast.success('Limit saved.');
       setShowAdd(false);
       setForm({ profileTypeId: '', transactionTypeId: '', dailyLimit: '', monthlyLimit: '',
         maxCountDaily: '', maxCountMonthly: '', minPerTransaction: '', maxPerTransaction: '' });
       fetchLimits();
     } catch (err) {
-      setToast({ type: 'error', message: err.response?.data?.message || 'Failed to save.' });
+      toast.error(err.response?.data?.message || 'Failed to save.');
     }
   };
 
@@ -212,10 +210,10 @@ function LimitsTab({ setToast }) {
     if (!confirm('Delete this limit?')) return;
     try {
       await adminApi.deleteTransactionLimit(l.profile_type_id, l.transaction_type_id);
-      setToast({ type: 'success', message: 'Limit removed.' });
+      toast.success('Limit removed.');
       fetchLimits();
     } catch (err) {
-      setToast({ type: 'error', message: err.response?.data?.message || 'Failed to delete.' });
+      toast.error(err.response?.data?.message || 'Failed to delete.');
     }
   };
 
@@ -313,7 +311,7 @@ function LimitsTab({ setToast }) {
 
 // ── Commissions Tab ────────────────────────────────────────────
 
-function CommissionsTab({ setToast }) {
+function CommissionsTab() {
   const [policies, setPolicies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -323,7 +321,7 @@ function CommissionsTab({ setToast }) {
     try {
       const res = await adminApi.getCommissionPolicies();
       setPolicies(res.data.data);
-    } catch { setToast({ type: 'error', message: 'Failed to load policies.' }); }
+    } catch { toast.error('Failed to load policies.'); }
     finally { setLoading(false); }
   };
 
@@ -333,12 +331,12 @@ function CommissionsTab({ setToast }) {
     e.preventDefault();
     try {
       await adminApi.upsertCommissionPolicy(form);
-      setToast({ type: 'success', message: 'Policy saved.' });
+      toast.success('Policy saved.');
       setShowAdd(false);
       setForm({ profileTypeId: '', transactionTypeId: '', commissionShare: '' });
       fetchPolicies();
     } catch (err) {
-      setToast({ type: 'error', message: err.response?.data?.message || 'Failed to save.' });
+      toast.error(err.response?.data?.message || 'Failed to save.');
     }
   };
 
@@ -346,10 +344,10 @@ function CommissionsTab({ setToast }) {
     if (!confirm('Delete this policy?')) return;
     try {
       await adminApi.deleteCommissionPolicy(p.profile_type_id, p.transaction_type_id);
-      setToast({ type: 'success', message: 'Policy removed.' });
+      toast.success('Policy removed.');
       fetchPolicies();
     } catch (err) {
-      setToast({ type: 'error', message: err.response?.data?.message || 'Failed to delete.' });
+      toast.error(err.response?.data?.message || 'Failed to delete.');
     }
   };
 

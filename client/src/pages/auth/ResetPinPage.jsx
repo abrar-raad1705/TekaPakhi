@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { authApi } from '../../api/authApi';
 import OTPInput from '../../components/common/OTPInput';
-import Toast from '../../components/common/Toast';
+import toast from 'react-hot-toast';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 export default function ResetPinPage() {
@@ -16,7 +16,7 @@ export default function ResetPinPage() {
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState({ message: '', type: 'error' });
+
 
   const handleOtpComplete = async (code) => {
     setLoading(true);
@@ -25,7 +25,7 @@ export default function ResetPinPage() {
       setOtpCode(code);
       setStep('newPin');
     } catch (error) {
-      setToast({ message: error.response?.data?.message || 'OTP verification failed', type: 'error' });
+      toast.error(error.response?.data?.message || 'OTP verification failed');
     } finally {
       setLoading(false);
     }
@@ -37,28 +37,28 @@ export default function ResetPinPage() {
       if (data.data.otp) {
         setCurrentDevOtp(data.data.otp);
       }
-      setToast({ message: 'OTP resent successfully', type: 'success' });
+      toast.success('OTP resent successfully');
     } catch (error) {
-      setToast({ message: 'Failed to resend OTP', type: 'error' });
+      toast.error('Failed to resend OTP');
     }
   };
 
   const handleResetPin = async (e) => {
     e.preventDefault();
     if (!/^\d{5}$/.test(newPin)) {
-      return setToast({ message: 'PIN must be exactly 5 digits', type: 'error' });
+      return toast.error('PIN must be exactly 5 digits');
     }
     if (newPin !== confirmPin) {
-      return setToast({ message: 'PINs do not match', type: 'error' });
+      return toast.error('PINs do not match');
     }
 
     setLoading(true);
     try {
       await authApi.resetPin({ phoneNumber, otpCode, newPin });
-      setToast({ message: 'PIN reset successful!', type: 'success' });
+      toast.success('PIN reset successful!');
       setTimeout(() => navigate('/login', { replace: true }), 1500);
     } catch (error) {
-      setToast({ message: error.response?.data?.message || 'Reset failed', type: 'error' });
+      toast.error(error.response?.data?.message || 'Reset failed');
     } finally {
       setLoading(false);
     }
@@ -71,7 +71,7 @@ export default function ResetPinPage() {
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-gradient-to-b from-primary-600 to-primary-800 px-4">
-      <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'error' })} />
+
 
       <div className="w-full max-w-sm">
         <div className="rounded-2xl bg-white p-6 shadow-xl">

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { profileApi } from '../../api/profileApi';
 import Header from '../../components/layout/Header';
-import Toast from '../../components/common/Toast';
+import toast from 'react-hot-toast';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 export default function EditProfilePage() {
@@ -16,14 +16,14 @@ export default function EditProfilePage() {
     nidNumber: existing?.nid_number || '',
   });
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState({ message: '', type: 'error' });
+
 
   const updateField = (field) => (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (form.fullName.trim().length < 2) {
-      return setToast({ message: 'Name must be at least 2 characters', type: 'error' });
+      return toast.error('Name must be at least 2 characters');
     }
 
     setLoading(true);
@@ -33,10 +33,10 @@ export default function EditProfilePage() {
         email: form.email.trim() || null,
         nidNumber: form.nidNumber.trim() || null,
       });
-      setToast({ message: 'Profile updated!', type: 'success' });
+      toast.success('Profile updated!');
       setTimeout(() => navigate('/profile', { replace: true }), 1000);
     } catch (error) {
-      setToast({ message: error.response?.data?.message || 'Update failed', type: 'error' });
+      toast.error(error.response?.data?.message || 'Update failed');
     } finally {
       setLoading(false);
     }
@@ -44,7 +44,7 @@ export default function EditProfilePage() {
 
   return (
     <div className="min-h-dvh bg-gray-50">
-      <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'error' })} />
+
       <Header title="Edit Profile" showBack />
 
       <div className="mx-auto max-w-md px-4 py-4">

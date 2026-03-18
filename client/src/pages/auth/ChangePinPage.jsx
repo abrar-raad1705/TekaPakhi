@@ -2,14 +2,14 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authApi } from '../../api/authApi';
 import Header from '../../components/layout/Header';
-import Toast from '../../components/common/Toast';
+import toast from 'react-hot-toast';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 export default function ChangePinPage() {
   const navigate = useNavigate();
   const [form, setForm] = useState({ oldPin: '', newPin: '', confirmPin: '' });
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState({ message: '', type: 'error' });
+
 
   const updateField = (field) => (e) => {
     setForm((prev) => ({ ...prev, [field]: e.target.value.replace(/\D/g, '').slice(0, 5) }));
@@ -18,22 +18,22 @@ export default function ChangePinPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!/^\d{5}$/.test(form.newPin)) {
-      return setToast({ message: 'New PIN must be exactly 5 digits', type: 'error' });
+      return toast.error('New PIN must be exactly 5 digits');
     }
     if (form.newPin !== form.confirmPin) {
-      return setToast({ message: 'PINs do not match', type: 'error' });
+      return toast.error('PINs do not match');
     }
     if (form.oldPin === form.newPin) {
-      return setToast({ message: 'New PIN must be different from old PIN', type: 'error' });
+      return toast.error('New PIN must be different from old PIN');
     }
 
     setLoading(true);
     try {
       await authApi.changePin({ oldPin: form.oldPin, newPin: form.newPin });
-      setToast({ message: 'PIN changed successfully!', type: 'success' });
+      toast.success('PIN changed successfully!');
       setTimeout(() => navigate('/profile', { replace: true }), 1500);
     } catch (error) {
-      setToast({ message: error.response?.data?.message || 'Failed to change PIN', type: 'error' });
+      toast.error(error.response?.data?.message || 'Failed to change PIN');
     } finally {
       setLoading(false);
     }
@@ -41,7 +41,7 @@ export default function ChangePinPage() {
 
   return (
     <div className="min-h-dvh bg-gray-50">
-      <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'error' })} />
+
       <Header title="Change PIN" showBack />
 
       <div className="mx-auto max-w-md px-4 py-4">

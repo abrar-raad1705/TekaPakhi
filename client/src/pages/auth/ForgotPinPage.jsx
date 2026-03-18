@@ -1,32 +1,32 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authApi } from '../../api/authApi';
-import Toast from '../../components/common/Toast';
+import toast from 'react-hot-toast';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 export default function ForgotPinPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState({ message: '', type: 'error' });
+
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!/^01[3-9][0-9]{8}$/.test(phoneNumber)) {
-      return setToast({ message: 'Enter a valid phone number', type: 'error' });
+      return toast.error('Enter a valid phone number');
     }
 
     setLoading(true);
     try {
       const { data } = await authApi.forgotPin({ phoneNumber });
-      setToast({ message: 'OTP sent!', type: 'success' });
+      toast.success('OTP sent!');
       setTimeout(() => {
         navigate('/reset-pin', {
           state: { phoneNumber, otp: data.data.otp },
         });
       }, 1000);
     } catch (error) {
-      setToast({ message: error.response?.data?.message || 'Failed to send OTP', type: 'error' });
+      toast.error(error.response?.data?.message || 'Failed to send OTP');
     } finally {
       setLoading(false);
     }
@@ -34,7 +34,7 @@ export default function ForgotPinPage() {
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-gradient-to-b from-primary-600 to-primary-800 px-4">
-      <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'error' })} />
+
 
       <div className="w-full max-w-sm">
         <div className="rounded-2xl bg-white p-6 shadow-xl">

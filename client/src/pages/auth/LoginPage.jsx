@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import Toast from '../../components/common/Toast';
+import toast from 'react-hot-toast';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 export default function LoginPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [securityPin, setSecurityPin] = useState('');
-  const [toast, setToast] = useState({ message: '', type: 'error' });
+
   const { login, loading, getHomeRoute } = useAuth();
   const navigate = useNavigate();
 
@@ -15,11 +15,11 @@ export default function LoginPage() {
     e.preventDefault();
 
     if (!/^01[3-9][0-9]{8}$/.test(phoneNumber)) {
-      setToast({ message: 'Enter a valid Bangladeshi phone number', type: 'error' });
+      toast.error('Enter a valid Bangladeshi phone number');
       return;
     }
-    if (!/^\d{4,6}$/.test(securityPin)) {
-      setToast({ message: 'PIN must be 4-6 digits', type: 'error' });
+    if (!/^\d{5}$/.test(securityPin)) {
+      toast.error('PIN must be 5 digits');
       return;
     }
 
@@ -36,13 +36,13 @@ export default function LoginPage() {
       };
       navigate(routeMap[typeName] || '/dashboard', { replace: true });
     } else {
-      setToast({ message: result.message, type: 'error' });
+      toast.error(result.message);
     }
   };
 
   return (
     <div className="flex min-h-dvh flex-col items-center justify-center bg-gradient-to-b from-primary-600 to-primary-800 px-4">
-      <Toast message={toast.message} type={toast.type} onClose={() => setToast({ message: '', type: 'error' })} />
+
 
       <div className="w-full max-w-sm">
         {/* Logo area */}

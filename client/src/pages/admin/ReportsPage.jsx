@@ -3,7 +3,7 @@ import { adminApi } from '../../api/adminApi';
 import { formatBDT } from '../../utils/formatCurrency';
 import AdminLayout from '../../components/admin/AdminLayout';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import Toast from '../../components/common/Toast';
+import toast from 'react-hot-toast';
 
 export default function ReportsPage() {
   const [reportType, setReportType] = useState('transactions');
@@ -16,7 +16,7 @@ export default function ReportsPage() {
   const [toDate, setToDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState(null);
+
 
   const handleGenerate = async () => {
     setLoading(true);
@@ -28,7 +28,7 @@ export default function ReportsPage() {
         : await adminApi.getUserGrowthReport(params);
       setData(res.data.data);
     } catch (err) {
-      setToast({ type: 'error', message: 'Failed to generate report.' });
+      toast.error('Failed to generate report.');
     } finally {
       setLoading(false);
     }
@@ -139,7 +139,7 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {toast && <Toast type={toast.type} message={toast.message} onClose={() => setToast(null)} />}
+
     </AdminLayout>
   );
 }
