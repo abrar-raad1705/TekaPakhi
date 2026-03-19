@@ -69,7 +69,7 @@ export default function LoginPage() {
 
       if (attempts) {
         setGlobalError({
-          message: `Your Phone number and PIN didn't match. You have ${attempts} attempt(s) remaining.`,
+          message: `Incorrect phone number or PIN. ${attempts} attempt(s) remaining.`,
           actionLink: "/forgot-pin",
           actionText: "Reset PIN",
         });

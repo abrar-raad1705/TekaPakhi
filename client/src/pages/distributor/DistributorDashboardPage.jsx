@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { 
+  ArrowRightOnRectangleIcon, 
+  ArrowsRightLeftIcon 
+} from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
 import { walletApi } from '../../api/walletApi';
 import { transactionApi } from '../../api/transactionApi';
@@ -39,10 +43,8 @@ export default function DistributorDashboardPage() {
               <p className="text-sm text-indigo-200">Distributor Dashboard</p>
               <h1 className="text-lg font-bold text-white">{user?.fullName || 'Distributor'}</h1>
             </div>
-            <button onClick={logout} className="rounded-full bg-white/10 p-2 text-white hover:bg-white/20" title="Logout">
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15m-3 0-3-3m0 0 3-3m-3 3H15" />
-              </svg>
+             <button onClick={logout} className="rounded-full bg-white/10 p-2 text-white hover:bg-white/20" title="Logout">
+              <ArrowRightOnRectangleIcon className="h-5 w-5" strokeWidth={2} />
             </button>
           </div>
         </div>
@@ -77,8 +79,8 @@ export default function DistributorDashboardPage() {
             onClick={() => navigate('/b2b')}
             className="flex w-full items-center gap-4 rounded-xl bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
           >
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-500 text-xl text-white">
-              🔄
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-500 text-white">
+              <ArrowsRightLeftIcon className="h-6 w-6" strokeWidth={2} />
             </div>
             <div className="text-left">
               <p className="text-sm font-semibold text-gray-900">B2B Transfer</p>

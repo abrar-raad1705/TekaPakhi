@@ -1,12 +1,20 @@
 import { formatBDT, formatPhone } from '../../utils/formatCurrency';
+import { 
+  PaperAirplaneIcon, 
+  ArrowDownLeftIcon, 
+  ArrowUpRightIcon, 
+  CreditCardIcon, 
+  ReceiptPercentIcon, 
+  ArrowsRightLeftIcon 
+} from '@heroicons/react/24/outline';
 
 const typeConfig = {
-  SEND_MONEY:  { label: 'Send Money', icon: '↗', color: 'bg-blue-100 text-blue-600' },
-  CASH_IN:     { label: 'Cash In',    icon: '↓', color: 'bg-green-100 text-green-600' },
-  CASH_OUT:    { label: 'Cash Out',   icon: '↑', color: 'bg-orange-100 text-orange-600' },
-  PAYMENT:     { label: 'Payment',    icon: '💳', color: 'bg-purple-100 text-purple-600' },
-  PAY_BILL:    { label: 'Pay Bill',   icon: '📄', color: 'bg-teal-100 text-teal-600' },
-  B2B:         { label: 'B2B',        icon: '🔄', color: 'bg-gray-100 text-gray-600' },
+  SEND_MONEY:  { label: 'Send Money', icon: <PaperAirplaneIcon className="h-5 w-5 rotate-[-45deg]" />, color: 'bg-blue-100 text-blue-600' },
+  CASH_IN:     { label: 'Cash In',    icon: <ArrowDownLeftIcon className="h-5 w-5" />, color: 'bg-green-100 text-green-600' },
+  CASH_OUT:    { label: 'Cash Out',   icon: <ArrowUpRightIcon className="h-5 w-5" />, color: 'bg-orange-100 text-orange-600' },
+  PAYMENT:     { label: 'Payment',    icon: <CreditCardIcon className="h-5 w-5" />, color: 'bg-purple-100 text-purple-600' },
+  PAY_BILL:    { label: 'Pay Bill',   icon: <ReceiptPercentIcon className="h-5 w-5" />, color: 'bg-teal-100 text-teal-600' },
+  B2B:         { label: 'B2B',        icon: <ArrowsRightLeftIcon className="h-5 w-5" />, color: 'bg-gray-100 text-gray-600' },
 };
 
 export default function TransactionCard({ tx, currentProfileId, onClick }) {

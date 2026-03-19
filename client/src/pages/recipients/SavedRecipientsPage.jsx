@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { 
+  PlusIcon, 
+  XMarkIcon, 
+  UserIcon, 
+  TrashIcon 
+} from '@heroicons/react/24/outline';
 import { recipientApi } from '../../api/recipientApi';
 import { profileApi } from '../../api/profileApi';
 import Header from '../../components/layout/Header';
@@ -73,133 +79,143 @@ export default function SavedRecipientsPage() {
   };
 
   return (
-    <div className="min-h-dvh bg-gray-50 pb-24">
+    <div className="flex min-h-dvh flex-col bg-white overflow-x-hidden animate-in fade-in duration-500">
       <Header title="Saved Recipients" backTo="/profile" />
 
-      <div className="mx-auto max-w-md px-4 pt-4">
+      <main className="mx-auto flex w-full max-w-[440px] flex-1 flex-col px-6 py-8">
         {/* Add button */}
         {!showAddForm && (
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 py-3 text-sm font-semibold text-white shadow-sm hover:bg-primary-700"
-          >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            Add Recipient
-          </button>
+          <div className="mb-8">
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="flex w-full items-center justify-center gap-3 rounded-full bg-primary-600 py-4.5 text-base font-bold text-white shadow-lg shadow-primary-100 transition-all hover:bg-primary-700 active:scale-[0.98]"
+            >
+              <PlusIcon className="h-6 w-6" strokeWidth={2.5} />
+              Add New Recipient
+            </button>
+          </div>
         )}
 
         {/* Add form */}
         {showAddForm && (
-          <form onSubmit={handleAdd} className="mb-6 rounded-xl bg-white p-4 shadow-sm">
-            <h3 className="mb-3 text-sm font-semibold text-gray-700">New Recipient</h3>
+          <form onSubmit={handleAdd} className="mb-10 space-y-6 rounded-2xl border-2 border-primary-50 bg-primary-50/20 p-6 animate-in slide-in-from-top-4 duration-300">
+            <div className="flex items-center justify-between mb-4">
+               <h3 className="text-sm font-black uppercase tracking-widest text-primary-600">New Recipient</h3>
+               <button 
+                type="button" 
+                onClick={() => { setShowAddForm(false); setPhone(''); setNickname(''); setLookupResult(null); }}
+                className="text-gray-400 hover:text-gray-600"
+               >
+                 <XMarkIcon className="h-5 w-5" strokeWidth={2} />
+               </button>
+            </div>
 
-            <div className="mb-3">
-              <label className="mb-1 block text-xs font-medium text-gray-600">Phone Number</label>
+            <div className="space-y-2">
+              <label className="block text-[13px] font-bold text-gray-700 mx-1">Phone Number</label>
               <div className="flex gap-2">
                 <input
                   type="tel"
                   value={phone}
                   onChange={(e) => { setPhone(e.target.value.replace(/\D/g, '').slice(0, 11)); setLookupResult(null); }}
                   placeholder="01XXXXXXXXX"
-                  className="flex-1 rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                  className="flex-1 rounded-xl border-2 border-white bg-white px-4 py-3.5 text-[15px] font-medium transition-all focus:border-primary-500 focus:outline-none"
                 />
                 <button
                   type="button"
                   onClick={handleLookup}
                   disabled={phone.length !== 11}
-                  className="rounded-lg bg-gray-100 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-40"
+                  className="rounded-xl bg-primary-600 px-5 text-sm font-bold text-white hover:bg-primary-700 disabled:opacity-40 transition-all shadow-md shadow-primary-50"
                 >
-                  Lookup
+                  Find
                 </button>
               </div>
             </div>
 
             {lookupResult && (
-              <div className="mb-3 rounded-lg bg-green-50 p-3 text-sm text-green-800">
-                Found: <strong>{lookupResult.fullName}</strong> ({lookupResult.typeName})
+              <div className="rounded-xl border border-green-100 bg-green-50 p-4 animate-in fade-in duration-300">
+                <p className="text-[11px] font-black uppercase tracking-widest text-green-600 mb-1">Account Found</p>
+                <p className="text-sm font-bold text-green-800">
+                  {lookupResult.fullName} <span className="mx-1 opacity-40">|</span> <span className="font-medium text-green-600">{lookupResult.typeName}</span>
+                </p>
               </div>
             )}
 
-            <div className="mb-4">
-              <label className="mb-1 block text-xs font-medium text-gray-600">Nickname</label>
+            <div className="space-y-2">
+              <label className="block text-[13px] font-bold text-gray-700 mx-1">Nickname</label>
               <input
                 type="text"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
-                placeholder="e.g., Mom, Office"
+                placeholder="e.g., Mom's Account"
                 maxLength={50}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+                className="w-full rounded-xl border-2 border-white bg-white px-4 py-3.5 text-[15px] font-medium transition-all focus:border-primary-500 focus:outline-none"
               />
             </div>
 
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => { setShowAddForm(false); setPhone(''); setNickname(''); setLookupResult(null); }}
-                className="flex-1 rounded-lg border border-gray-300 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
+            <div className="pt-2">
               <button
                 type="submit"
                 disabled={saving || !lookupResult || !nickname.trim()}
-                className="flex-1 rounded-lg bg-primary-600 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
+                className="w-full rounded-full bg-primary-600 py-4.5 text-base font-bold text-white shadow-lg shadow-primary-100 hover:bg-primary-700 disabled:opacity-50 transition-all active:scale-[0.98]"
               >
-                {saving ? 'Saving...' : 'Save'}
+                {saving ? <LoadingSpinner size="sm" /> : 'Save Recipient'}
               </button>
             </div>
           </form>
         )}
 
         {/* Recipients list */}
-        {loading ? (
-          <LoadingSpinner size="lg" className="py-12" />
-        ) : recipients.length === 0 ? (
-          <div className="rounded-xl bg-white p-8 text-center shadow-sm">
-            <svg className="mx-auto h-12 w-12 text-gray-300" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
-            </svg>
-            <p className="mt-2 text-sm text-gray-500">No saved recipients yet</p>
-            <p className="text-xs text-gray-400">Add frequently used numbers for faster transfers</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {recipients.map((r) => (
-              <div
-                key={r.recipient_id}
-                className="flex items-center justify-between rounded-xl bg-white p-4 shadow-sm"
-              >
-                <div
-                  className="flex flex-1 cursor-pointer items-center gap-3"
-                  onClick={() => navigate(`/send-money?phone=${r.target_phone}`)}
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100 text-sm font-bold text-primary-600">
-                    {(r.nickname || r.target_name || '?')[0].toUpperCase()}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">{r.nickname || r.target_name}</p>
-                    <p className="text-xs text-gray-500">{r.target_phone}</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => handleDelete(r.recipient_id)}
-                  className="rounded-lg p-2 text-gray-400 hover:bg-red-50 hover:text-red-500"
-                  title="Remove"
-                >
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                  </svg>
-                </button>
+        <div className="space-y-4">
+           <label className="block text-[11px] font-black uppercase tracking-widest text-gray-400 px-1 mb-2">Saved Contacts</label>
+           
+          {loading ? (
+            <LoadingSpinner size="lg" className="py-12" />
+          ) : recipients.length === 0 ? (
+            <div className="rounded-3xl border-2 border-gray-50 bg-gray-50/30 p-12 text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
+                <UserIcon className="h-8 w-8 text-gray-300" strokeWidth={1.5} />
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+              <p className="text-base font-bold text-gray-900">No recipients yet</p>
+              <p className="mt-1 text-sm font-medium text-gray-500 leading-relaxed px-4">
+                Add frequently used numbers for faster transfers
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              {recipients.map((r) => (
+                <div
+                  key={r.recipient_id}
+                  className="group flex items-center justify-between rounded-2xl border-2 border-gray-50 bg-gray-50/30 p-4 transition-all hover:border-primary-100 hover:bg-white"
+                >
+                  <div
+                    className="flex flex-1 cursor-pointer items-center gap-4"
+                    onClick={() => navigate(`/send-money?phone=${r.target_phone}`)}
+                  >
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary-100 text-base font-black text-primary-600 ring-4 ring-primary-50/50">
+                      {(r.nickname || r.target_name || '?')[0].toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-[15px] font-bold text-gray-900 group-hover:text-primary-600 transition-colors">
+                        {r.nickname || r.target_name}
+                      </p>
+                      <p className="text-sm font-medium text-gray-500">{r.target_phone}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleDelete(r.recipient_id)}
+                    className="rounded-full p-2.5 text-gray-300 hover:bg-red-50 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100"
+                    title="Remove"
+                  >
+                    <TrashIcon className="h-5 w-5" strokeWidth={2} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </main>
 
       <BottomNav />
-
     </div>
   );
 }

@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { 
+  ArrowRightOnRectangleIcon, 
+  ExclamationCircleIcon,
+  ArrowUpRightIcon,
+  ReceiptPercentIcon
+} from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
 import { walletApi } from '../../api/walletApi';
 import { transactionApi } from '../../api/transactionApi';
@@ -9,8 +15,8 @@ import TransactionCard from '../../components/transaction/TransactionCard';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 const quickActions = [
-  { label: 'Cash In', icon: '↗', color: 'bg-green-500', to: '/cash-in', desc: 'Fund customer wallet' },
-  { label: 'Pay Bill', icon: '📄', color: 'bg-teal-500', to: '/pay-bill', desc: 'Pay utility bills' },
+  { label: 'Cash In', icon: <ArrowUpRightIcon className="h-6 w-6" />, color: 'bg-green-500', to: '/cash-in', desc: 'Fund customer wallet' },
+  { label: 'Pay Bill', icon: <ReceiptPercentIcon className="h-6 w-6" />, color: 'bg-teal-500', to: '/pay-bill', desc: 'Pay utility bills' },
 ];
 
 export default function AgentDashboardPage() {
@@ -46,10 +52,8 @@ export default function AgentDashboardPage() {
               <p className="text-sm text-green-200">Agent Dashboard</p>
               <h1 className="text-lg font-bold text-white">{user?.fullName || 'Agent'}</h1>
             </div>
-            <button onClick={logout} className="rounded-full bg-white/10 p-2 text-white hover:bg-white/20" title="Logout">
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15m-3 0-3-3m0 0 3-3m-3 3H15" />
-              </svg>
+             <button onClick={logout} className="rounded-full bg-white/10 p-2 text-white hover:bg-white/20" title="Logout">
+              <ArrowRightOnRectangleIcon className="h-5 w-5" strokeWidth={2} />
             </button>
           </div>
         </div>
@@ -60,9 +64,7 @@ export default function AgentDashboardPage() {
         {isPendingKYC && (
           <div className="mb-4 rounded-xl border border-yellow-200 bg-yellow-50 p-4">
             <div className="flex items-start gap-3">
-              <svg className="mt-0.5 h-5 w-5 flex-shrink-0 text-yellow-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-              </svg>
+              <ExclamationCircleIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-yellow-500" strokeWidth={2} />
               <div>
                 <p className="text-sm font-semibold text-yellow-800">Verification Pending</p>
                 <p className="mt-0.5 text-xs text-yellow-600">Your agent account is under review. Transactions will be enabled once verified by admin.</p>
@@ -103,7 +105,7 @@ export default function AgentDashboardPage() {
                 onClick={() => !action.disabled && !isPendingKYC && navigate(action.to)}
                 className="flex flex-col items-center gap-1.5 rounded-xl bg-white p-3 shadow-sm transition-shadow hover:shadow-md disabled:opacity-40"
               >
-                <div className={`flex h-10 w-10 items-center justify-center rounded-full ${action.color} text-lg text-white`}>
+                <div className={`flex h-10 w-10 items-center justify-center rounded-full ${action.color} text-white`}>
                   {action.icon}
                 </div>
                 <span className="text-[11px] font-medium text-gray-600">{action.label}</span>

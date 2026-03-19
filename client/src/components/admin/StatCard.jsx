@@ -1,4 +1,4 @@
-export default function StatCard({ label, value, subValue, icon, color = 'blue' }) {
+export default function StatCard({ label, value, subValue, icon: Icon, color = 'blue' }) {
   const colorMap = {
     blue: 'bg-blue-50 text-blue-600',
     green: 'bg-green-50 text-green-600',
@@ -16,11 +16,9 @@ export default function StatCard({ label, value, subValue, icon, color = 'blue' 
           <p className="mt-1 text-2xl font-bold text-gray-900">{value}</p>
           {subValue && <p className="mt-0.5 text-xs text-gray-400">{subValue}</p>}
         </div>
-        {icon && (
+        {Icon && (
           <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${colorMap[color] || colorMap.blue}`}>
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d={icon} />
-            </svg>
+            <Icon className="h-5 w-5" strokeWidth={1.5} />
           </div>
         )}
       </div>

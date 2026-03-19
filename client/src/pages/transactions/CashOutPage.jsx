@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { CheckIcon } from '@heroicons/react/24/outline';
 import { transactionApi } from '../../api/transactionApi';
 import Header from '../../components/layout/Header';
 import { toast } from 'sonner';
@@ -102,9 +103,7 @@ export default function CashOutPage() {
               </div>
               {recipient && (
                 <div className="mt-2 flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2">
-                  <svg className="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                  </svg>
+                  <CheckIcon className="h-4 w-4 text-green-500" strokeWidth={2} />
                   <span className="text-sm font-medium text-green-700">{recipient.fullName} (Agent)</span>
                 </div>
               )}

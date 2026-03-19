@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { ChevronLeftIcon } from '@heroicons/react/24/outline';
 
 export default function Header({ title, showBack = false, rightAction = null }) {
   const navigate = useNavigate();
@@ -12,12 +13,10 @@ export default function Header({ title, showBack = false, rightAction = null }) 
               onClick={() => navigate(-1)}
               className="rounded-full p-1 hover:bg-gray-100"
             >
-              <svg className="h-5 w-5 text-gray-700" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-              </svg>
+              <ChevronLeftIcon className="h-5 w-5 text-gray-700" strokeWidth={2} />
             </button>
           )}
-          <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
+          <h1 className="text-base font-semibold text-gray-900">{title}</h1>
         </div>
         {rightAction}
       </div>

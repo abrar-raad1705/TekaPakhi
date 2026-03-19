@@ -251,6 +251,20 @@ const profileModel = {
       [profileId]
     );
   },
+
+  /**
+   * Update profile picture URL
+   */
+  async updateProfilePicture(profileId, imageUrl) {
+    const result = await pool.query(
+      `UPDATE tp.profiles
+       SET profile_picture_url = $1
+       WHERE profile_id = $2
+       RETURNING profile_id, profile_picture_url`,
+      [imageUrl, profileId]
+    );
+    return result.rows[0];
+  },
 };
 
 export default profileModel;

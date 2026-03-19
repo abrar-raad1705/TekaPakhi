@@ -3,8 +3,8 @@
  */
 export function formatBDT(amount) {
   const num = parseFloat(amount);
-  if (isNaN(num)) return 'BDT 0.00';
-  return `BDT ${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (isNaN(num)) return 'Tk 0.00';
+  return `Tk ${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 /**

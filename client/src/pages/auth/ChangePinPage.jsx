@@ -84,7 +84,7 @@ export default function ChangePinPage() {
         </form>
       </main>
 
-      <AuthFooter />
+      {/* <AuthFooter /> */}
     </div>
   );
 }

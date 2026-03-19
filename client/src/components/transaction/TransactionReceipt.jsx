@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { CheckIcon } from '@heroicons/react/24/outline';
 import { formatBDT, formatPhone } from '../../utils/formatCurrency';
 
 const typeLabels = {
@@ -24,9 +25,7 @@ export default function TransactionReceipt({ receipt, onDone }) {
         {/* Success icon */}
         <div className="mb-4 text-center">
           <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-            <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-            </svg>
+            <CheckIcon className="h-8 w-8 text-green-600" strokeWidth={3} />
           </div>
           <h2 className="text-xl font-bold text-gray-900">Transaction Successful</h2>
           <p className="text-sm text-gray-500">{typeLabels[receipt.type] || receipt.type}</p>

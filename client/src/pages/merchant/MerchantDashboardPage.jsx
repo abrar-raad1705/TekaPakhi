@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { 
+  ArrowRightOnRectangleIcon, 
+  ExclamationCircleIcon 
+} from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
 import { walletApi } from '../../api/walletApi';
 import { transactionApi } from '../../api/transactionApi';
@@ -41,10 +45,8 @@ export default function MerchantDashboardPage() {
               <p className="text-sm text-purple-200">Merchant Dashboard</p>
               <h1 className="text-lg font-bold text-white">{user?.fullName || 'Merchant'}</h1>
             </div>
-            <button onClick={logout} className="rounded-full bg-white/10 p-2 text-white hover:bg-white/20" title="Logout">
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 9V5.25A2.25 2.25 0 0 1 10.5 3h6a2.25 2.25 0 0 1 2.25 2.25v13.5A2.25 2.25 0 0 1 16.5 21h-6a2.25 2.25 0 0 1-2.25-2.25V15m-3 0-3-3m0 0 3-3m-3 3H15" />
-              </svg>
+             <button onClick={logout} className="rounded-full bg-white/10 p-2 text-white hover:bg-white/20" title="Logout">
+              <ArrowRightOnRectangleIcon className="h-5 w-5" strokeWidth={2} />
             </button>
           </div>
         </div>
@@ -55,9 +57,7 @@ export default function MerchantDashboardPage() {
         {isPendingKYC && (
           <div className="mb-4 rounded-xl border border-yellow-200 bg-yellow-50 p-4">
             <div className="flex items-start gap-3">
-              <svg className="mt-0.5 h-5 w-5 flex-shrink-0 text-yellow-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-              </svg>
+              <ExclamationCircleIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-yellow-500" strokeWidth={2} />
               <div>
                 <p className="text-sm font-semibold text-yellow-800">Verification Pending</p>
                 <p className="mt-0.5 text-xs text-yellow-600">Your merchant account is under review. You'll start receiving payments once verified by admin.</p>

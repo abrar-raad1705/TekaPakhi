@@ -12,7 +12,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
       <AuthProvider>
         <App />
         <Toaster
-          position="top-center"
+          position="top-right"
           richColors
           expand={false}
           visibleToasts={3}

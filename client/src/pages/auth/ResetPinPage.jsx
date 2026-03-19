@@ -7,6 +7,7 @@ import LoadingSpinner from "../../components/common/LoadingSpinner";
 import AuthHeader from "../../components/auth/AuthHeader";
 import AuthFooter from "../../components/auth/AuthFooter";
 import { FieldError, GlobalError } from "../../components/common/FormError";
+import { formatPhone } from "../../utils/formatCurrency";
 
 export default function ResetPinPage() {
   const location = useLocation();
@@ -107,7 +108,7 @@ export default function ResetPinPage() {
               </h1>
               <p className="mt-4 text-[15px] font-medium text-gray-500 leading-relaxed px-4">
                 Code sent to{" "}
-                <span className="font-bold text-gray-900">{phoneNumber}</span>
+                <span className="font-bold text-gray-900">{formatPhone(phoneNumber)}</span>
               </p>
               {currentDevOtp && (
                 <div className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-primary-50 px-4 py-2 border border-primary-100">

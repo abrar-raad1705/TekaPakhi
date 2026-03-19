@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { ChevronLeftIcon } from '@heroicons/react/24/outline';
 import { adminApi } from '../../api/adminApi';
 import { formatBDT } from '../../utils/formatCurrency';
 import AdminLayout from '../../components/admin/AdminLayout';
@@ -99,9 +100,7 @@ export default function UserDetailPage() {
           onClick={() => navigate('/admin/users')}
           className="rounded-lg border border-gray-300 p-2 hover:bg-gray-50"
         >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-          </svg>
+          <ChevronLeftIcon className="h-4 w-4" strokeWidth={2} />
         </button>
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{user.full_name}</h1>

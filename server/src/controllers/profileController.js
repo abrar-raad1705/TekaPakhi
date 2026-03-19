@@ -96,6 +96,46 @@ const profileController = {
       next(error);
     }
   },
+
+  /**
+   * POST /api/v1/profile/me/avatar
+   * Upload and update profile picture
+   */
+  async uploadProfilePicture(req, res, next) {
+    try {
+      if (!req.file) {
+        throw new AppError('No image file provided.', 400);
+      }
+
+      // Build the public URL path
+      const imageUrl = `/uploads/avatars/${req.file.filename}`;
+
+      // Delete old avatar file if exists
+      const currentProfile = await profileModel.findById(req.user.profileId);
+      if (currentProfile?.profile_picture_url) {
+        const { default: path } = await import('path');
+        const { default: fs } = await import('fs');
+        const { fileURLToPath } = await import('url');
+        const __filename = fileURLToPath(import.meta.url);
+        const __dirname = path.dirname(__filename);
+        const oldPath = path.join(__dirname, '../../', currentProfile.profile_picture_url);
+        if (fs.existsSync(oldPath)) {
+          fs.unlinkSync(oldPath);
+        }
+      }
+
+      // Save new URL to database
+      const updated = await profileModel.updateProfilePicture(req.user.profileId, imageUrl);
+
+      res.status(200).json({
+        success: true,
+        message: 'Profile picture updated successfully.',
+        data: { profilePictureUrl: updated.profile_picture_url },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
 };
 
 export default profileController;
