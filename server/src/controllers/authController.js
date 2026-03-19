@@ -115,6 +115,18 @@ const authController = {
       next(error);
     }
   },
+  /**
+   * GET /api/v1/auth/check-phone/:phoneNumber
+   */
+  async checkPhone(req, res, next) {
+    try {
+      const { phoneNumber } = req.validatedBody;
+      const result = await authService.checkPhone(phoneNumber);
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  },
 };
 
 export default authController;

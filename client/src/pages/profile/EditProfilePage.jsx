@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { profileApi } from '../../api/profileApi';
 import Header from '../../components/layout/Header';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 export default function EditProfilePage() {

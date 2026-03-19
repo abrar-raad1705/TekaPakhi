@@ -5,7 +5,7 @@ import { formatBDT } from '../../utils/formatCurrency';
 import AdminLayout from '../../components/admin/AdminLayout';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import PinInput from '../../components/common/PinInput';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 
 const profileTypes = [
   { id: '', label: 'All Types' },

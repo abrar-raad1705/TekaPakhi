@@ -10,4 +10,5 @@ export const authApi = {
   changePin: (data) => api.post('/auth/change-pin', data),
   refreshToken: (data) => api.post('/auth/refresh-token', data),
   logout: (data) => api.post('/auth/logout', data),
+  checkPhone: (data) => api.post('/auth/check-phone', data),
 };

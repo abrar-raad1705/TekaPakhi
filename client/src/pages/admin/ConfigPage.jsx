@@ -3,7 +3,7 @@ import { adminApi } from '../../api/adminApi';
 import { formatBDT } from '../../utils/formatCurrency';
 import AdminLayout from '../../components/admin/AdminLayout';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 
 const tabs = [
   { id: 'types', label: 'Transaction Types' },

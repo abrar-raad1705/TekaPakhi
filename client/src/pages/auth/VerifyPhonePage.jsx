@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { authApi } from '../../api/authApi';
-import { useAuth } from '../../context/AuthContext';
-import OTPInput from '../../components/common/OTPInput';
-import toast from 'react-hot-toast';
-import LoadingSpinner from '../../components/common/LoadingSpinner';
+import { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { authApi } from "../../api/authApi";
+import { useAuth } from "../../context/AuthContext";
+import OTPInput from "../../components/common/OTPInput";
+import LoadingSpinner from "../../components/common/LoadingSpinner";
+import AuthHeader from "../../components/auth/AuthHeader";
+import AuthFooter from "../../components/auth/AuthFooter";
+import { GlobalError } from "../../components/common/FormError";
 
 export default function VerifyPhonePage() {
   const location = useLocation();
@@ -14,8 +16,8 @@ export default function VerifyPhonePage() {
   const [currentDevOtp, setCurrentDevOtp] = useState(initialOtp);
   const [loading, setLoading] = useState(false);
   const [requesting, setRequesting] = useState(false);
+  const [globalError, setGlobalError] = useState(null);
 
-  // If we arrived here without an OTP (e.g. via PrivateRoute guard), request one automatically
   useEffect(() => {
     if (phoneNumber && !initialOtp) {
       handleResend(true);
@@ -24,31 +26,33 @@ export default function VerifyPhonePage() {
 
   const handleVerify = async (otpCode) => {
     setLoading(true);
+    setGlobalError(null);
     try {
-      await authApi.verifyOtp({ phoneNumber, otpCode, purpose: 'VERIFY_PHONE' });
-      toast.success('Phone verified!');
+      await authApi.verifyOtp({
+        phoneNumber,
+        otpCode,
+        purpose: "VERIFY_PHONE",
+      });
 
-      // If user is logged in, update their profile and go to dashboard
       if (isAuthenticated && user) {
         const updatedUser = { ...user, isPhoneVerified: true };
-        localStorage.setItem('user', JSON.stringify(updatedUser));
+        localStorage.setItem("user", JSON.stringify(updatedUser));
         setUser(updatedUser);
-        setTimeout(() => {
-          const routeMap = {
-            SYSTEM: '/admin',
-            AGENT: '/agent',
-            MERCHANT: '/merchant',
-            DISTRIBUTOR: '/distributor',
-            BILLER: '/biller',
-          };
-          navigate(routeMap[user.typeName] || '/dashboard', { replace: true });
-        }, 1000);
+        const routeMap = {
+          SYSTEM: "/admin",
+          AGENT: "/agent",
+          MERCHANT: "/merchant",
+          DISTRIBUTOR: "/distributor",
+          BILLER: "/biller",
+        };
+        navigate(routeMap[user.typeName] || "/dashboard", { replace: true });
       } else {
-        // Not logged in (came from registration), go to login
-        setTimeout(() => navigate('/login', { replace: true }), 1500);
+        navigate("/login", { replace: true });
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Verification failed');
+      setGlobalError({
+        message: error.response?.data?.message || "Verification failed",
+      });
     } finally {
       setLoading(false);
     }
@@ -57,14 +61,17 @@ export default function VerifyPhonePage() {
   const handleResend = async (isAuto = false) => {
     if (requesting) return;
     setRequesting(true);
+    setGlobalError(null);
     try {
-      const { data } = await authApi.requestOtp({ phoneNumber, purpose: 'VERIFY_PHONE' });
+      const { data } = await authApi.requestOtp({
+        phoneNumber,
+        purpose: "VERIFY_PHONE",
+      });
       if (data.data.otp) {
         setCurrentDevOtp(data.data.otp);
       }
-      if (!isAuto) toast.success('OTP resent successfully');
     } catch (error) {
-      if (!isAuto) toast.error('Failed to resend OTP');
+      if (!isAuto) setGlobalError({ message: "Failed to resend OTP" });
     } finally {
       setRequesting(false);
     }
@@ -72,64 +79,80 @@ export default function VerifyPhonePage() {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/login', { replace: true });
+    navigate("/login", { replace: true });
   };
 
   if (!phoneNumber) {
-    navigate('/register', { replace: true });
+    navigate("/register", { replace: true });
     return null;
   }
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center bg-gradient-to-b from-primary-600 to-primary-800 px-4">
+    <div className="flex min-h-dvh flex-col bg-white overflow-x-hidden">
+      <AuthHeader onClose={handleLogout} />
 
-      <div className="w-full max-w-sm">
-        <div className="rounded-2xl bg-white p-6 shadow-xl">
-          <div className="mb-6 text-center">
-            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-primary-100">
-              <svg className="h-7 w-7 text-primary-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
-              </svg>
+      {/* Main Content */}
+      <main className="mx-auto flex w-full max-w-[440px] flex-1 flex-col px-6 py-10 md:py-24">
+        <div className="text-center mb-10">
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900 md:text-4xl">
+            Verify your phone
+          </h1>
+          <p className="mt-4 text-[15px] font-medium text-gray-500 leading-relaxed px-4">
+            We've sent a 6-digit code to{" "}
+            <span className="font-bold text-gray-900">{phoneNumber}</span>
+          </p>
+          {currentDevOtp && (
+            <div className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-primary-50 px-4 py-2 border border-primary-100">
+              <span className="text-[11px] font-black uppercase tracking-widest text-primary-400">
+                Dev OTP
+              </span>
+              <span className="text-sm font-black font-mono text-primary-600 tracking-wider">
+                {currentDevOtp}
+              </span>
             </div>
-            <h2 className="text-lg font-semibold text-gray-800">Verify Phone Number</h2>
-            <p className="mt-1 text-sm text-gray-500">
-              Enter the 6-digit code sent to <span className="font-medium text-gray-700">{phoneNumber}</span>
-            </p>
-            {currentDevOtp && (
-              <p className="mt-2 rounded bg-yellow-50 px-2 py-1 text-xs text-yellow-700">
-                Dev OTP: <span className="font-mono font-bold">{currentDevOtp}</span>
-              </p>
-            )}
-          </div>
-
-          {loading ? (
-            <LoadingSpinner size="lg" className="py-8" />
-          ) : (
-            <OTPInput onComplete={handleVerify} />
           )}
-
-          <div className="mt-6 flex flex-col gap-4 text-center">
-            <button
-              onClick={() => handleResend(false)}
-              disabled={requesting}
-              className="text-sm font-medium text-primary-600 hover:text-primary-700 disabled:opacity-50"
-            >
-              {requesting ? 'Requesting...' : 'Resend OTP'}
-            </button>
-
-            {isAuthenticated && (
-              <div className="border-t border-gray-100 pt-4 text-center">
-                <button
-                  onClick={handleLogout}
-                  className="text-sm font-medium text-gray-500 hover:text-red-500 transition-colors duration-200"
-                >
-                  Log out
-                </button>
-              </div>
-            )}
-          </div>
         </div>
-      </div>
+
+        {globalError && (
+          <GlobalError
+            message={globalError.message}
+            onClose={() => setGlobalError(null)}
+          />
+        )}
+
+        {loading ? (
+          <div className="flex justify-center p-12">
+            <LoadingSpinner size="lg" />
+          </div>
+        ) : (
+          <div className="mb-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <OTPInput onComplete={handleVerify} />
+          </div>
+        )}
+
+        <div className="mt-6 flex flex-col gap-6 text-center">
+          <button
+            onClick={() => handleResend(false)}
+            disabled={requesting}
+            className="text-[15px] font-bold text-gray-600 hover:text-primary-700 underline underline-offset-8 decoration-2 decoration-gray-100 hover:decoration-primary-600 transition-all disabled:opacity-50"
+          >
+            {requesting ? "Sending code..." : "Resend code"}
+          </button>
+
+          {isAuthenticated && (
+            <div className="border-t border-gray-100 pt-10 mt-6">
+              <button
+                onClick={handleLogout}
+                className="text-sm font-bold text-gray-400 hover:text-red-500 transition-colors uppercase tracking-widest"
+              >
+                Use a different account
+              </button>
+            </div>
+          )}
+        </div>
+      </main>
+
+      <AuthFooter />
     </div>
   );
 }

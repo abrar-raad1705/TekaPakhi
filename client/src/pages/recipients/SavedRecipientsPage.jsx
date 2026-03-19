@@ -5,7 +5,7 @@ import { profileApi } from '../../api/profileApi';
 import Header from '../../components/layout/Header';
 import BottomNav from '../../components/layout/BottomNav';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 
 export default function SavedRecipientsPage() {
   const navigate = useNavigate();

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 
-export default function OTPInput({ length = 6, onComplete, error = '' }) {
+export default function OTPInput({ length = 6, onComplete, error = false }) {
   const [values, setValues] = useState(Array(length).fill(''));
   const inputRefs = useRef([]);
 
@@ -22,6 +22,9 @@ export default function OTPInput({ length = 6, onComplete, error = '' }) {
 
   const handleKeyDown = (index, e) => {
     if (e.key === 'Backspace' && !values[index] && index > 0) {
+      const newValues = [...values];
+      newValues[index - 1] = '';
+      setValues(newValues);
       inputRefs.current[index - 1]?.focus();
     }
   };
@@ -46,27 +49,25 @@ export default function OTPInput({ length = 6, onComplete, error = '' }) {
   };
 
   return (
-    <div className="space-y-2">
-      <label className="block text-sm font-medium text-gray-700">Enter OTP</label>
-      <div className="flex justify-center gap-2">
-        {values.map((val, i) => (
-          <input
-            key={i}
-            ref={(el) => (inputRefs.current[i] = el)}
-            type="text"
-            inputMode="numeric"
-            maxLength={1}
-            value={val}
-            onChange={(e) => handleChange(i, e.target.value)}
-            onKeyDown={(e) => handleKeyDown(i, e)}
-            onPaste={handlePaste}
-            className={`h-12 w-10 rounded-lg border-2 text-center text-lg font-bold
-              focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200
-              ${error ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-white'}`}
-          />
-        ))}
-      </div>
-      {error && <p className="text-center text-sm text-red-600">{error}</p>}
+    <div className="flex justify-center gap-3">
+      {values.map((val, i) => (
+        <input
+          key={i}
+          ref={(el) => (inputRefs.current[i] = el)}
+          type="text"
+          inputMode="numeric"
+          maxLength={1}
+          value={val}
+          onChange={(e) => handleChange(i, e.target.value)}
+          onKeyDown={(e) => handleKeyDown(i, e)}
+          onPaste={handlePaste}
+          className={`h-14 w-12 rounded-xl border-2 text-center text-xl font-black transition-all
+            focus:outline-none 
+            ${error 
+              ? 'border-[#CD1C1C] bg-[#FDE8E8] text-[#CD1C1C]' 
+              : 'border-gray-200 bg-white focus:border-primary-600'}`}
+        />
+      ))}
     </div>
   );
 }

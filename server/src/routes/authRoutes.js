@@ -10,6 +10,7 @@ import {
   resetPinSchema,
   changePinSchema,
   refreshTokenSchema,
+  checkPhoneSchema,
 } from '../validations/authValidation.js';
 
 const router = Router();
@@ -22,6 +23,7 @@ router.post('/request-otp', validate(requestOtpSchema), authController.requestOt
 router.post('/verify-otp', validate(verifyOtpSchema), authController.verifyOtp);
 router.post('/forgot-pin', validate(requestOtpSchema), authController.forgotPin);
 router.post('/reset-pin', validate(resetPinSchema), authController.resetPin);
+router.post('/check-phone', validate(checkPhoneSchema), authController.checkPhone);
 
 // Authenticated routes
 router.post('/change-pin', authenticate, validate(changePinSchema), authController.changePin);

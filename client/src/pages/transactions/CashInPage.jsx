@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { transactionApi } from '../../api/transactionApi';
 import Header from '../../components/layout/Header';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import PinConfirmModal from '../../components/transaction/PinConfirmModal';
 import TransactionReceipt from '../../components/transaction/TransactionReceipt';

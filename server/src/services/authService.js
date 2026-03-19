@@ -366,6 +366,13 @@ const authService = {
 
     return { message: 'Logged out successfully.' };
   },
+  /**
+   * Check if a phone number already exists
+   */
+  async checkPhone(phoneNumber) {
+    const existing = await profileModel.findByPhone(phoneNumber);
+    return { exists: !!existing };
+  },
 };
 
 export default authService;

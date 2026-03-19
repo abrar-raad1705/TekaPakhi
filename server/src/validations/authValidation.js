@@ -87,3 +87,8 @@ export const changePinSchema = z.object({
 export const refreshTokenSchema = z.object({
   refreshToken: z.string().min(1, 'Refresh token is required'),
 });
+export const checkPhoneSchema = z.object({
+  phoneNumber: z
+    .string()
+    .regex(bdPhoneRegex, 'Invalid Bangladeshi phone number'),
+});
