@@ -1,40 +1,30 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { 
   ArrowRightOnRectangleIcon, 
   ExclamationCircleIcon 
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
 import { walletApi } from '../../api/walletApi';
-import { transactionApi } from '../../api/transactionApi';
 import { formatBDT } from '../../utils/formatCurrency';
 import BottomNav from '../../components/layout/BottomNav';
-import TransactionCard from '../../components/transaction/TransactionCard';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 export default function MerchantDashboardPage() {
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
   const [wallet, setWallet] = useState(null);
-  const [recentTxns, setRecentTxns] = useState([]);
   const [showBalance, setShowBalance] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const isPendingKYC = user?.accountStatus === 'PENDING_KYC';
 
   useEffect(() => {
-    Promise.all([fetchBalance(), fetchRecentTxns()]).finally(() => setLoading(false));
+    fetchBalance().finally(() => setLoading(false));
   }, []);
 
   const fetchBalance = async () => {
     try { const { data } = await walletApi.getBalance(); setWallet(data.data); }
     catch (e) { console.error(e); }
   };
-  const fetchRecentTxns = async () => {
-    try { const { data } = await transactionApi.getMiniStatement(); setRecentTxns(data.data); }
-    catch (e) { console.error(e); }
-  };
-
   return (
     <div className="min-h-dvh bg-gray-50 pb-20">
       {/* Header */}
@@ -93,28 +83,6 @@ export default function MerchantDashboardPage() {
           <p className="text-xs text-gray-500">
             Customers can send you payments by entering your phone number ({user?.phoneNumber}) in the "Payment" section of their app.
           </p>
-        </div>
-
-        {/* Recent Payments */}
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-700">Recent Payments</h2>
-            {recentTxns.length > 0 && (
-              <button onClick={() => navigate('/transactions')} className="text-xs font-medium text-purple-600">View All</button>
-            )}
-          </div>
-          {recentTxns.length === 0 ? (
-            <div className="rounded-xl bg-white p-8 text-center shadow-sm">
-              <p className="text-sm text-gray-500">No payments received yet</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {recentTxns.map((tx) => (
-                <TransactionCard key={tx.transaction_id} tx={tx} currentProfileId={user?.profileId}
-                  onClick={(t) => navigate(`/transactions/${t.transaction_id}`)} />
-              ))}
-            </div>
-          )}
         </div>
       </div>
       <BottomNav />

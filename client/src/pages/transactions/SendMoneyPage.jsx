@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   PaperAirplaneIcon,
   ArrowLeftIcon,
@@ -18,6 +18,7 @@ import { formatBDT } from '../../utils/formatCurrency';
 
 export default function SendMoneyPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [step, setStep] = useState('recipient'); // recipient → amount → review → receipt
   const [form, setForm] = useState({ receiverPhone: '', amount: '', note: '', pin: '' });
   const [recipient, setRecipient] = useState(null);
@@ -42,6 +43,49 @@ export default function SendMoneyPage() {
     fetchRecipients();
     fetchBalance();
   }, []);
+
+  /** Deep link: /send-money?phone=01...&step=amount&name=... → amount step with recipient */
+  useEffect(() => {
+    const stepParam = searchParams.get('step');
+    const phoneParam = searchParams.get('phone');
+    const nameParam = searchParams.get('name');
+    if (stepParam !== 'amount' || !phoneParam) return;
+    const digits = phoneParam.replace(/\D/g, '');
+    if (!/^01[3-9]\d{8}$/.test(digits)) {
+      toast.error('Invalid phone in link');
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const { data } = await transactionApi.lookupRecipient(digits);
+        if (cancelled) return;
+        setRecipient({
+          name: data.data.fullName,
+          phone: digits,
+        });
+        setForm((p) => ({ ...p, receiverPhone: digits }));
+        setStep('amount');
+      } catch {
+        if (cancelled) return;
+        const fallback = nameParam
+          ? decodeURIComponent(nameParam)
+          : 'Recipient';
+        setRecipient({ name: fallback, phone: digits });
+        setForm((p) => ({ ...p, receiverPhone: digits }));
+        setStep('amount');
+        if (!nameParam) {
+          toast.error('Could not verify number — check recipient before sending');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams.toString()]);
 
   const fetchRecipients = async () => {
     setLoadingContacts(true);

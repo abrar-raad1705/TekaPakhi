@@ -17,7 +17,7 @@ function resolveVariant(pathname) {
 export default function SiteHeader() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, getHomeRoute } = useAuth();
   const { overrides } = useSiteHeader();
 
   const variant = resolveVariant(pathname);
@@ -36,6 +36,13 @@ export default function SiteHeader() {
   const handleBack = () => {
     if (typeof overrides.back === 'function') {
       overrides.back();
+      return;
+    }
+    if (
+      pathname === '/transactions' ||
+      /^\/transactions\/[^/]+$/.test(pathname)
+    ) {
+      navigate(getHomeRoute());
       return;
     }
     navigate(-1);
