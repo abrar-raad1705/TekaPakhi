@@ -8,9 +8,9 @@ const otpService = {
    * Generate and store an OTP for a phone number
    * In development mode, the OTP is returned in the response
    */
-  async sendOTP(phoneNumber, purpose = 'VERIFY_PHONE') {
+  async sendOTP(phoneNumber, purpose = 'VERIFY_PHONE', client = null) {
     // Invalidate any previous unused OTPs for this phone + purpose
-    await pool.query(
+    await (client || pool).query(
       `UPDATE tp.otp_codes SET is_used = TRUE
        WHERE phone_number = $1 AND purpose = $2 AND is_used = FALSE`,
       [phoneNumber, purpose]
@@ -19,7 +19,7 @@ const otpService = {
     const otpCode = generateOTP();
     const expiresAt = new Date(Date.now() + env.OTP_EXPIRY_MINUTES * 60 * 1000);
 
-    await pool.query(
+    await (client || pool).query(
       `INSERT INTO tp.otp_codes (phone_number, otp_code, purpose, expires_at)
        VALUES ($1, $2, $3, $4)`,
       [phoneNumber, otpCode, purpose, expiresAt]
@@ -42,8 +42,8 @@ const otpService = {
    * Verify an OTP code
    * Throws AppError if OTP is invalid or expired
    */
-  async verifyOTP(phoneNumber, otpCode, purpose = 'VERIFY_PHONE') {
-    const result = await pool.query(
+  async verifyOTP(phoneNumber, otpCode, purpose = 'VERIFY_PHONE', client = null) {
+    const result = await (client || pool).query(
       `SELECT * FROM tp.otp_codes
        WHERE phone_number = $1 AND otp_code = $2 AND purpose = $3
          AND is_used = FALSE AND expires_at > NOW()
@@ -57,7 +57,7 @@ const otpService = {
     }
 
     // Mark OTP as used
-    await pool.query(
+    await (client || pool).query(
       `UPDATE tp.otp_codes SET is_used = TRUE WHERE otp_id = $1`,
       [result.rows[0].otp_id]
     );

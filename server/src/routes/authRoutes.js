@@ -10,7 +10,7 @@ const {
   verifyOtpSchema,
   resetPinSchema,
   changePinSchema,
-  refreshTokenSchema,
+  checkPhoneSchema,
 } = require('../validations/authValidation');
 
 const router = Router();
@@ -18,7 +18,6 @@ const router = Router();
 // Public routes
 router.post('/register', authLimiter, validate(registerSchema), authController.register);
 router.post('/login', authLimiter, validate(loginSchema), authController.login);
-router.post('/refresh-token', validate(refreshTokenSchema), authController.refreshToken);
 router.post('/request-otp', otpLimiter, validate(requestOtpSchema), authController.requestOtp);
 router.post('/verify-otp', validate(verifyOtpSchema), authController.verifyOtp);
 router.post('/forgot-pin', otpLimiter, validate(requestOtpSchema), authController.forgotPin);

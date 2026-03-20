@@ -25,18 +25,6 @@ const authController = {
     }
   },
 
-  /**
-   * POST /api/v1/auth/refresh-token
-   */
-  async refreshToken(req, res, next) {
-    try {
-      const { refreshToken } = req.validatedBody;
-      const result = await authService.refreshToken(refreshToken);
-      res.status(200).json({ success: true, data: result });
-    } catch (error) {
-      next(error);
-    }
-  },
 
   /**
    * POST /api/v1/auth/request-otp
@@ -108,8 +96,7 @@ const authController = {
    */
   async logout(req, res, next) {
     try {
-      const { refreshToken } = req.body;
-      const result = await authService.logout(req.user.profileId, refreshToken);
+      const result = await authService.logout();
       res.status(200).json({ success: true, data: result });
     } catch (error) {
       next(error);

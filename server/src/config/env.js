@@ -15,9 +15,7 @@ const env = {
 
   // JWT
   JWT_SECRET: process.env.JWT_SECRET,
-  JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET,
   JWT_ACCESS_EXPIRY: process.env.JWT_ACCESS_EXPIRY || '15m',
-  JWT_REFRESH_EXPIRY: process.env.JWT_REFRESH_EXPIRY || '7d',
 
   // OTP
   OTP_EXPIRY_MINUTES: parseInt(process.env.OTP_EXPIRY_MINUTES, 10) || 5,
@@ -28,7 +26,7 @@ const env = {
 };
 
 // Validate required env vars
-const required = ['DB_PASSWORD', 'JWT_SECRET', 'JWT_REFRESH_SECRET'];
+const required = ['DB_PASSWORD', 'JWT_SECRET'];
 for (const key of required) {
   if (!env[key]) {
     console.error(`FATAL: Missing required environment variable: ${key}`);

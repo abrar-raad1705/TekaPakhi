@@ -88,8 +88,10 @@ const changePinSchema = z.object({
     .regex(/^\d{5}$/, 'New PIN must contain only digits'),
 });
 
-const refreshTokenSchema = z.object({
-  refreshToken: z.string().min(1, 'Refresh token is required'),
+const checkPhoneSchema = z.object({
+  phoneNumber: z
+    .string()
+    .regex(bdPhoneRegex, 'Invalid Bangladeshi phone number'),
 });
 
 module.exports = {
@@ -99,5 +101,5 @@ module.exports = {
   verifyOtpSchema,
   resetPinSchema,
   changePinSchema,
-  refreshTokenSchema,
+  checkPhoneSchema,
 };

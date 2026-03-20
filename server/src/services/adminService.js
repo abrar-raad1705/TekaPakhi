@@ -82,21 +82,34 @@ const adminService = {
     if (!typeId) throw new AppError('Invalid account type.', 400);
 
     const pinHash = await bcrypt.hash(securityPin, SALT_ROUNDS);
-    const profile = await profileModel.create({ phoneNumber, fullName, pinHash, typeId });
 
-    if (accountType === 'DISTRIBUTOR') {
-      await profileModel.createDistributorSubtype(profile.profile_id, subtypeFields);
-    } else if (accountType === 'BILLER') {
-      await profileModel.createBillerSubtype(profile.profile_id, subtypeFields);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const profile = await profileModel.create({ phoneNumber, fullName, pinHash, typeId }, client);
+
+      if (accountType === 'DISTRIBUTOR') {
+        await profileModel.createDistributorSubtype(profile.profile_id, subtypeFields, client);
+      } else if (accountType === 'BILLER') {
+        await profileModel.createBillerSubtype(profile.profile_id, subtypeFields, client);
+      }
+
+      await client.query('COMMIT');
+
+      return {
+        profileId: profile.profile_id,
+        phoneNumber: profile.phone_number,
+        fullName: profile.full_name,
+        accountType,
+        accountStatus: 'ACTIVE',
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
-
-    return {
-      profileId: profile.profile_id,
-      phoneNumber: profile.phone_number,
-      fullName: profile.full_name,
-      accountType,
-      accountStatus: 'ACTIVE',
-    };
   },
 
   /**
@@ -141,7 +154,7 @@ const adminService = {
            (SELECT type_id FROM tp.transaction_types WHERE type_name = 'CASH_IN'),
            $5)`,
         [txRef, amount, systemWalletId, targetWallet.wallet_id,
-         `ADMIN_LOAD: ৳${amount} loaded by admin #${adminProfileId}`]
+          `ADMIN_LOAD: ৳${amount} loaded by admin #${adminProfileId}`]
       );
 
       await client.query('COMMIT');
@@ -162,23 +175,34 @@ const adminService = {
   },
 
   async updateUserStatus(profileId, newStatus) {
-    // First get the user's type
-    const userResult = await pool.query(
-      `SELECT p.profile_id, pt.type_name
-       FROM tp.profiles p
-       JOIN tp.profile_types pt ON p.type_id = pt.type_id
-       WHERE p.profile_id = $1`,
-      [profileId]
-    );
-    if (userResult.rows.length === 0) throw new AppError('User not found.', 404);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    const { type_name } = userResult.rows[0];
-    if (type_name === 'SYSTEM') throw new AppError('Cannot modify SYSTEM profile status.', 400);
+      const userResult = await client.query(
+        `SELECT p.profile_id, pt.type_name
+         FROM tp.profiles p
+         JOIN tp.profile_types pt ON p.type_id = pt.type_id
+         WHERE p.profile_id = $1`,
+        [profileId]
+      );
+      if (userResult.rows.length === 0) throw new AppError('User not found.', 404);
 
-    const updated = await adminModel.updateUserStatus(profileId, type_name, newStatus);
-    if (!updated) throw new AppError('Failed to update status. Subtype profile not found.', 404);
+      const { type_name } = userResult.rows[0];
+      if (type_name === 'SYSTEM') throw new AppError('Cannot modify SYSTEM profile status.', 400);
 
-    return { profileId, typeName: type_name, newStatus: updated.status };
+      const updated = await adminModel.updateUserStatus(profileId, type_name, newStatus, client);
+      if (!updated) throw new AppError('Failed to update status. Subtype profile not found.', 404);
+
+      await client.query('COMMIT');
+
+      return { profileId, typeName: type_name, newStatus: updated.status };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   },
 
   async listTransactions(filters) {

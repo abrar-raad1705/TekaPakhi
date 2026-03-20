@@ -4,8 +4,8 @@ const profileModel = {
   /**
    * Find a profile by phone number (with type name)
    */
-  async findByPhone(phoneNumber) {
-    const result = await pool.query(
+  async findByPhone(phoneNumber, client = null) {
+    const result = await (client || pool).query(
       `SELECT p.*, pt.type_name
        FROM tp.profiles p
        JOIN tp.profile_types pt ON p.type_id = pt.type_id
@@ -18,8 +18,8 @@ const profileModel = {
   /**
    * Find a profile by ID (with type name)
    */
-  async findById(profileId) {
-    const result = await pool.query(
+  async findById(profileId, client = null) {
+    const result = await (client || pool).query(
       `SELECT p.*, pt.type_name
        FROM tp.profiles p
        JOIN tp.profile_types pt ON p.type_id = pt.type_id
@@ -32,11 +32,10 @@ const profileModel = {
   /**
    * Find profile with subtype data (customer_profiles, agent_profiles, etc.)
    */
-  async findByIdWithSubtype(profileId) {
-    const profile = await this.findById(profileId);
+  async findByIdWithSubtype(profileId, client = null) {
+    const profile = await this.findById(profileId, client);
     if (!profile) return null;
 
-    // Map type names to their subtype tables
     const subtypeTableMap = {
       CUSTOMER: 'customer_profiles',
       AGENT: 'agent_profiles',
@@ -49,7 +48,7 @@ const profileModel = {
     const table = subtypeTableMap[profile.type_name];
 
     if (table) {
-      const result = await pool.query(
+      const result = await (client || pool).query(
         `SELECT * FROM tp.${table} WHERE profile_id = $1`,
         [profileId]
       );
@@ -63,8 +62,8 @@ const profileModel = {
    * Create a new profile
    * Note: DB trigger auto-creates a wallet after insert
    */
-  async create({ phoneNumber, fullName, pinHash, typeId = 1 }) {
-    const result = await pool.query(
+  async create({ phoneNumber, fullName, pinHash, typeId = 1 }, client = null) {
+    const result = await (client || pool).query(
       `INSERT INTO tp.profiles (phone_number, full_name, security_pin_hash, type_id)
        VALUES ($1, $2, $3, $4)
        RETURNING profile_id, phone_number, full_name, email, is_phone_verified, registration_date, type_id`,
@@ -76,8 +75,8 @@ const profileModel = {
   /**
    * Create customer subtype profile (set to ACTIVE immediately)
    */
-  async createCustomerSubtype(profileId) {
-    const result = await pool.query(
+  async createCustomerSubtype(profileId, client = null) {
+    const result = await (client || pool).query(
       `INSERT INTO tp.customer_profiles (profile_id, status, approved_date)
        VALUES ($1, 'ACTIVE', CURRENT_TIMESTAMP)
        RETURNING *`,
@@ -89,8 +88,8 @@ const profileModel = {
   /**
    * Create agent subtype profile (PENDING_KYC — needs admin approval)
    */
-  async createAgentSubtype(profileId, { agentCode, shopName, shopAddress }) {
-    const result = await pool.query(
+  async createAgentSubtype(profileId, { agentCode, shopName, shopAddress }, client = null) {
+    const result = await (client || pool).query(
       `INSERT INTO tp.agent_profiles (profile_id, agent_code, shop_name, shop_address, status)
        VALUES ($1, $2, $3, $4, 'PENDING_KYC')
        RETURNING *`,
@@ -102,8 +101,8 @@ const profileModel = {
   /**
    * Create merchant subtype profile (PENDING_KYC — needs admin approval)
    */
-  async createMerchantSubtype(profileId, { merchantCode, businessName, businessType }) {
-    const result = await pool.query(
+  async createMerchantSubtype(profileId, { merchantCode, businessName, businessType }, client = null) {
+    const result = await (client || pool).query(
       `INSERT INTO tp.merchant_profiles (profile_id, merchant_code, business_name, business_type, status)
        VALUES ($1, $2, $3, $4, 'PENDING_KYC')
        RETURNING *`,
@@ -115,8 +114,8 @@ const profileModel = {
   /**
    * Create distributor subtype profile (ACTIVE — admin-created)
    */
-  async createDistributorSubtype(profileId, { region }) {
-    const result = await pool.query(
+  async createDistributorSubtype(profileId, { region }, client = null) {
+    const result = await (client || pool).query(
       `INSERT INTO tp.distributor_profiles (profile_id, region, status, approved_date)
        VALUES ($1, $2, 'ACTIVE', CURRENT_TIMESTAMP)
        RETURNING *`,
@@ -128,8 +127,8 @@ const profileModel = {
   /**
    * Create biller subtype profile (ACTIVE — admin-created)
    */
-  async createBillerSubtype(profileId, { billerCode, serviceName, category }) {
-    const result = await pool.query(
+  async createBillerSubtype(profileId, { billerCode, serviceName, category }, client = null) {
+    const result = await (client || pool).query(
       `INSERT INTO tp.biller_profiles (profile_id, biller_code, service_name, category, status)
        VALUES ($1, $2, $3, $4, 'ACTIVE')
        RETURNING *`,
@@ -141,7 +140,7 @@ const profileModel = {
   /**
    * Get account status from the appropriate subtype table
    */
-  async getAccountStatus(profileId, typeName) {
+  async getAccountStatus(profileId, typeName, client = null) {
     const tableMap = {
       CUSTOMER: 'customer_profiles',
       AGENT: 'agent_profiles',
@@ -150,9 +149,9 @@ const profileModel = {
       BILLER: 'biller_profiles',
     };
     const table = tableMap[typeName];
-    if (!table) return 'ACTIVE'; // SYSTEM profiles are always active
+    if (!table) return 'ACTIVE';
 
-    const result = await pool.query(
+    const result = await (client || pool).query(
       `SELECT status FROM tp.${table} WHERE profile_id = $1`,
       [profileId]
     );
@@ -162,7 +161,7 @@ const profileModel = {
   /**
    * Update profile fields (full_name, email, nid_number)
    */
-  async update(profileId, fields) {
+  async update(profileId, fields, client = null) {
     const setClauses = [];
     const values = [];
     let paramIdx = 1;
@@ -183,7 +182,7 @@ const profileModel = {
     if (setClauses.length === 0) return null;
 
     values.push(profileId);
-    const result = await pool.query(
+    const result = await (client || pool).query(
       `UPDATE tp.profiles
        SET ${setClauses.join(', ')}
        WHERE profile_id = $${paramIdx}
@@ -196,8 +195,8 @@ const profileModel = {
   /**
    * Update security PIN hash
    */
-  async updatePin(profileId, pinHash) {
-    await pool.query(
+  async updatePin(profileId, pinHash, client = null) {
+    await (client || pool).query(
       `UPDATE tp.profiles SET security_pin_hash = $1 WHERE profile_id = $2`,
       [pinHash, profileId]
     );
@@ -206,8 +205,8 @@ const profileModel = {
   /**
    * Mark phone number as verified
    */
-  async setPhoneVerified(phoneNumber) {
-    const result = await pool.query(
+  async setPhoneVerified(phoneNumber, client = null) {
+    const result = await (client || pool).query(
       `UPDATE tp.profiles SET is_phone_verified = TRUE
        WHERE phone_number = $1
        RETURNING profile_id, phone_number, is_phone_verified`,
@@ -219,8 +218,8 @@ const profileModel = {
   /**
    * Increment failed PIN attempts (brute force tracking)
    */
-  async incrementFailedAttempts(profileId) {
-    const result = await pool.query(
+  async incrementFailedAttempts(profileId, client = null) {
+    const result = await (client || pool).query(
       `UPDATE tp.profiles
        SET failed_pin_attempts = COALESCE(failed_pin_attempts, 0) + 1
        WHERE profile_id = $1
@@ -233,8 +232,8 @@ const profileModel = {
   /**
    * Lock account until a specific time
    */
-  async lockAccount(profileId, lockUntil) {
-    await pool.query(
+  async lockAccount(profileId, lockUntil, client = null) {
+    await (client || pool).query(
       `UPDATE tp.profiles SET locked_until = $1 WHERE profile_id = $2`,
       [lockUntil, profileId]
     );
@@ -243,8 +242,8 @@ const profileModel = {
   /**
    * Reset failed attempts and unlock account
    */
-  async resetFailedAttempts(profileId) {
-    await pool.query(
+  async resetFailedAttempts(profileId, client = null) {
+    await (client || pool).query(
       `UPDATE tp.profiles
        SET failed_pin_attempts = 0, locked_until = NULL
        WHERE profile_id = $1`,

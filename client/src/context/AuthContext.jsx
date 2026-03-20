@@ -16,10 +16,9 @@ export function AuthProvider({ children }) {
     setLoading(true);
     try {
       const { data } = await authApi.login({ phoneNumber, securityPin });
-      const { accessToken, refreshToken, profile } = data.data;
+      const { accessToken, profile } = data.data;
 
       localStorage.setItem('accessToken', accessToken);
-      localStorage.setItem('refreshToken', refreshToken);
       localStorage.setItem('user', JSON.stringify(profile));
       setUser(profile);
 
@@ -47,13 +46,11 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(async () => {
     try {
-      const refreshToken = localStorage.getItem('refreshToken');
-      await authApi.logout({ refreshToken });
+      await authApi.logout();
     } catch {
       // Ignore logout errors
     } finally {
       localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
       setUser(null);
     }
