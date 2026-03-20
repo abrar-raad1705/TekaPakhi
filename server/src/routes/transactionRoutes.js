@@ -2,7 +2,11 @@ import { Router } from 'express';
 import transactionController from '../controllers/transactionController.js';
 import authenticate from '../middleware/authenticate.js';
 import validate from '../middleware/validate.js';
-import { executeTransactionSchema, previewTransactionSchema } from '../validations/transactionValidation.js';
+import {
+  executeTransactionSchema,
+  previewTransactionSchema,
+  receiptPdfSchema,
+} from '../validations/transactionValidation.js';
 
 const router = Router();
 
@@ -19,6 +23,8 @@ router.post('/b2b', validate(executeTransactionSchema), transactionController.b2
 
 // Preview (fee calculation without execution)
 router.post('/preview/:type', validate(previewTransactionSchema), transactionController.preview);
+
+router.post('/receipt-pdf', validate(receiptPdfSchema), transactionController.receiptPdf);
 
 // History and details
 router.get('/history', transactionController.history);

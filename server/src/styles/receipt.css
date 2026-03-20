@@ -1,0 +1,14 @@
+@import "tailwindcss";
+
+/* JS template literals are not fully scanned; mirror classes here */
+@source "./receipt-pdf-utilities.html";
+
+@layer base {
+  *,
+  ::after,
+  ::before {
+    box-sizing: border-box;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

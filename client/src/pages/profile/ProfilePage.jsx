@@ -7,10 +7,8 @@ import {
 import { profileApi } from '../../api/profileApi';
 import { useAuth } from '../../context/AuthContext';
 import { formatPhone } from '../../utils/formatCurrency';
-import Header from '../../components/layout/Header';
 import BottomNav from '../../components/layout/BottomNav';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import AuthHeader from '../../components/auth/AuthHeader';
 import AvatarCropModal from '../../components/profile/AvatarCropModal';
 import { toast } from 'sonner';
 
@@ -66,8 +64,6 @@ export default function ProfilePage() {
 
   return (
     <div className="flex min-h-dvh flex-col bg-white overflow-x-hidden pb-10 animate-in fade-in duration-500">
-      <AuthHeader onClose={() => navigate(-1)} />
-
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8 md:py-16">
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-12">
 

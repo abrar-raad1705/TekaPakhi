@@ -15,4 +15,8 @@ export const transactionApi = {
   getDetail: (id) => api.get(`/transactions/${id}`),
 
   lookupRecipient: (phone) => api.get(`/profile/lookup/${phone}`),
+
+  /** Authenticated — returns PDF blob */
+  receiptPdf: (transactionId) =>
+    api.post('/transactions/receipt-pdf', { transactionId }, { responseType: 'blob' }),
 };

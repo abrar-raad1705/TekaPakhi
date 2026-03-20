@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { CheckIcon } from '@heroicons/react/24/outline';
+import { useNavigate } from 'react-router-dom';
+import { CheckIcon, ArrowUpTrayIcon, ArrowLeftIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 import { transactionApi } from '../../api/transactionApi';
-import Header from '../../components/layout/Header';
 import { toast } from 'sonner';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import PinConfirmModal from '../../components/transaction/PinConfirmModal';
@@ -9,6 +9,7 @@ import TransactionReceipt from '../../components/transaction/TransactionReceipt'
 import { formatBDT } from '../../utils/formatCurrency';
 
 export default function CashOutPage() {
+  const navigate = useNavigate();
   const [step, setStep] = useState('form');
   const [form, setForm] = useState({ receiverPhone: '', amount: '' });
   const [recipient, setRecipient] = useState(null);
@@ -80,79 +81,156 @@ export default function CashOutPage() {
   }
 
   return (
-    <div className="min-h-dvh bg-gray-50">
-      <Header title="Cash Out" showBack />
-      <PinConfirmModal isOpen={pinOpen} onClose={() => setPinOpen(false)} onConfirm={handleConfirmPin} loading={loading} />
-
-      <div className="mx-auto max-w-md px-4 py-4">
-        {step === 'form' && (
-          <div className="space-y-4 rounded-2xl bg-white p-5 shadow-sm">
+    <div className="flex min-h-dvh flex-col bg-white overflow-x-hidden animate-in fade-in duration-500">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8 md:py-16">
+        <div className="grid grid-cols-1 gap-12 lg:grid-cols-12 lg:gap-16">
+          
+          {/* Left Column: Info & Context */}
+          <div className="lg:col-span-5 space-y-8 animate-in slide-in-from-left-4 duration-700">
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Agent Phone Number</label>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">+88</span>
-                  <input type="tel" value={form.receiverPhone}
-                    onChange={(e) => { setForm(p => ({ ...p, receiverPhone: e.target.value.replace(/\D/g, '').slice(0, 11) })); setRecipient(null); }}
-                    placeholder="01XXXXXXXXX"
-                    className="w-full rounded-lg border border-gray-300 py-3 pl-12 pr-4 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200" />
-                </div>
-                <button onClick={handleLookup} disabled={loading} className="shrink-0 rounded-lg bg-orange-500 px-4 text-sm font-medium text-white hover:bg-orange-600 disabled:opacity-50">
-                  {loading ? '...' : 'Find'}
-                </button>
+              <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-50 text-primary-600 shadow-sm">
+                <ArrowUpTrayIcon className="h-8 w-8" strokeWidth={2} />
               </div>
-              {recipient && (
-                <div className="mt-2 flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2">
-                  <CheckIcon className="h-4 w-4 text-green-500" strokeWidth={2} />
-                  <span className="text-sm font-medium text-green-700">{recipient.fullName} (Agent)</span>
+              <h1 className="text-3xl font-bold tracking-tight text-gray-900 md:text-4xl">Cash Out</h1>
+              <p className="mt-4 text-lg font-medium text-gray-500 leading-relaxed">
+                Withdraw cash from any authorized TekaPakhi Agent. Enter the Agent's number and the amount you wish to withdraw.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-start gap-4 rounded-2xl border border-primary-50 bg-primary-50/30 p-5">
+                <InformationCircleIcon className="h-6 w-6 shrink-0 text-primary-500" strokeWidth={2} />
+                <div>
+                  <p className="text-sm font-semibold text-primary-900 uppercase tracking-wider mb-1">Transaction Fee</p>
+                  <p className="text-[15px] font-medium text-primary-800 opacity-80">A standard fee of 1.85% applies for all cash out transactions from Agent points.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column: Transaction Form */}
+          <div className="lg:col-span-7 animate-in slide-in-from-right-4 duration-700">
+            <div className="rounded-3xl border border-gray-100 bg-white p-8 shadow-xl shadow-gray-100/50">
+              
+              {step === 'form' && (
+                <div className="space-y-8">
+                  {/* Recipient Input */}
+                  <div className="space-y-3">
+                    <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-gray-400 px-1">Agent Phone Number</label>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <div className="relative flex-1 group">
+                        <span className="absolute left-5 top-1/2 -translate-y-1/2 text-[15px] font-bold text-gray-400 transition-colors group-focus-within:text-primary-600">
+                          +88
+                        </span>
+                        <input
+                          type="tel"
+                          value={form.receiverPhone}
+                          onChange={(e) => { 
+                            setForm(p => ({ ...p, receiverPhone: e.target.value.replace(/\D/g, '').slice(0, 11) })); 
+                            setRecipient(null); 
+                          }}
+                          placeholder="01XXXXXXXXX"
+                          className="w-full rounded-2xl border-2 border-gray-100 py-4 pl-14 pr-4 text-[15px] font-bold transition-all focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-50"
+                        />
+                      </div>
+                      <button 
+                        onClick={handleLookup} 
+                        disabled={loading || form.receiverPhone.length < 11} 
+                        className="sm:px-8 py-4 rounded-2xl bg-gray-900 text-[15px] font-bold text-white transition-all hover:bg-black active:scale-[0.98] disabled:opacity-30"
+                      >
+                        {loading ? '...' : 'Verify Agent'}
+                      </button>
+                    </div>
+                    {recipient && (
+                      <div className="flex items-center gap-3 rounded-2xl bg-emerald-50 px-4 py-3 border border-emerald-100 animate-in zoom-in-95 duration-300">
+                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500">
+                          <CheckIcon className="h-4 w-4 text-white" strokeWidth={3} />
+                        </div>
+                        <span className="text-[15px] font-bold text-emerald-700">{recipient.fullName} (Agent)</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Amount Input */}
+                  <div className="space-y-3">
+                    <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-gray-400 px-1">Amount to Withdraw</label>
+                    <div className="relative group">
+                      <span className="absolute left-5 top-1/2 -translate-y-1/2 text-2xl font-black text-gray-400 transition-colors group-focus-within:text-primary-600">
+                        ৳
+                      </span>
+                      <input
+                        type="number"
+                        value={form.amount}
+                        onChange={(e) => setForm(p => ({ ...p, amount: e.target.value }))}
+                        placeholder="0.00"
+                        className="w-full rounded-2xl border-2 border-gray-100 py-5 pl-12 pr-4 text-2xl font-black transition-all focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-50"
+                        min="0"
+                        step="0.01"
+                      />
+                    </div>
+                  </div>
+
+                  <button 
+                    onClick={handleReview} 
+                    disabled={!recipient || loading || !form.amount}
+                    className="flex w-full items-center justify-center rounded-2xl bg-primary-600 py-5 text-base font-black text-white shadow-xl shadow-primary-200 transition-all hover:bg-primary-700 active:scale-[0.99] disabled:opacity-50 disabled:shadow-none"
+                  >
+                    {loading ? <LoadingSpinner size="sm" /> : 'Review Cash Out'}
+                  </button>
+                </div>
+              )}
+
+              {step === 'review' && preview && (
+                <div className="space-y-10 animate-in zoom-in-95 duration-300">
+                  <div className="text-center">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-2">Withdrawal Amount</p>
+                    <p className="text-5xl font-black tracking-tight text-gray-900">{formatBDT(preview.amount)}</p>
+                  </div>
+
+                  <div className="space-y-4 rounded-3xl bg-gray-50/50 p-8">
+                    <div className="flex justify-between items-center text-[15px]">
+                      <span className="font-bold text-gray-400">Agent</span>
+                      <span className="font-black text-gray-900">{preview.receiver.name}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-[15px]">
+                      <span className="font-bold text-gray-400">Transaction Fee (1.85%)</span>
+                      <span className="font-black text-red-600">+{formatBDT(preview.fee)}</span>
+                    </div>
+                    <div className="h-px bg-gray-200" />
+                    <div className="flex justify-between items-center text-lg">
+                      <span className="font-black text-gray-400">Total Debit</span>
+                      <span className="font-black text-primary-600">{formatBDT(preview.totalDebit)}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <button 
+                      onClick={() => setStep('form')} 
+                      className="flex-1 flex items-center justify-center gap-2 rounded-2xl border-2 border-gray-100 py-4 text-[15px] font-bold text-gray-600 transition-all hover:bg-gray-50 active:scale-[0.98]"
+                    >
+                      <ArrowLeftIcon className="h-5 w-5" strokeWidth={2} />
+                      Edit Details
+                    </button>
+                    <button 
+                      onClick={() => setPinOpen(true)} 
+                      className="flex-1 rounded-2xl bg-primary-600 py-4 text-[15px] font-black text-white shadow-lg shadow-primary-100 transition-all hover:bg-primary-700 active:scale-[0.98]"
+                    >
+                      Confirm Withdrawal
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Amount (BDT)</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg text-gray-400">৳</span>
-                <input type="number" value={form.amount}
-                  onChange={(e) => setForm(p => ({ ...p, amount: e.target.value }))}
-                  placeholder="0.00"
-                  className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-4 text-lg font-semibold focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-200" min="0" step="0.01" />
-              </div>
-            </div>
-
-            <button onClick={handleReview} disabled={!recipient || loading}
-              className="flex w-full items-center justify-center rounded-lg bg-orange-500 py-3 text-sm font-semibold text-white transition-colors hover:bg-orange-600 disabled:opacity-50">
-              {loading ? <LoadingSpinner size="sm" /> : 'Continue'}
-            </button>
           </div>
-        )}
+        </div>
+      </main>
 
-        {step === 'review' && preview && (
-          <div className="space-y-4">
-            <div className="rounded-2xl bg-white shadow-sm">
-              <div className="border-b border-gray-100 px-5 py-4 text-center">
-                <p className="text-sm text-gray-500">Cashing Out</p>
-                <p className="text-3xl font-bold text-gray-900">{formatBDT(preview.amount)}</p>
-                <p className="mt-1 text-sm text-gray-500">via <span className="font-medium text-gray-700">{preview.receiver.name}</span></p>
-              </div>
-              <div className="divide-y divide-gray-100 px-5">
-                <div className="flex justify-between py-3">
-                  <span className="text-sm text-gray-500">Fee (1.85%)</span>
-                  <span className="text-sm font-medium text-red-600">{formatBDT(preview.fee)}</span>
-                </div>
-                <div className="flex justify-between py-3">
-                  <span className="text-sm text-gray-500">Total Debit</span>
-                  <span className="text-sm font-bold text-gray-900">{formatBDT(preview.totalDebit)}</span>
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => setStep('form')} className="flex-1 rounded-lg border border-gray-300 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50">Back</button>
-              <button onClick={() => setPinOpen(true)} className="flex-1 rounded-lg bg-orange-500 py-3 text-sm font-semibold text-white hover:bg-orange-600">Confirm</button>
-            </div>
-          </div>
-        )}
-      </div>
+      <PinConfirmModal 
+        isOpen={pinOpen} 
+        onClose={() => setPinOpen(false)} 
+        onConfirm={handleConfirmPin} 
+        loading={loading} 
+      />
     </div>
   );
 }

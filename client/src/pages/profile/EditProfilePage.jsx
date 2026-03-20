@@ -1,10 +1,8 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { profileApi } from "../../api/profileApi";
-import Header from "../../components/layout/Header";
 import { toast } from "sonner";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
-import AuthHeader from "../../components/auth/AuthHeader";
 
 export default function EditProfilePage() {
   const location = useLocation();
@@ -45,8 +43,6 @@ export default function EditProfilePage() {
 
   return (
     <div className="flex min-h-dvh flex-col bg-white overflow-x-hidden animate-in fade-in duration-500">
-      <AuthHeader onClose={() => navigate(-1)} />
-
       <main className="mx-auto flex w-full max-w-[420px] flex-1 flex-col px-6 py-10 md:py-20">
         <div className="text-center mb-10">
           <h1 className="text-[28px] font-bold tracking-tight text-gray-900 leading-tight">

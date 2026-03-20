@@ -237,7 +237,7 @@ export default function AvatarCropModal({ isOpen, onClose, onUpload }) {
                   className="h-48 w-48 rounded-full object-cover ring-4 ring-primary-50 shadow-lg"
                 />
               </div>
-              <p className="text-sm text-gray-500">Does this look good?</p>
+              <p className="text-md font-semibold text-gray-800">Does this look good?</p>
               <div className="flex w-full gap-3">
                 <button
                   onClick={() => setStep('crop')}

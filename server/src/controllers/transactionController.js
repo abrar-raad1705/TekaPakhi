@@ -1,4 +1,5 @@
 import transactionService from '../services/transactionService.js';
+import { renderReceiptPdf } from '../services/receiptPdfService.js';
 
 const transactionController = {
   /**
@@ -129,6 +130,23 @@ const transactionController = {
         typeCode,
       });
       res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * POST /api/v1/transactions/receipt-pdf
+   */
+  async receiptPdf(req, res, next) {
+    try {
+      const { transactionId } = req.validatedBody;
+      const receipt = await transactionService.getReceiptDataForPdf(transactionId, req.user.profileId);
+      const pdfBuffer = await renderReceiptPdf(receipt);
+      const safeRef = String(receipt.transactionRef).replace(/[^a-zA-Z0-9_-]/g, '_');
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="TekaPakhi-Receipt-${safeRef}.pdf"`);
+      res.send(pdfBuffer);
     } catch (error) {
       next(error);
     }

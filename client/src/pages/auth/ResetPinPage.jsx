@@ -4,7 +4,6 @@ import { authApi } from "../../api/authApi";
 import OTPInput from "../../components/common/OTPInput";
 import PinInput from "../../components/common/PinInput";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
-import AuthHeader from "../../components/auth/AuthHeader";
 import AuthFooter from "../../components/auth/AuthFooter";
 import { FieldError, GlobalError } from "../../components/common/FormError";
 import { formatPhone } from "../../utils/formatCurrency";
@@ -96,8 +95,6 @@ export default function ResetPinPage() {
 
   return (
     <div className="flex min-h-dvh flex-col bg-white overflow-x-hidden">
-      <AuthHeader onClose={() => navigate("/login")} />
-
       {/* Main Content */}
       <main className="mx-auto flex w-full max-w-[440px] flex-1 flex-col px-6 py-10 md:py-24">
         {step === "otp" ? (

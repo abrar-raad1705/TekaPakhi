@@ -1,6 +1,5 @@
 import pool from '../config/db.js';
 import AppError from '../utils/AppError.js';
-import { generateTxRef } from '../utils/helpers.js';
 import { PROFILE_TYPES } from '../utils/constants.js';
 import profileModel from '../models/profileModel.js';
 import walletModel from '../models/walletModel.js';
@@ -110,18 +109,25 @@ const transactionService = {
       // Credit receiver
       await walletModel.credit(client, receiverWallet.wallet_id, receiverCredit);
 
-      // Insert transaction record
-      const txRef = generateTxRef();
-      const transaction = await transactionModel.create(client, {
-        txRef,
-        amount,
-        fee,
-        typeId: txType.type_id,
-        senderWalletId: senderWallet.wallet_id,
-        receiverWalletId: receiverWallet.wallet_id,
-        note,
-        status: 'COMPLETED',
-      });
+      // Insert transaction record (retry on rare transaction_ref collision)
+      let transaction;
+      let txRef;
+      try {
+        ({ txRef, row: transaction } = await transactionModel.createWithTxRef(client, {
+          amount,
+          fee,
+          typeId: txType.type_id,
+          senderWalletId: senderWallet.wallet_id,
+          receiverWalletId: receiverWallet.wallet_id,
+          note,
+          status: 'COMPLETED',
+        }));
+      } catch (e) {
+        if (e.code === 'TX_REF_EXHAUSTED') {
+          throw new AppError('Could not assign a transaction ID. Please try again.', 503);
+        }
+        throw e;
+      }
 
       // Distribute commissions
       await commissionService.distribute(
@@ -225,6 +231,29 @@ const transactionService = {
     const tx = await transactionModel.findByIdForProfile(transactionId, profileId);
     if (!tx) throw new AppError('Transaction not found.', 404);
     return tx;
+  },
+
+  /**
+   * Receipt-shaped payload for PDF (sender debit from stored fee + fee_bearer)
+   */
+  async getReceiptDataForPdf(transactionId, profileId) {
+    const tx = await transactionModel.findByIdForProfile(transactionId, profileId);
+    if (!tx) throw new AppError('Transaction not found.', 404);
+    const amount = parseFloat(tx.amount);
+    const fee = parseFloat(tx.fee_amount);
+    const { senderDebit } = feeService.applyFeeBearer(amount, fee, tx.fee_bearer);
+    return {
+      transactionRef: tx.transaction_ref,
+      type: tx.type_name,
+      amount,
+      fee,
+      totalDebit: senderDebit,
+      sender: { name: tx.sender_name, phone: tx.sender_phone },
+      receiver: { name: tx.receiver_name, phone: tx.receiver_phone },
+      note: tx.user_note || null,
+      timestamp: tx.transaction_time,
+      status: tx.status,
+    };
   },
 
   /**

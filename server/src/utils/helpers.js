@@ -1,16 +1,10 @@
 import crypto from 'crypto';
 
+export { generateTxRef, TX_REF_LENGTH, allocateUniqueTxRef, isTransactionRefUniqueViolation } from './txRef.js';
+
 // Generate a 6-digit OTP code
 export const generateOTP = () => {
   return crypto.randomInt(100000, 999999).toString();
-};
-
-// Generate a unique transaction reference
-// Format: TP + timestamp(base36) + random(hex)
-export const generateTxRef = () => {
-  const timestamp = Date.now().toString(36);
-  const random = crypto.randomBytes(6).toString('hex');
-  return `TP${timestamp}${random}`.toUpperCase();
 };
 
 // Hash a token using SHA-256 (for refresh token storage)

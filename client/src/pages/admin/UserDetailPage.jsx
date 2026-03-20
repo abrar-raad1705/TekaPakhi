@@ -181,7 +181,7 @@ export default function UserDetailPage() {
                   <tbody className="divide-y divide-gray-50">
                     {user.recentTransactions.map((tx) => (
                       <tr key={tx.transaction_id}>
-                        <td className="py-2 pr-3 font-mono text-xs text-gray-500">{tx.transaction_ref.slice(0, 12)}...</td>
+                        <td className="py-2 pr-3 font-mono text-xs text-gray-500">{tx.transaction_ref}</td>
                         <td className="py-2 pr-3 text-gray-700">{tx.type_name}</td>
                         <td className="py-2 pr-3 text-right font-medium text-gray-900">{formatBDT(tx.amount)}</td>
                         <td className="py-2 pr-3">

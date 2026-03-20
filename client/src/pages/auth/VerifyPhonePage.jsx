@@ -4,7 +4,6 @@ import { authApi } from "../../api/authApi";
 import { useAuth } from "../../context/AuthContext";
 import OTPInput from "../../components/common/OTPInput";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
-import AuthHeader from "../../components/auth/AuthHeader";
 import AuthFooter from "../../components/auth/AuthFooter";
 import { GlobalError } from "../../components/common/FormError";
 import { formatPhone } from "../../utils/formatCurrency";
@@ -90,8 +89,6 @@ export default function VerifyPhonePage() {
 
   return (
     <div className="flex min-h-dvh flex-col bg-white overflow-x-hidden">
-      <AuthHeader onClose={handleLogout} />
-
       {/* Main Content */}
       <main className="mx-auto flex w-full max-w-[440px] flex-1 flex-col px-6 py-10 md:py-24">
         <div className="text-center mb-10">

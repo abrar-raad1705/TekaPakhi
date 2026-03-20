@@ -37,6 +37,10 @@ export const historyQuerySchema = z.object({
   toDate: z.string().datetime().optional(),
 });
 
+export const receiptPdfSchema = z.object({
+  transactionId: z.coerce.number().int().positive('Invalid transaction id'),
+});
+
 export const savedRecipientSchema = z.object({
   phoneNumber: z
     .string()

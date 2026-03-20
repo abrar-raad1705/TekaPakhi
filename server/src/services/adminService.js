@@ -1,7 +1,7 @@
 import bcrypt from 'bcrypt';
 import pool from '../config/db.js';
 import AppError from '../utils/AppError.js';
-import { generateTxRef } from '../utils/helpers.js';
+import { allocateUniqueTxRef } from '../utils/txRef.js';
 import { PROFILE_TYPES } from '../utils/constants.js';
 import adminModel from '../models/adminModel.js';
 import profileModel from '../models/profileModel.js';
@@ -131,18 +131,27 @@ const adminService = {
       // Credit target wallet (new money creation)
       await walletModel.credit(client, targetWallet.wallet_id, amount);
 
-      // Record transaction for audit trail
-      const txRef = generateTxRef();
-      await client.query(
-        `INSERT INTO tp.transactions
-           (transaction_ref, amount, fee_amount, status, sender_wallet_id, receiver_wallet_id,
-            type_id, user_note)
-         VALUES ($1, $2, 0, 'COMPLETED', $3, $4,
-           (SELECT type_id FROM tp.transaction_types WHERE type_name = 'CASH_IN'),
-           $5)`,
-        [txRef, amount, systemWalletId, targetWallet.wallet_id,
-         `ADMIN_LOAD: ৳${amount} loaded by admin #${adminProfileId}`]
-      );
+      // Record transaction for audit trail (retry on rare transaction_ref collision)
+      let txRef;
+      try {
+        ({ txRef } = await allocateUniqueTxRef((ref) =>
+          client.query(
+            `INSERT INTO tp.transactions
+               (transaction_ref, amount, fee_amount, status, sender_wallet_id, receiver_wallet_id,
+                type_id, user_note)
+             VALUES ($1, $2, 0, 'COMPLETED', $3, $4,
+               (SELECT type_id FROM tp.transaction_types WHERE type_name = 'CASH_IN'),
+               $5)`,
+            [ref, amount, systemWalletId, targetWallet.wallet_id,
+             `ADMIN_LOAD: ৳${amount} loaded by admin #${adminProfileId}`]
+          )
+        ));
+      } catch (e) {
+        if (e.code === 'TX_REF_EXHAUSTED') {
+          throw new AppError('Could not assign a transaction ID. Please try again.', 503);
+        }
+        throw e;
+      }
 
       await client.query('COMMIT');
 
@@ -256,21 +265,31 @@ const adminService = {
         );
       }
 
-      // Insert reversal record
-      const txRef = generateTxRef();
-      const reversalResult = await client.query(
-        `INSERT INTO tp.transactions
-           (transaction_ref, amount, fee_amount, transaction_time, status,
-            sender_wallet_id, receiver_wallet_id, type_id, original_transaction_id,
-            user_note)
-         VALUES ($1, $2, $3, NOW(), 'REVERSED', $4, $5, $6, $7, $8)
-         RETURNING *`,
-        [
-          txRef, amount, fee, original.receiver_wallet_id, original.sender_wallet_id,
-          original.type_id, original.transaction_id,
-          `Reversed by admin (profile #${adminProfileId})`,
-        ]
-      );
+      // Insert reversal record (retry on rare transaction_ref collision)
+      let txRef;
+      let reversalResult;
+      try {
+        ({ txRef, result: reversalResult } = await allocateUniqueTxRef((ref) =>
+          client.query(
+            `INSERT INTO tp.transactions
+               (transaction_ref, amount, fee_amount, transaction_time, status,
+                sender_wallet_id, receiver_wallet_id, type_id, original_transaction_id,
+                user_note)
+             VALUES ($1, $2, $3, NOW(), 'REVERSED', $4, $5, $6, $7, $8)
+             RETURNING *`,
+            [
+              ref, amount, fee, original.receiver_wallet_id, original.sender_wallet_id,
+              original.type_id, original.transaction_id,
+              `Reversed by admin (profile #${adminProfileId})`,
+            ]
+          )
+        ));
+      } catch (e) {
+        if (e.code === 'TX_REF_EXHAUSTED') {
+          throw new AppError('Could not assign a transaction ID. Please try again.', 503);
+        }
+        throw e;
+      }
 
       // Mark original as REVERSED
       await client.query(

@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import PrivateRoute from './routes/PrivateRoute';
 import AdminRoute from './routes/AdminRoute';
+import ShellLayout from './components/layout/ShellLayout';
 
 // Auth pages
 import LoginPage from './pages/auth/LoginPage';
@@ -47,54 +48,55 @@ export default function App() {
 
   return (
     <Routes>
-      {/* Public routes */}
-      <Route path="/login" element={isAuthenticated ? (user?.isPhoneVerified ? <Navigate to={homeRoute} replace /> : <Navigate to="/verify-phone" state={{ phoneNumber: user?.phoneNumber }} replace />) : <LoginPage />} />
-      <Route path="/register" element={isAuthenticated ? (user?.isPhoneVerified ? <Navigate to={homeRoute} replace /> : <Navigate to="/verify-phone" state={{ phoneNumber: user?.phoneNumber }} replace />) : <RegisterPage />} />
-      <Route path="/verify-phone" element={<VerifyPhonePage />} />
-      <Route path="/forgot-pin" element={<ForgotPinPage />} />
-      <Route path="/reset-pin" element={<ResetPinPage />} />
+      <Route element={<ShellLayout />}>
+        {/* Public routes */}
+        <Route path="/login" element={isAuthenticated ? (user?.isPhoneVerified ? <Navigate to={homeRoute} replace /> : <Navigate to="/verify-phone" state={{ phoneNumber: user?.phoneNumber }} replace />) : <LoginPage />} />
+        <Route path="/register" element={isAuthenticated ? (user?.isPhoneVerified ? <Navigate to={homeRoute} replace /> : <Navigate to="/verify-phone" state={{ phoneNumber: user?.phoneNumber }} replace />) : <RegisterPage />} />
+        <Route path="/verify-phone" element={<VerifyPhonePage />} />
+        <Route path="/forgot-pin" element={<ForgotPinPage />} />
+        <Route path="/reset-pin" element={<ResetPinPage />} />
 
-      {/* Customer dashboard */}
-      <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
+        {/* Customer dashboard */}
+        <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
 
-      {/* Agent dashboard */}
-      <Route path="/agent" element={<PrivateRoute><AgentDashboardPage /></PrivateRoute>} />
+        {/* Agent dashboard */}
+        <Route path="/agent" element={<PrivateRoute><AgentDashboardPage /></PrivateRoute>} />
 
-      {/* Merchant dashboard */}
-      <Route path="/merchant" element={<PrivateRoute><MerchantDashboardPage /></PrivateRoute>} />
+        {/* Merchant dashboard */}
+        <Route path="/merchant" element={<PrivateRoute><MerchantDashboardPage /></PrivateRoute>} />
 
-      {/* Distributor dashboard */}
-      <Route path="/distributor" element={<PrivateRoute><DistributorDashboardPage /></PrivateRoute>} />
+        {/* Distributor dashboard */}
+        <Route path="/distributor" element={<PrivateRoute><DistributorDashboardPage /></PrivateRoute>} />
 
-      {/* Biller dashboard */}
-      <Route path="/biller" element={<PrivateRoute><BillerDashboardPage /></PrivateRoute>} />
+        {/* Biller dashboard */}
+        <Route path="/biller" element={<PrivateRoute><BillerDashboardPage /></PrivateRoute>} />
 
-      {/* Shared protected routes (all roles) */}
-      <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
-      <Route path="/profile/edit" element={<PrivateRoute><EditProfilePage /></PrivateRoute>} />
-      <Route path="/change-pin" element={<PrivateRoute><ChangePinPage /></PrivateRoute>} />
-      <Route path="/recipients" element={<PrivateRoute><SavedRecipientsPage /></PrivateRoute>} />
-      <Route path="/transactions" element={<PrivateRoute><TransactionHistoryPage /></PrivateRoute>} />
-      <Route path="/transactions/:id" element={<PrivateRoute><TransactionDetailPage /></PrivateRoute>} />
+        {/* Shared protected routes (all roles) */}
+        <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
+        <Route path="/profile/edit" element={<PrivateRoute><EditProfilePage /></PrivateRoute>} />
+        <Route path="/change-pin" element={<PrivateRoute><ChangePinPage /></PrivateRoute>} />
+        <Route path="/recipients" element={<PrivateRoute><SavedRecipientsPage /></PrivateRoute>} />
+        <Route path="/transactions" element={<PrivateRoute><TransactionHistoryPage /></PrivateRoute>} />
+        <Route path="/transactions/:id" element={<PrivateRoute><TransactionDetailPage /></PrivateRoute>} />
 
-      {/* Transaction routes (role-validated on server) */}
-      <Route path="/send-money" element={<PrivateRoute><SendMoneyPage /></PrivateRoute>} />
-      <Route path="/cash-in" element={<PrivateRoute><CashInPage /></PrivateRoute>} />
-      <Route path="/cash-out" element={<PrivateRoute><CashOutPage /></PrivateRoute>} />
-      <Route path="/payment" element={<PrivateRoute><PaymentPage /></PrivateRoute>} />
-      <Route path="/b2b" element={<PrivateRoute><B2BTransferPage /></PrivateRoute>} />
-      <Route path="/pay-bill" element={<PrivateRoute><PayBillPage /></PrivateRoute>} />
+        {/* Transaction routes (role-validated on server) */}
+        <Route path="/send-money" element={<PrivateRoute><SendMoneyPage /></PrivateRoute>} />
+        <Route path="/cash-in" element={<PrivateRoute><CashInPage /></PrivateRoute>} />
+        <Route path="/cash-out" element={<PrivateRoute><CashOutPage /></PrivateRoute>} />
+        <Route path="/payment" element={<PrivateRoute><PaymentPage /></PrivateRoute>} />
+        <Route path="/b2b" element={<PrivateRoute><B2BTransferPage /></PrivateRoute>} />
+        <Route path="/pay-bill" element={<PrivateRoute><PayBillPage /></PrivateRoute>} />
 
-      {/* Admin routes — SYSTEM users only */}
-      <Route path="/admin" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
-      <Route path="/admin/users" element={<AdminRoute><UserManagementPage /></AdminRoute>} />
-      <Route path="/admin/users/:id" element={<AdminRoute><UserDetailPage /></AdminRoute>} />
-      <Route path="/admin/transactions" element={<AdminRoute><TransactionMonitorPage /></AdminRoute>} />
-      <Route path="/admin/config" element={<AdminRoute><ConfigPage /></AdminRoute>} />
-      <Route path="/admin/reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
+        {/* Admin — ShellLayout renders no SiteHeader for /admin/* (AdminLayout is self-contained) */}
+        <Route path="/admin" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
+        <Route path="/admin/users" element={<AdminRoute><UserManagementPage /></AdminRoute>} />
+        <Route path="/admin/users/:id" element={<AdminRoute><UserDetailPage /></AdminRoute>} />
+        <Route path="/admin/transactions" element={<AdminRoute><TransactionMonitorPage /></AdminRoute>} />
+        <Route path="/admin/config" element={<AdminRoute><ConfigPage /></AdminRoute>} />
+        <Route path="/admin/reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
 
-      {/* Default redirect */}
-      <Route path="*" element={<Navigate to={isAuthenticated ? homeRoute : '/login'} replace />} />
+        <Route path="*" element={<Navigate to={isAuthenticated ? homeRoute : '/login'} replace />} />
+      </Route>
     </Routes>
   );
 }

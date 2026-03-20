@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { allocateUniqueTxRef } from '../utils/txRef.js';
 
 const transactionModel = {
   /**
@@ -13,6 +14,22 @@ const transactionModel = {
       [txRef, amount, fee, typeId, senderWalletId, receiverWalletId, note, status]
     );
     return result.rows[0];
+  },
+
+  /**
+   * Generate a new transaction_ref and insert; retries on UNIQUE(transaction_ref) collisions.
+   * Ref is immutable after this insert — never update transaction_ref.
+   */
+  async createWithTxRef(
+    client,
+    { amount, fee, typeId, senderWalletId, receiverWalletId, note, status = 'COMPLETED' },
+    options
+  ) {
+    const { txRef, result: row } = await allocateUniqueTxRef(
+      (txRef) => this.create(client, { txRef, amount, fee, typeId, senderWalletId, receiverWalletId, note, status }),
+      options
+    );
+    return { txRef, row };
   },
 
   /**
@@ -40,7 +57,7 @@ const transactionModel = {
    */
   async findByIdForProfile(transactionId, profileId) {
     const result = await pool.query(
-      `SELECT t.*, tt.type_name,
+      `SELECT t.*, tt.type_name, tt.fee_bearer,
               sw.profile_id AS sender_profile_id,
               sp.full_name AS sender_name, sp.phone_number AS sender_phone,
               rw.profile_id AS receiver_profile_id,

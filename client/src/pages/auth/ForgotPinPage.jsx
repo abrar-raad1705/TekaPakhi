@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { authApi } from "../../api/authApi";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
-import AuthHeader from "../../components/auth/AuthHeader";
 import AuthFooter from "../../components/auth/AuthFooter";
 import { FieldError, GlobalError } from "../../components/common/FormError";
 
@@ -40,8 +39,6 @@ export default function ForgotPinPage() {
 
   return (
     <div className="flex min-h-dvh flex-col bg-white overflow-x-hidden">
-      <AuthHeader onClose={() => navigate("/login")} />
-
       {/* Main Content */}
       <main className="mx-auto flex w-full max-w-[440px] flex-1 flex-col px-6 py-10 md:py-24">
         <div className="text-center mb-10">

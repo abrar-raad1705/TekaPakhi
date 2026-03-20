@@ -4,7 +4,6 @@ import { useAuth } from "../../context/AuthContext";
 import { authApi } from "../../api/authApi";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import PinInput from "../../components/common/PinInput";
-import AuthHeader from "../../components/auth/AuthHeader";
 import AuthFooter from "../../components/auth/AuthFooter";
 import { FieldError, GlobalError } from "../../components/common/FormError";
 import {
@@ -159,8 +158,6 @@ export default function RegisterPage() {
 
   return (
     <div className="flex min-h-dvh flex-col bg-white overflow-x-hidden">
-      <AuthHeader onClose={() => navigate("/login")} />
-
       {/* Main Content */}
       <main className="mx-auto flex w-full max-w-[420px] flex-1 flex-col px-6 py-12 md:py-20">
         <div className="mb-10 text-center relative">

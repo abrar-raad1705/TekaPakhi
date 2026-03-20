@@ -159,7 +159,7 @@ export default function TransactionMonitorPage() {
               <tbody className="divide-y divide-gray-100">
                 {data.transactions.map((tx) => (
                   <tr key={tx.transaction_id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{tx.transaction_ref.slice(0, 12)}...</td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{tx.transaction_ref}</td>
                     <td className="px-4 py-3 text-gray-700">{tx.type_name}</td>
                     <td className="px-4 py-3">
                       <p className="text-xs font-medium text-gray-900">{tx.sender_name}</p>

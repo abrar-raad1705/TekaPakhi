@@ -8,7 +8,6 @@ import {
 } from '@heroicons/react/24/outline';
 import { recipientApi } from '../../api/recipientApi';
 import { profileApi } from '../../api/profileApi';
-import Header from '../../components/layout/Header';
 import BottomNav from '../../components/layout/BottomNav';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { toast } from 'sonner';
@@ -80,9 +79,8 @@ export default function SavedRecipientsPage() {
 
   return (
     <div className="flex min-h-dvh flex-col bg-white overflow-x-hidden animate-in fade-in duration-500">
-      <Header title="Saved Recipients" backTo="/profile" />
-
       <main className="mx-auto flex w-full max-w-[440px] flex-1 flex-col px-6 py-8">
+        <h1 className="mb-6 text-center text-2xl font-bold tracking-tight text-gray-900">Saved recipients</h1>
         {/* Add button */}
         {!showAddForm && (
           <div className="mb-8">

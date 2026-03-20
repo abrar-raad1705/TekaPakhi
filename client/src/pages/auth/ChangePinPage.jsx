@@ -4,7 +4,6 @@ import { authApi } from "../../api/authApi";
 import { toast } from "sonner";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import PinInput from "../../components/common/PinInput";
-import AuthHeader from "../../components/auth/AuthHeader";
 import AuthFooter from "../../components/auth/AuthFooter";
 
 export default function ChangePinPage() {
@@ -38,8 +37,6 @@ export default function ChangePinPage() {
 
   return (
     <div className="flex min-h-dvh flex-col bg-white overflow-x-hidden">
-      <AuthHeader onClose={() => navigate(-1)} />
-
       {/* Main Content */}
 
       {/* Main Content */}
@@ -77,7 +74,7 @@ export default function ChangePinPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-full bg-primary-500 py-4 text-sm font-bold text-white shadow-lg shadow-primary-200 transition-all hover:bg-primary-600 active:scale-[0.98] disabled:opacity-50"
+            className="w-full rounded-full bg-primary-500 py-4 text-sm font-bold text-white transition-all hover:bg-primary-600 active:scale-[0.98] disabled:opacity-50"
           >
             {loading ? <LoadingSpinner size="sm" /> : "Confirm change"}
           </button>
