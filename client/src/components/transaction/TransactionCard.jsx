@@ -1,4 +1,5 @@
 import { formatBDT, formatPhone } from '../../utils/formatCurrency';
+import ProfileAvatar from '../common/ProfileAvatar';
 import { 
   PaperAirplaneIcon, 
   ArrowDownLeftIcon, 
@@ -23,16 +24,28 @@ export default function TransactionCard({ tx, currentProfileId, onClick, classNa
   const config = typeConfig[tx.type_name] || { label: tx.type_name, icon: '?', color: 'bg-gray-50 text-gray-400' };
   const isSender = tx.sender_profile_id?.toString() === currentProfileId?.toString();
   const counterparty = isSender
-    ? { name: tx.receiver_name, phone: tx.receiver_phone }
-    : { name: tx.sender_name, phone: tx.sender_phone };
+    ? {
+        name: tx.receiver_name,
+        phone: tx.receiver_phone,
+        pictureUrl: tx.receiver_profile_picture_url,
+      }
+    : {
+        name: tx.sender_name,
+        phone: tx.sender_phone,
+        pictureUrl: tx.sender_profile_picture_url,
+      };
 
   return (
     <button
       onClick={() => onClick?.(tx)}
       className={`group flex w-full items-center gap-4 rounded-2xl bg-white px-5 py-4 text-left transition-all duration-200 hover:bg-gray-50 active:scale-[0.99] border border-transparent hover:border-gray-100 ${className}`}
     >
-      <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-110 duration-300 ${config.color}`}>
-        {config.icon}
+      <div className="shrink-0 transition-transform duration-300 group-hover:scale-105">
+        <ProfileAvatar
+          pictureUrl={counterparty.pictureUrl}
+          name={counterparty.name}
+          className="h-12 w-12 text-lg"
+        />
       </div>
       
       <div className="min-w-0 flex-1">

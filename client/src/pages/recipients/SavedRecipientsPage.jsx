@@ -10,6 +10,7 @@ import { recipientApi } from '../../api/recipientApi';
 import { profileApi } from '../../api/profileApi';
 import BottomNav from '../../components/layout/BottomNav';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import ProfileAvatar from '../../components/common/ProfileAvatar';
 import { toast } from 'sonner';
 
 export default function SavedRecipientsPage() {
@@ -189,9 +190,11 @@ export default function SavedRecipientsPage() {
                     className="flex flex-1 cursor-pointer items-center gap-4"
                     onClick={() => navigate(`/send-money?phone=${r.target_phone}`)}
                   >
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary-100 text-base font-black text-primary-600 ring-4 ring-primary-50/50">
-                      {(r.nickname || r.target_name || '?')[0].toUpperCase()}
-                    </div>
+                    <ProfileAvatar
+                      pictureUrl={r.target_profile_picture_url}
+                      name={r.nickname || r.target_name}
+                      className="h-12 w-12 text-lg ring-4 ring-primary-50/50"
+                    />
                     <div>
                       <p className="text-[15px] font-bold text-gray-900 group-hover:text-primary-600 transition-colors">
                         {r.nickname || r.target_name}

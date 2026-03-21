@@ -39,7 +39,9 @@ const transactionModel = {
     const result = await pool.query(
       `SELECT t.*, tt.type_name,
               sp.full_name AS sender_name, sp.phone_number AS sender_phone,
-              rp.full_name AS receiver_name, rp.phone_number AS receiver_phone
+              sp.profile_picture_url AS sender_profile_picture_url,
+              rp.full_name AS receiver_name, rp.phone_number AS receiver_phone,
+              rp.profile_picture_url AS receiver_profile_picture_url
        FROM tp.transactions t
        JOIN tp.transaction_types tt ON t.type_id = tt.type_id
        JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
@@ -60,8 +62,10 @@ const transactionModel = {
       `SELECT t.*, tt.type_name, tt.fee_bearer,
               sw.profile_id AS sender_profile_id,
               sp.full_name AS sender_name, sp.phone_number AS sender_phone,
+              sp.profile_picture_url AS sender_profile_picture_url,
               rw.profile_id AS receiver_profile_id,
-              rp.full_name AS receiver_name, rp.phone_number AS receiver_phone
+              rp.full_name AS receiver_name, rp.phone_number AS receiver_phone,
+              rp.profile_picture_url AS receiver_profile_picture_url
        FROM tp.transactions t
        JOIN tp.transaction_types tt ON t.type_id = tt.type_id
        JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
@@ -103,8 +107,10 @@ const transactionModel = {
       SELECT t.*, tt.type_name,
              sw.profile_id AS sender_profile_id,
              sp.full_name AS sender_name, sp.phone_number AS sender_phone,
+             sp.profile_picture_url AS sender_profile_picture_url,
              rw.profile_id AS receiver_profile_id,
-             rp.full_name AS receiver_name, rp.phone_number AS receiver_phone
+             rp.full_name AS receiver_name, rp.phone_number AS receiver_phone,
+             rp.profile_picture_url AS receiver_profile_picture_url
       FROM tp.transactions t
       JOIN tp.transaction_types tt ON t.type_id = tt.type_id
       JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
@@ -212,8 +218,10 @@ const transactionModel = {
       `SELECT t.*, tt.type_name,
               sw.profile_id AS sender_profile_id,
               sp.full_name AS sender_name, sp.phone_number AS sender_phone,
+              sp.profile_picture_url AS sender_profile_picture_url,
               rw.profile_id AS receiver_profile_id,
-              rp.full_name AS receiver_name, rp.phone_number AS receiver_phone
+              rp.full_name AS receiver_name, rp.phone_number AS receiver_phone,
+              rp.profile_picture_url AS receiver_profile_picture_url
        FROM tp.transactions t
        JOIN tp.transaction_types tt ON t.type_id = tt.type_id
        JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id

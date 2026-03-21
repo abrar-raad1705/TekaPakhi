@@ -3,7 +3,9 @@ import pool from '../config/db.js';
 const recipientModel = {
   async findBySaver(saverProfileId) {
     const result = await pool.query(
-      `SELECT sr.*, p.full_name AS target_name, p.phone_number AS target_phone, pt.type_name AS target_type
+      `SELECT sr.*, p.full_name AS target_name, p.phone_number AS target_phone,
+              p.profile_picture_url AS target_profile_picture_url,
+              pt.type_name AS target_type
        FROM tp.saved_recipients sr
        JOIN tp.profiles p ON sr.target_profile_id = p.profile_id
        JOIN tp.profile_types pt ON p.type_id = pt.type_id
