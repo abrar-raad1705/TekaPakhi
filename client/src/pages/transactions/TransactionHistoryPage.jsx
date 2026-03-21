@@ -15,6 +15,7 @@ import TransactionDetailPanel from "../../components/transaction/TransactionDeta
 import { formatPhone } from "../../utils/formatCurrency";
 import { formatTaka, typeLabels } from "../../utils/transactionDetailFormat";
 import ProfileAvatar from "../../components/common/ProfileAvatar";
+import { TransactionTypeGlyph } from "../../constants/transactionTypeUi";
 
 const ACCENT = "#2563EB";
 
@@ -670,12 +671,17 @@ function HistoryRow({ tx, profileId, onOpen }) {
         onClick={onOpen}
         className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-slate-50 active:bg-slate-100/80"
       >
-        <ProfileAvatar
-          pictureUrl={counterparty.pictureUrl}
-          name={counterparty.name}
-          className="h-11 w-11 text-base"
-          accentColor={ACCENT}
-        />
+        <div className="flex shrink-0 items-center gap-2">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+            <TransactionTypeGlyph typeName={tx.type_name} className="h-4 w-4" />
+          </div>
+          <ProfileAvatar
+            pictureUrl={counterparty.pictureUrl}
+            name={counterparty.name}
+            className="h-11 w-11 text-base"
+            accentColor={ACCENT}
+          />
+        </div>
         <div className="min-w-0 flex-1">
           <p className="text-[15px] font-bold text-slate-900">{title}</p>
           <p className="truncate text-sm text-slate-500">

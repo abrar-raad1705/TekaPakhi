@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import {
   DocumentTextIcon,
   ChevronRightIcon,
-  WalletIcon,
+  ReceiptPercentIcon,
   ArrowLeftIcon,
 } from "@heroicons/react/24/outline";
 import { profileApi } from "../../api/profileApi";
@@ -108,7 +108,7 @@ export default function PayBillPage() {
   return (
     <>
       <TransactionFlowLayout
-        icon={WalletIcon}
+        icon={ReceiptPercentIcon}
         title="Pay Bill"
         subtitle="Pay utilities, insurance, and more. Pick a biller, enter the amount, then confirm with your PIN. Encrypted and posted immediately."
         steps={flowSteps}
@@ -128,7 +128,7 @@ export default function PayBillPage() {
             Pay Bill
           </h2>
           <div className="ml-auto flex h-8 w-8 items-center justify-center rounded-full bg-primary-50 text-primary-600">
-            <WalletIcon className="h-4 w-4" strokeWidth={2} />
+            <ReceiptPercentIcon className="h-4 w-4" strokeWidth={2} />
           </div>
         </div>
 

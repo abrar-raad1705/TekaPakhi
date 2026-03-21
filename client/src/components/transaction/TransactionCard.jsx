@@ -1,27 +1,11 @@
 import { formatBDT, formatPhone } from '../../utils/formatCurrency';
+import { typeLabels } from '../../utils/transactionDetailFormat';
 import ProfileAvatar from '../common/ProfileAvatar';
-import { 
-  PaperAirplaneIcon, 
-  ArrowDownLeftIcon, 
-  ArrowUpRightIcon, 
-  CreditCardIcon, 
-  ReceiptPercentIcon, 
-  ArrowsRightLeftIcon,
-  ChevronRightIcon
-} from '@heroicons/react/24/outline';
-
-const typeConfig = {
-  // All types now use the primary brand color for consistency as per user request
-  SEND_MONEY:  { label: 'Send Money', icon: <PaperAirplaneIcon className="h-5 w-5 rotate-[-45deg]" />, color: 'bg-primary-50 text-primary-600' },
-  CASH_IN:     { label: 'Cash In',    icon: <ArrowDownLeftIcon className="h-5 w-5" />, color: 'bg-primary-50 text-primary-600' },
-  CASH_OUT:    { label: 'Cash Out',   icon: <ArrowUpRightIcon className="h-5 w-5" />, color: 'bg-primary-50 text-primary-600' },
-  PAYMENT:     { label: 'Payment',    icon: <CreditCardIcon className="h-5 w-5" />, color: 'bg-primary-50 text-primary-600' },
-  PAY_BILL:    { label: 'Pay Bill',   icon: <ReceiptPercentIcon className="h-5 w-5" />, color: 'bg-primary-50 text-primary-600' },
-  B2B:         { label: 'B2B Transfer', icon: <ArrowsRightLeftIcon className="h-5 w-5" />, color: 'bg-primary-50 text-primary-600' },
-};
+import { TransactionTypeGlyph } from '../../constants/transactionTypeUi';
+import { ChevronRightIcon } from '@heroicons/react/24/outline';
 
 export default function TransactionCard({ tx, currentProfileId, onClick, className = "" }) {
-  const config = typeConfig[tx.type_name] || { label: tx.type_name, icon: '?', color: 'bg-gray-50 text-gray-400' };
+  const label = typeLabels[tx.type_name] || tx.type_name;
   const isSender = tx.sender_profile_id?.toString() === currentProfileId?.toString();
   const counterparty = isSender
     ? {
@@ -40,12 +24,17 @@ export default function TransactionCard({ tx, currentProfileId, onClick, classNa
       onClick={() => onClick?.(tx)}
       className={`group flex w-full items-center gap-4 rounded-2xl bg-white px-5 py-4 text-left transition-all duration-200 hover:bg-gray-50 active:scale-[0.99] border border-transparent hover:border-gray-100 ${className}`}
     >
-      <div className="shrink-0 transition-transform duration-300 group-hover:scale-105">
-        <ProfileAvatar
-          pictureUrl={counterparty.pictureUrl}
-          name={counterparty.name}
-          className="h-12 w-12 text-lg"
-        />
+      <div className="flex shrink-0 items-center gap-3">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-50 text-primary-600">
+          <TransactionTypeGlyph typeName={tx.type_name} className="h-6 w-6" />
+        </div>
+        <div className="shrink-0 transition-transform duration-300 group-hover:scale-105">
+          <ProfileAvatar
+            pictureUrl={counterparty.pictureUrl}
+            name={counterparty.name}
+            className="h-12 w-12 text-lg"
+          />
+        </div>
       </div>
       
       <div className="min-w-0 flex-1">
@@ -55,7 +44,7 @@ export default function TransactionCard({ tx, currentProfileId, onClick, classNa
           <p className="hidden sm:inline-block text-[13px] font-bold text-gray-400">{formatPhone(counterparty.phone)}</p>
         </div>
         <p className="text-[13px] font-bold text-gray-400 mt-0.5 uppercase tracking-wider opacity-70">
-          {config.label} &middot; {new Date(tx.transaction_time).toLocaleDateString('en-BD', { day: 'numeric', month: 'short', year: 'numeric' })}
+          {label} &middot; {new Date(tx.transaction_time).toLocaleDateString('en-BD', { day: 'numeric', month: 'short', year: 'numeric' })}
         </p>
       </div>
 

@@ -322,8 +322,8 @@ export default function B2BTransferPage() {
                 <LoadingSpinner size="md" className="text-gray-300" />
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="min-w-0">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
+                <div className="min-w-0 flex-1 sm:pr-3">
                   {!(searchTrimmed || searchDigits) && (
                     <h3 className="mb-3 px-1 text-[12px] font-bold uppercase tracking-[0.15em] text-gray-400">
                       Recent
@@ -359,7 +359,16 @@ export default function B2BTransferPage() {
                   </div>
                 </div>
 
-                <div className="min-w-0">
+                <div
+                  className="h-px w-full shrink-0 bg-slate-100 sm:hidden"
+                  aria-hidden
+                />
+                <div
+                  className="hidden w-px shrink-0 self-stretch bg-slate-100 sm:block"
+                  aria-hidden
+                />
+
+                <div className="min-w-0 flex-1 sm:pl-3">
                   {!(searchTrimmed || searchDigits) && (
                     <h3 className="mb-3 px-1 text-[12px] font-bold uppercase tracking-[0.15em] text-gray-400">
                       Saved
