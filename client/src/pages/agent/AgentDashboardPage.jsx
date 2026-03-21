@@ -27,7 +27,7 @@ export default function AgentDashboardPage() {
   const isPendingKYC = user?.accountStatus === 'PENDING_KYC';
 
   useEffect(() => {
-    Promise.all([fetchBalance(), fetchRecentTxns()]).finally(() => setLoading(false));
+    fetchBalance().finally(() => setLoading(false));
   }, []);
 
   const fetchBalance = async () => {

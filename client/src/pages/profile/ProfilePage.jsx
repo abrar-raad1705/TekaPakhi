@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { 
   CameraIcon, 
   ChevronRightIcon 
@@ -7,7 +7,6 @@ import {
 import { profileApi } from '../../api/profileApi';
 import { useAuth } from '../../context/AuthContext';
 import { formatPhone } from '../../utils/formatCurrency';
-import BottomNav from '../../components/layout/BottomNav';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import AvatarCropModal from '../../components/profile/AvatarCropModal';
 import { toast } from 'sonner';
@@ -182,8 +181,6 @@ export default function ProfilePage() {
           </div>
         </div>
       </main>
-
-      <BottomNav />
 
       {/* Avatar Crop Modal */}
       <AvatarCropModal

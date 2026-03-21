@@ -20,6 +20,7 @@ const profileController = {
           fullName: profile.full_name,
           phoneNumber: profile.phone_number,
           typeName: profile.type_name,
+          profilePictureUrl: profile.profile_picture_url ?? null,
         },
       });
     } catch (error) {
@@ -84,7 +85,7 @@ const profileController = {
   async listBillers(req, res, next) {
     try {
       const result = await pool.query(
-        `SELECT p.profile_id, p.full_name, p.phone_number,
+        `SELECT p.profile_id, p.full_name, p.phone_number, p.profile_picture_url,
                 b.biller_code, b.service_name, b.category, b.status
          FROM tp.biller_profiles b
          JOIN tp.profiles p ON b.profile_id = p.profile_id

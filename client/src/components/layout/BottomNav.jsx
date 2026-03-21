@@ -4,7 +4,8 @@ import { useAuth } from '../../context/AuthContext';
 import { 
   HomeIcon, 
   ClockIcon, 
-  UserIcon 
+  UserIcon,
+  DocumentTextIcon
 } from '@heroicons/react/24/outline';
 
 export default function BottomNav() {
@@ -19,8 +20,8 @@ export default function BottomNav() {
     },
     {
       to: '/transactions',
-      label: 'History',
-      icon: <ClockIcon />,
+      label: 'Statements',
+      icon: <DocumentTextIcon />,
     },
     {
       to: '/profile',

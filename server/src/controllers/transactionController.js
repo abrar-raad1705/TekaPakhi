@@ -176,7 +176,9 @@ const transactionController = {
    */
   async miniStatement(req, res, next) {
     try {
-      const transactions = await transactionService.getMiniStatement(req.user.profileId);
+      const raw = parseInt(String(req.query.limit ?? ''), 10);
+      const limit = Number.isFinite(raw) ? Math.min(Math.max(raw, 1), 100) : 5;
+      const transactions = await transactionService.getMiniStatement(req.user.profileId, limit);
       res.status(200).json({ success: true, data: transactions });
     } catch (error) {
       next(error);

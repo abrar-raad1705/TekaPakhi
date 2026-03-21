@@ -131,11 +131,20 @@ export default function SavedRecipientsPage() {
             </div>
 
             {lookupResult && (
-              <div className="rounded-xl border border-green-100 bg-green-50 p-4 animate-in fade-in duration-300">
-                <p className="text-[11px] font-black uppercase tracking-widest text-green-600 mb-1">Account Found</p>
-                <p className="text-sm font-bold text-green-800">
-                  {lookupResult.fullName} <span className="mx-1 opacity-40">|</span> <span className="font-medium text-green-600">{lookupResult.typeName}</span>
-                </p>
+              <div className="flex items-center gap-3 rounded-xl border border-green-100 bg-green-50 p-4 animate-in fade-in duration-300">
+                <ProfileAvatar
+                  pictureUrl={lookupResult.profilePictureUrl}
+                  name={lookupResult.fullName}
+                  className="h-12 w-12 text-lg ring-2 ring-white"
+                />
+                <div className="min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-widest text-green-600 mb-0.5">Account Found</p>
+                  <p className="text-sm font-bold text-green-800">
+                    {lookupResult.fullName}{" "}
+                    <span className="mx-1 opacity-40">|</span>{" "}
+                    <span className="font-medium text-green-600">{lookupResult.typeName}</span>
+                  </p>
+                </div>
               </div>
             )}
 

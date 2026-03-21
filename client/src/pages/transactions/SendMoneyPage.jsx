@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   PaperAirplaneIcon,
@@ -12,12 +12,47 @@ import { recipientApi } from '../../api/recipientApi';
 import { walletApi } from '../../api/walletApi';
 import { toast } from 'sonner';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import ProfileAvatar from '../../components/common/ProfileAvatar';
 import TransactionReceipt from '../../components/transaction/TransactionReceipt';
+import TransactionFlowLayout from '../../components/transaction/TransactionFlowLayout';
 import { GlobalError } from '../../components/common/FormError';
 import { formatBDT } from '../../utils/formatCurrency';
+import { useAuth } from '../../context/AuthContext';
+import { mergeRecentWithSavedNicknames } from '../../utils/mergeRecentWithSavedNicknames';
+
+const ACCENT = '#2563EB';
+
+/** Deduped SEND_MONEY counterparties from mini-statement (newest first). */
+function buildRecentSendMoneyRecipients(transactions, profileId) {
+  const pid = String(profileId ?? '');
+  const seen = new Set();
+  const out = [];
+  for (const tx of transactions || []) {
+    if (tx.type_name !== 'SEND_MONEY') continue;
+    const isSender = String(tx.sender_profile_id) === pid;
+    const name = isSender ? tx.receiver_name : tx.sender_name;
+    const phoneRaw = isSender ? tx.receiver_phone : tx.sender_phone;
+    const pictureUrl = isSender
+      ? tx.receiver_profile_picture_url
+      : tx.sender_profile_picture_url;
+    const digits = String(phoneRaw || '').replace(/\D/g, '');
+    if (!/^01[3-9]\d{8}$/.test(digits)) continue;
+    if (seen.has(digits)) continue;
+    seen.add(digits);
+    out.push({
+      key: `recent-${digits}`,
+      name: name || 'Recipient',
+      phone: digits,
+      pictureUrl: pictureUrl ?? null,
+    });
+    if (out.length >= 10) break;
+  }
+  return out;
+}
 
 export default function SendMoneyPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const [step, setStep] = useState('recipient'); // recipient → amount → review → receipt
   const [form, setForm] = useState({ receiverPhone: '', amount: '', note: '', pin: '' });
@@ -26,7 +61,9 @@ export default function SendMoneyPage() {
   // Step 1: Recipient Search
   const [searchQuery, setSearchQuery] = useState('');
   const [savedRecipients, setSavedRecipients] = useState([]);
+  const [recentRecipients, setRecentRecipients] = useState([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
+  const [loadingRecent, setLoadingRecent] = useState(false);
   const [lookupError, setLookupError] = useState('');
 
   // Step 2: Amount
@@ -38,54 +75,6 @@ export default function SendMoneyPage() {
   const [receipt, setReceipt] = useState(null);
   const [loading, setLoading] = useState(false);
   const pinInputRef = useRef(null);
-
-  useEffect(() => {
-    fetchRecipients();
-    fetchBalance();
-  }, []);
-
-  /** Deep link: /send-money?phone=01...&step=amount&name=... → amount step with recipient */
-  useEffect(() => {
-    const stepParam = searchParams.get('step');
-    const phoneParam = searchParams.get('phone');
-    const nameParam = searchParams.get('name');
-    if (stepParam !== 'amount' || !phoneParam) return;
-    const digits = phoneParam.replace(/\D/g, '');
-    if (!/^01[3-9]\d{8}$/.test(digits)) {
-      toast.error('Invalid phone in link');
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const { data } = await transactionApi.lookupRecipient(digits);
-        if (cancelled) return;
-        setRecipient({
-          name: data.data.fullName,
-          phone: digits,
-        });
-        setForm((p) => ({ ...p, receiverPhone: digits }));
-        setStep('amount');
-      } catch {
-        if (cancelled) return;
-        const fallback = nameParam
-          ? decodeURIComponent(nameParam)
-          : 'Recipient';
-        setRecipient({ name: fallback, phone: digits });
-        setForm((p) => ({ ...p, receiverPhone: digits }));
-        setStep('amount');
-        if (!nameParam) {
-          toast.error('Could not verify number — check recipient before sending');
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [searchParams.toString()]);
 
   const fetchRecipients = async () => {
     setLoadingContacts(true);
@@ -109,6 +98,75 @@ export default function SendMoneyPage() {
     }
   };
 
+  const fetchRecentRecipients = async () => {
+    if (user?.profileId == null) return;
+    setLoadingRecent(true);
+    try {
+      const { data } = await transactionApi.getMiniStatement({ limit: 50 });
+      setRecentRecipients(
+        buildRecentSendMoneyRecipients(data.data, user.profileId),
+      );
+    } catch (error) {
+      console.error('Failed to load recent send-money contacts', error);
+    } finally {
+      setLoadingRecent(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRecipients();
+    fetchBalance();
+  }, []);
+
+  useEffect(() => {
+    if (user?.profileId == null) return;
+    fetchRecentRecipients();
+  }, [user?.profileId]);
+
+  /** Deep link: /send-money?phone=01...&step=amount&name=... → amount step with recipient */
+  useEffect(() => {
+    const stepParam = searchParams.get('step');
+    const phoneParam = searchParams.get('phone');
+    const nameParam = searchParams.get('name');
+    if (stepParam !== 'amount' || !phoneParam) return;
+    const digits = phoneParam.replace(/\D/g, '');
+    if (!/^01[3-9]\d{8}$/.test(digits)) {
+      toast.error('Invalid phone in link');
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const { data } = await transactionApi.lookupRecipient(digits);
+        if (cancelled) return;
+        setRecipient({
+          name: data.data.fullName,
+          phone: digits,
+          pictureUrl: data.data.profilePictureUrl ?? null,
+        });
+        setForm((p) => ({ ...p, receiverPhone: digits }));
+        setStep('amount');
+      } catch {
+        if (cancelled) return;
+        const fallback = nameParam
+          ? decodeURIComponent(nameParam)
+          : 'Recipient';
+        setRecipient({ name: fallback, phone: digits, pictureUrl: null });
+        setForm((p) => ({ ...p, receiverPhone: digits }));
+        setStep('amount');
+        if (!nameParam) {
+          toast.error('Could not verify number — check recipient before sending');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams.toString()]);
+
   const handleLookup = async () => {
     const phoneToLookup = searchQuery.replace(/\D/g, '');
     setLookupError('');
@@ -122,6 +180,7 @@ export default function SendMoneyPage() {
       setRecipient({
         name: data.data.fullName,
         phone: phoneToLookup,
+        pictureUrl: data.data.profilePictureUrl ?? null,
       });
       setForm(p => ({ ...p, receiverPhone: phoneToLookup }));
       setSearchQuery('');
@@ -137,8 +196,20 @@ export default function SendMoneyPage() {
     setRecipient({
       name: contact.target_name || contact.nickname,
       phone: contact.target_phone,
+      pictureUrl: contact.target_profile_picture_url ?? null,
     });
     setForm(p => ({ ...p, receiverPhone: contact.target_phone }));
+    setSearchQuery('');
+    setStep('amount');
+  };
+
+  const handleSelectRecent = (r) => {
+    setRecipient({
+      name: r.name,
+      phone: r.phone,
+      pictureUrl: r.pictureUrl ?? null,
+    });
+    setForm((p) => ({ ...p, receiverPhone: r.phone }));
     setSearchQuery('');
     setStep('amount');
   };
@@ -199,6 +270,20 @@ export default function SendMoneyPage() {
     return Boolean(nameMatch || phoneMatch);
   });
 
+  const recentWithNicknames = useMemo(
+    () => mergeRecentWithSavedNicknames(recentRecipients, savedRecipients),
+    [recentRecipients, savedRecipients],
+  );
+
+  const filteredRecent = recentWithNicknames.filter((contact) => {
+    if (!searchTrimmed && !searchDigits) return true;
+    const q = searchTrimmed.toLowerCase();
+    const nameMatch = q.length > 0 && contact.name?.toLowerCase().includes(q);
+    const phoneNorm = String(contact.phone || '').replace(/\D/g, '');
+    const phoneMatch = searchDigits.length > 0 && phoneNorm.includes(searchDigits);
+    return Boolean(nameMatch || phoneMatch);
+  });
+
   const amountNum = parseFloat(form.amount);
   const hasValidAmount = Number.isFinite(amountNum) && amountNum > 0;
   const amountExceedsBalance = Number.isFinite(amountNum) && amountNum > walletBalance;
@@ -212,10 +297,8 @@ export default function SendMoneyPage() {
 
   const lookupDigits = searchQuery.replace(/\D/g, '');
   const isExactPhoneMatch = /^01[3-9]\d{8}$/.test(lookupDigits);
-  const phoneAlreadyListed = savedRecipients.some(
-    (c) => String(c.target_phone || '').replace(/\D/g, '') === lookupDigits
-  );
-  const showLookupArrow = isExactPhoneMatch && !phoneAlreadyListed;
+  /** Show lookup arrow whenever the field is a full valid mobile — even if that number appears in Recent/Saved. */
+  const showLookupArrow = isExactPhoneMatch;
 
   const wizardSteps = [
     { key: 'recipient', label: 'Recipient', hint: 'Find or enter recipient' },
@@ -228,60 +311,14 @@ export default function SendMoneyPage() {
   }
 
   return (
-    <div className="flex min-h-dvh flex-col overflow-x-hidden bg-gradient-to-b from-slate-50 via-white to-slate-100/90 animate-in fade-in duration-500">
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-6 pt-2 sm:px-8 sm:pb-10 sm:pt-4 lg:pb-12 lg:pt-6">
-        <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-12 lg:gap-12 xl:gap-14">
-          <aside className="animate-in slide-in-from-left-4 duration-700 lg:col-span-4 lg:sticky lg:top-24">
-            <div className="rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-sm backdrop-blur-sm sm:p-8">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-50 text-primary-600 shadow-sm ring-1 ring-primary-100">
-                <PaperAirplaneIcon className="h-6 w-6 -rotate-45" strokeWidth={2} />
-              </div>
-              <h1 className="mt-6 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl xl:text-4xl">
-                Send money
-              </h1>
-              <p className="mt-3 max-w-sm text-base font-medium leading-relaxed text-slate-500">
-                Send money instantly to any TekaPakhi user — simple, fast, secure.
-              </p>
-
-              <nav className="mt-10 hidden lg:block" aria-label="Progress">
-                <ol>
-                  {wizardSteps.map((s, i) => {
-                    const active = step === s.key;
-                    const done =
-                      (s.key === 'recipient' && (step === 'amount' || step === 'review')) ||
-                      (s.key === 'amount' && step === 'review');
-                    return (
-                      <li key={s.key} className="flex gap-4">
-                        <div className="flex flex-col items-center">
-                          <span
-                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-black transition-colors ${active
-                                ? 'bg-primary-600 text-white shadow-md shadow-primary-600/20'
-                                : done
-                                  ? 'bg-emerald-500 text-white'
-                                  : 'bg-slate-100 text-slate-400'
-                              }`}
-                          >
-                            {done && !active ? '✓' : i + 1}
-                          </span>
-                          {i < wizardSteps.length - 1 ? (
-                            <span className="my-1.5 block min-h-[2rem] w-px grow bg-slate-200" aria-hidden />
-                          ) : null}
-                        </div>
-                        <div className={`min-w-0 pb-8 ${active ? '' : 'opacity-55'}`}>
-                          <p className="text-sm font-bold text-slate-900">{s.label}</p>
-                          <p className="text-xs font-medium text-slate-400">{s.hint}</p>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ol>
-              </nav>
-            </div>
-          </aside>
-
-          <div className="animate-in slide-in-from-right-4 duration-700 lg:col-span-8">
-            <div className="mx-auto flex w-full max-w-xl xl:max-w-2xl min-h-[min(640px,72vh)] flex-col overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-xl shadow-slate-200/50 ring-1 ring-slate-100 sm:rounded-[2.5rem] sm:p-8 md:p-10">
-
+    <TransactionFlowLayout
+      icon={PaperAirplaneIcon}
+      asideIconClassName="-rotate-45"
+      title="Send money"
+      subtitle="Send money instantly to any TekaPakhi user — simple, fast, secure."
+      steps={wizardSteps}
+      currentStepKey={step}
+    >
               {/* Header inside the wizard */}
               <div className="flex items-center gap-4 mb-8">
                 {step !== 'recipient' && (
@@ -322,7 +359,7 @@ export default function SendMoneyPage() {
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && showLookupArrow) handleLookup();
                       }}
-                      placeholder="Search by name or 11-digit mobile"
+                      placeholder="Enter name or number"
                       className="w-full rounded-2xl border-2 border-gray-100 bg-gray-50/30 py-4 pl-12 pr-14 text-[15px] font-bold transition-all focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-50"
                     />
                     {showLookupArrow && (
@@ -341,41 +378,94 @@ export default function SendMoneyPage() {
                     <GlobalError message={lookupError} onClose={() => setLookupError('')} />
                   )}
 
-                  <div className="flex-1">
-                    <h3 className="text-[12px] font-bold uppercase tracking-[0.15em] text-gray-400 mb-4 px-1">
-                      {searchTrimmed || searchDigits ? 'Matching contacts' : 'Saved recipients'}
-                    </h3>
+                  <div className="flex-1 space-y-4">
+                    {(searchTrimmed || searchDigits) && (
+                      <h3 className="text-[12px] font-bold uppercase tracking-[0.15em] text-gray-400 px-1">
+                        Matching contacts
+                      </h3>
+                    )}
 
-                    {loadingContacts ? (
-                      <div className="flex justify-center py-8"><LoadingSpinner size="md" className="text-gray-300" /></div>
+                    {loadingContacts || loadingRecent ? (
+                      <div className="flex justify-center py-8">
+                        <LoadingSpinner size="md" className="text-gray-300" />
+                      </div>
                     ) : (
-                      <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                        {filteredRecipients.map(contact => (
-                          <button
-                            key={contact.saved_recipient_id || contact.target_phone}
-                            onClick={() => handleSelectContact(contact)}
-                            className="w-full flex items-center gap-4 p-3 rounded-2xl hover:bg-gray-50 transition-colors text-left"
-                          >
-                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 font-bold text-lg uppercase">
-                              {(contact.target_name || contact.nickname || '?')[0]}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-bold text-gray-900 truncate text-[15px]">
-                                {contact.nickname || contact.target_name}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="min-w-0">
+                          {!(searchTrimmed || searchDigits) && (
+                            <h3 className="text-[12px] font-bold uppercase tracking-[0.15em] text-gray-400 mb-3 px-1">
+                              Recent
+                            </h3>
+                          )}
+                          <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                            {filteredRecent.map((r) => (
+                              <button
+                                key={r.key}
+                                type="button"
+                                onClick={() => handleSelectRecent(r)}
+                                className="w-full flex items-center gap-4 p-3 rounded-2xl hover:bg-gray-50 transition-colors text-left"
+                              >
+                                <ProfileAvatar
+                                  pictureUrl={r.pictureUrl}
+                                  name={r.name}
+                                  className="h-12 w-12 text-lg"
+                                  accentColor={ACCENT}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-bold text-gray-900 truncate text-[15px]">{r.name}</p>
+                                  <p className="text-[14px] font-medium text-emerald-600 mt-0.5">{r.phone}</p>
+                                </div>
+                              </button>
+                            ))}
+                            {filteredRecent.length === 0 && (
+                              <p className="text-sm font-medium text-gray-400 text-center py-6 px-2">
+                                {recentRecipients.length === 0
+                                  ? 'No recent send-money contacts.'
+                                  : 'No recent matches.'}
                               </p>
-                              <p className="text-[14px] font-medium text-emerald-600 mt-0.5">
-                                {contact.target_phone}
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="min-w-0">
+                          {!(searchTrimmed || searchDigits) && (
+                            <h3 className="text-[12px] font-bold uppercase tracking-[0.15em] text-gray-400 mb-3 px-1">
+                              Saved
+                            </h3>
+                          )}
+                          <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                            {filteredRecipients.map((contact) => (
+                              <button
+                                key={contact.saved_recipient_id || contact.target_phone}
+                                type="button"
+                                onClick={() => handleSelectContact(contact)}
+                                className="w-full flex items-center gap-4 p-3 rounded-2xl hover:bg-gray-50 transition-colors text-left"
+                              >
+                                <ProfileAvatar
+                                  pictureUrl={contact.target_profile_picture_url}
+                                  name={contact.nickname || contact.target_name}
+                                  className="h-12 w-12 text-lg"
+                                  accentColor={ACCENT}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-bold text-gray-900 truncate text-[15px]">
+                                    {contact.nickname || contact.target_name}
+                                  </p>
+                                  <p className="text-[14px] font-medium text-emerald-600 mt-0.5">
+                                    {contact.target_phone}
+                                  </p>
+                                </div>
+                              </button>
+                            ))}
+                            {filteredRecipients.length === 0 && (
+                              <p className="text-sm font-medium text-gray-400 text-center py-6 px-2">
+                                {savedRecipients.length === 0
+                                  ? 'No saved contacts yet.'
+                                  : 'No saved matches.'}
                               </p>
-                            </div>
-                          </button>
-                        ))}
-                        {filteredRecipients.length === 0 && (
-                          <p className="text-sm font-medium text-gray-400 text-center py-8 px-2">
-                            {savedRecipients.length === 0
-                              ? 'No saved contacts yet.'
-                              : 'No contacts match your search. Try another name or enter a full mobile number to look up.'}
-                          </p>
-                        )}
+                            )}
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -388,9 +478,12 @@ export default function SendMoneyPage() {
                   <div className="mb-10 text-center space-y-3">
                     <p className="text-[12px] font-bold uppercase tracking-[0.15em] text-gray-400">Recipient</p>
                     <div className="flex flex-col items-center justify-center gap-2">
-                      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 font-bold text-2xl uppercase shadow-inner">
-                        {recipient.name[0]}
-                      </div>
+                      <ProfileAvatar
+                        pictureUrl={recipient.pictureUrl}
+                        name={recipient.name}
+                        className="h-16 w-16 text-2xl"
+                        accentColor={ACCENT}
+                      />
                       <div>
                         <p className="font-black text-gray-900 text-lg">{recipient.name}</p>
                         <p className="text-[15px] font-medium text-gray-500">{recipient.phone}</p>
@@ -528,9 +621,12 @@ export default function SendMoneyPage() {
                   <div className="mb-6 flex flex-col items-center gap-2">
                     <p className="text-[12px] font-bold uppercase tracking-[0.15em] text-gray-400">Recipient</p>
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 font-bold text-lg uppercase shadow-inner">
-                        {recipient.name[0]}
-                      </div>
+                      <ProfileAvatar
+                        pictureUrl={recipient.pictureUrl}
+                        name={recipient.name}
+                        className="h-10 w-10 text-lg"
+                        accentColor={ACCENT}
+                      />
                       <div className="text-left">
                         <p className="font-bold text-gray-900 text-[15px]">{recipient.name}</p>
                         <p className="text-[13px] font-medium text-gray-500">{recipient.phone}</p>
@@ -601,10 +697,6 @@ export default function SendMoneyPage() {
                   </button>
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-      </main>
-    </div>
+    </TransactionFlowLayout>
   );
 }

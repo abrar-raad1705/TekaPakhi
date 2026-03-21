@@ -1,236 +1,552 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { CheckIcon, ArrowUpTrayIcon, ArrowLeftIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
-import { transactionApi } from '../../api/transactionApi';
-import { toast } from 'sonner';
-import LoadingSpinner from '../../components/common/LoadingSpinner';
-import PinConfirmModal from '../../components/transaction/PinConfirmModal';
-import TransactionReceipt from '../../components/transaction/TransactionReceipt';
-import { formatBDT } from '../../utils/formatCurrency';
+import { useState, useEffect, useRef, useMemo } from "react";
+import {
+  ArrowUpTrayIcon,
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  LockClosedIcon,
+  MagnifyingGlassIcon,
+} from "@heroicons/react/24/outline";
+import { transactionApi } from "../../api/transactionApi";
+import { recipientApi } from "../../api/recipientApi";
+import { walletApi } from "../../api/walletApi";
+import { toast } from "sonner";
+import LoadingSpinner from "../../components/common/LoadingSpinner";
+import ProfileAvatar from "../../components/common/ProfileAvatar";
+import { GlobalError } from "../../components/common/FormError";
+import TransactionReceipt from "../../components/transaction/TransactionReceipt";
+import TransactionFlowLayout from "../../components/transaction/TransactionFlowLayout";
+import { formatBDT } from "../../utils/formatCurrency";
+import { useAuth } from "../../context/AuthContext";
+import { buildRecentCounterpartyFromMiniStatement } from "../../utils/recentCounterpartyFromMiniStatement";
+
+const ACCENT = "#2563EB";
+
+const flowSteps = [
+  { key: "recipient", label: "Agent", hint: "Verify agent" },
+  { key: "amount", label: "Amount", hint: "Withdrawal amount" },
+  { key: "review", label: "Confirm", hint: "Verify & enter PIN" },
+];
 
 export default function CashOutPage() {
-  const navigate = useNavigate();
-  const [step, setStep] = useState('form');
-  const [form, setForm] = useState({ receiverPhone: '', amount: '' });
+  const { user } = useAuth();
+  const [step, setStep] = useState("recipient");
+  const [form, setForm] = useState({ receiverPhone: "", amount: "", pin: "" });
   const [recipient, setRecipient] = useState(null);
   const [preview, setPreview] = useState(null);
   const [receipt, setReceipt] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [pinOpen, setPinOpen] = useState(false);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const pinInputRef = useRef(null);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [savedRecipients, setSavedRecipients] = useState([]);
+  const [recentRecipients, setRecentRecipients] = useState([]);
+  const [loadingContacts, setLoadingContacts] = useState(false);
+  const [loadingRecent, setLoadingRecent] = useState(false);
+  const [lookupError, setLookupError] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await walletApi.getBalance();
+        setWalletBalance(data.data.balance || 0);
+      } catch (e) {
+        console.error("Failed to load balance", e);
+      }
+    })();
+  }, []);
+
+  const fetchRecipients = async () => {
+    setLoadingContacts(true);
+    try {
+      const { data } = await recipientApi.getAll();
+      const agents = data.data.filter(
+        (r) => r.target_type?.toLowerCase() === "agent",
+      );
+      setSavedRecipients(agents);
+    } catch (e) {
+      console.error("Failed to load saved agents", e);
+    } finally {
+      setLoadingContacts(false);
+    }
+  };
+
+  const fetchRecentRecipients = async () => {
+    if (user?.profileId == null) return;
+    setLoadingRecent(true);
+    try {
+      const { data } = await transactionApi.getMiniStatement({ limit: 50 });
+      setRecentRecipients(
+        buildRecentCounterpartyFromMiniStatement(
+          data.data,
+          user.profileId,
+          "CASH_OUT",
+        ),
+      );
+    } catch (e) {
+      console.error("Failed to load recent cash-out contacts", e);
+    } finally {
+      setLoadingRecent(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRecipients();
+  }, []);
+
+  useEffect(() => {
+    if (user?.profileId == null) return;
+    fetchRecentRecipients();
+  }, [user?.profileId]);
 
   const handleLookup = async () => {
-    if (!/^01[3-9][0-9]{8}$/.test(form.receiverPhone)) {
-      return toast.error('Enter a valid agent phone number');
+    const phoneToLookup = searchQuery.replace(/\D/g, "");
+    setLookupError("");
+    if (!/^01[3-9][0-9]{8}$/.test(phoneToLookup)) {
+      setLookupError("Enter a valid 11-digit mobile number to look up");
+      return;
     }
     setLoading(true);
     try {
-      const { data } = await transactionApi.lookupRecipient(form.receiverPhone);
-      if (data.data.typeName !== 'AGENT') {
-        toast.error('This number does not belong to an agent.');
+      const { data } = await transactionApi.lookupRecipient(phoneToLookup);
+      if (data.data.typeName !== "AGENT") {
+        setLookupError("This number does not belong to an agent.");
         setRecipient(null);
-      } else {
-        setRecipient(data.data);
+        return;
       }
+      setRecipient(data.data);
+      setForm((p) => ({ ...p, receiverPhone: phoneToLookup }));
+      setSearchQuery("");
+      setStep("amount");
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Agent not found');
+      setLookupError(
+        error.response?.data?.message || "No agent found with this phone number.",
+      );
       setRecipient(null);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleSelectContact = (contact) => {
+    setRecipient({
+      fullName: contact.target_name || contact.nickname,
+      profilePictureUrl: contact.target_profile_picture_url ?? null,
+      typeName: "AGENT",
+    });
+    setForm((p) => ({ ...p, receiverPhone: contact.target_phone }));
+    setSearchQuery("");
+    setLookupError("");
+    setStep("amount");
+  };
+
+  const handleSelectRecent = (r) => {
+    setRecipient({
+      fullName: r.name,
+      profilePictureUrl: r.pictureUrl ?? null,
+      typeName: "AGENT",
+    });
+    setForm((p) => ({ ...p, receiverPhone: r.phone }));
+    setSearchQuery("");
+    setLookupError("");
+    setStep("amount");
+  };
+
+  const searchTrimmed = searchQuery.trim();
+  const searchDigits = searchQuery.replace(/\D/g, "");
+  const filteredRecipients = savedRecipients.filter((contact) => {
+    if (!searchTrimmed && !searchDigits) return true;
+    const q = searchTrimmed.toLowerCase();
+    const nameMatch =
+      q.length > 0 &&
+      (contact.target_name?.toLowerCase().includes(q) ||
+        contact.nickname?.toLowerCase().includes(q));
+    const phoneNorm = String(contact.target_phone || "").replace(/\D/g, "");
+    const phoneMatch = searchDigits.length > 0 && phoneNorm.includes(searchDigits);
+    return Boolean(nameMatch || phoneMatch);
+  });
+
+  const recentWithNicknames = useMemo(
+    () => mergeRecentWithSavedNicknames(recentRecipients, savedRecipients),
+    [recentRecipients, savedRecipients],
+  );
+
+  const filteredRecent = recentWithNicknames.filter((contact) => {
+    if (!searchTrimmed && !searchDigits) return true;
+    const q = searchTrimmed.toLowerCase();
+    const nameMatch = q.length > 0 && contact.name?.toLowerCase().includes(q);
+    const phoneNorm = String(contact.phone || "").replace(/\D/g, "");
+    const phoneMatch = searchDigits.length > 0 && phoneNorm.includes(searchDigits);
+    return Boolean(nameMatch || phoneMatch);
+  });
+
+  const lookupDigits = searchQuery.replace(/\D/g, "");
+  const isExactPhoneMatch = /^01[3-9]\d{8}$/.test(lookupDigits);
+  const showLookupArrow = isExactPhoneMatch;
+
   const handleReview = async () => {
-    const amount = parseFloat(form.amount);
-    if (!amount || amount <= 0) return toast.error('Enter a valid amount');
-    if (!recipient) return toast.error('Look up an agent first');
+    const amountNum = parseFloat(form.amount);
+    if (!amountNum || amountNum <= 0) return toast.error("Enter a valid amount");
+    if (!recipient) return toast.error("Look up an agent first");
 
     setLoading(true);
     try {
-      const { data } = await transactionApi.preview('CASH_OUT', {
-        receiverPhone: form.receiverPhone, amount,
+      const { data } = await transactionApi.preview("CASH_OUT", {
+        receiverPhone: form.receiverPhone,
+        amount: amountNum,
       });
       setPreview(data.data);
-      setStep('review');
+      setStep("review");
+      setTimeout(() => pinInputRef.current?.focus(), 100);
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Preview failed');
+      toast.error(error.response?.data?.message || "Preview failed");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleConfirmPin = async (pin) => {
+  const handleConfirmPin = async () => {
+    if (form.pin.length !== 5) return toast.error("PIN must be 5 digits");
+
     setLoading(true);
     try {
       const { data } = await transactionApi.cashOut({
         receiverPhone: form.receiverPhone,
         amount: parseFloat(form.amount),
-        pin,
+        pin: form.pin,
       });
       setReceipt(data.data);
-      setStep('receipt');
-      setPinOpen(false);
+      setStep("receipt");
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Transaction failed');
+      toast.error(error.response?.data?.message || "Transaction failed");
     } finally {
       setLoading(false);
     }
   };
 
-  if (step === 'receipt' && receipt) {
+  const amountNum = parseFloat(form.amount);
+  const hasValidAmount = Number.isFinite(amountNum) && amountNum > 0;
+  const amountExceedsBalance = Number.isFinite(amountNum) && amountNum > walletBalance;
+  const canProceedAmountStep = !loading && hasValidAmount && !amountExceedsBalance;
+
+  if (step === "receipt" && receipt) {
     return <TransactionReceipt receipt={receipt} />;
   }
 
   return (
-    <div className="flex min-h-dvh flex-col bg-white overflow-x-hidden animate-in fade-in duration-500">
-      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8 md:py-16">
-        <div className="grid grid-cols-1 gap-12 lg:grid-cols-12 lg:gap-16">
-          
-          {/* Left Column: Info & Context */}
-          <div className="lg:col-span-5 space-y-8 animate-in slide-in-from-left-4 duration-700">
-            <div>
-              <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-50 text-primary-600 shadow-sm">
-                <ArrowUpTrayIcon className="h-8 w-8" strokeWidth={2} />
-              </div>
-              <h1 className="text-3xl font-bold tracking-tight text-gray-900 md:text-4xl">Cash Out</h1>
-              <p className="mt-4 text-lg font-medium text-gray-500 leading-relaxed">
-                Withdraw cash from any authorized TekaPakhi Agent. Enter the Agent's number and the amount you wish to withdraw.
-              </p>
-            </div>
+    <TransactionFlowLayout
+      icon={ArrowUpTrayIcon}
+      title="Cash Out"
+      subtitle="Withdraw cash at an authorized TekaPakhi Agent. Enter the agent number and amount. A 1.85% fee applies."
+      steps={flowSteps}
+      currentStepKey={step}
+    >
+      <div className="mb-8 flex items-center gap-4">
+        {step !== "recipient" && (
+          <button
+            type="button"
+            onClick={() => {
+              if (step === "amount") setStep("recipient");
+              if (step === "review") setStep("amount");
+              setForm((p) => ({ ...p, pin: "" }));
+            }}
+            className="-ml-2 rounded-full p-2 text-gray-900 transition-colors hover:bg-gray-50"
+          >
+            <ArrowLeftIcon className="h-6 w-6" strokeWidth={2.5} />
+          </button>
+        )}
+        <h2 className="flex-1 text-xl font-bold tracking-tight text-gray-900">
+          Cash Out
+        </h2>
+        <div className="ml-auto flex h-8 w-8 items-center justify-center rounded-full bg-primary-50 text-primary-600">
+          <ArrowUpTrayIcon className="h-4 w-4" strokeWidth={2} />
+        </div>
+      </div>
 
-            <div className="space-y-4">
-              <div className="flex items-start gap-4 rounded-2xl border border-primary-50 bg-primary-50/30 p-5">
-                <InformationCircleIcon className="h-6 w-6 shrink-0 text-primary-500" strokeWidth={2} />
-                <div>
-                  <p className="text-sm font-semibold text-primary-900 uppercase tracking-wider mb-1">Transaction Fee</p>
-                  <p className="text-[15px] font-medium text-primary-800 opacity-80">A standard fee of 1.85% applies for all cash out transactions from Agent points.</p>
-                </div>
-              </div>
+      {step === "recipient" && (
+        <div className="flex-1 animate-in space-y-6 duration-300 slide-in-from-right-4">
+          <div className="group relative">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
+              <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 transition-colors group-focus-within:text-primary-600" />
             </div>
+            <input
+              type="search"
+              enterKeyHint="search"
+              autoComplete="off"
+              value={searchQuery}
+              onChange={(e) => {
+                const v = e.target.value
+                  .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
+                  .slice(0, 80);
+                setSearchQuery(v);
+                setLookupError("");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && showLookupArrow) handleLookup();
+              }}
+              placeholder="Enter name or number"
+              className="w-full rounded-2xl border-2 border-gray-100 bg-gray-50/30 py-4 pl-12 pr-14 text-[15px] font-bold transition-all focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-50"
+            />
+            {showLookupArrow && (
+              <button
+                type="button"
+                onClick={() => handleLookup()}
+                disabled={loading}
+                className="absolute inset-y-2 right-2 flex w-10 items-center justify-center rounded-xl bg-primary-600 text-white shadow-md transition-all hover:bg-primary-700 disabled:opacity-50"
+              >
+                {loading ? (
+                  <LoadingSpinner size="sm" />
+                ) : (
+                  <ArrowRightIcon className="h-5 w-5" strokeWidth={2.5} />
+                )}
+              </button>
+            )}
           </div>
 
-          {/* Right Column: Transaction Form */}
-          <div className="lg:col-span-7 animate-in slide-in-from-right-4 duration-700">
-            <div className="rounded-3xl border border-gray-100 bg-white p-8 shadow-xl shadow-gray-100/50">
-              
-              {step === 'form' && (
-                <div className="space-y-8">
-                  {/* Recipient Input */}
-                  <div className="space-y-3">
-                    <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-gray-400 px-1">Agent Phone Number</label>
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <div className="relative flex-1 group">
-                        <span className="absolute left-5 top-1/2 -translate-y-1/2 text-[15px] font-bold text-gray-400 transition-colors group-focus-within:text-primary-600">
-                          +88
-                        </span>
-                        <input
-                          type="tel"
-                          value={form.receiverPhone}
-                          onChange={(e) => { 
-                            setForm(p => ({ ...p, receiverPhone: e.target.value.replace(/\D/g, '').slice(0, 11) })); 
-                            setRecipient(null); 
-                          }}
-                          placeholder="01XXXXXXXXX"
-                          className="w-full rounded-2xl border-2 border-gray-100 py-4 pl-14 pr-4 text-[15px] font-bold transition-all focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-50"
-                        />
-                      </div>
-                      <button 
-                        onClick={handleLookup} 
-                        disabled={loading || form.receiverPhone.length < 11} 
-                        className="sm:px-8 py-4 rounded-2xl bg-gray-900 text-[15px] font-bold text-white transition-all hover:bg-black active:scale-[0.98] disabled:opacity-30"
+          {lookupError && (
+            <GlobalError message={lookupError} onClose={() => setLookupError("")} />
+          )}
+
+          <div className="flex-1 space-y-4">
+            {(searchTrimmed || searchDigits) && (
+              <h3 className="px-1 text-[12px] font-bold uppercase tracking-[0.15em] text-gray-400">
+                Matching contacts
+              </h3>
+            )}
+
+            {loadingContacts || loadingRecent ? (
+              <div className="flex justify-center py-8">
+                <LoadingSpinner size="md" className="text-gray-300" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="min-w-0">
+                  {!(searchTrimmed || searchDigits) && (
+                    <h3 className="mb-3 px-1 text-[12px] font-bold uppercase tracking-[0.15em] text-gray-400">
+                      Recent
+                    </h3>
+                  )}
+                  <div className="custom-scrollbar max-h-[400px] space-y-2 overflow-y-auto pr-2">
+                    {filteredRecent.map((r) => (
+                      <button
+                        key={r.key}
+                        type="button"
+                        onClick={() => handleSelectRecent(r)}
+                        className="flex w-full items-center gap-4 rounded-2xl p-3 text-left transition-colors hover:bg-gray-50"
                       >
-                        {loading ? '...' : 'Verify Agent'}
-                      </button>
-                    </div>
-                    {recipient && (
-                      <div className="flex items-center gap-3 rounded-2xl bg-emerald-50 px-4 py-3 border border-emerald-100 animate-in zoom-in-95 duration-300">
-                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500">
-                          <CheckIcon className="h-4 w-4 text-white" strokeWidth={3} />
+                        <ProfileAvatar
+                          pictureUrl={r.pictureUrl}
+                          name={r.name}
+                          className="h-12 w-12 text-lg"
+                          accentColor={ACCENT}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[15px] font-bold text-gray-900">{r.name}</p>
+                          <p className="mt-0.5 text-[14px] font-medium text-emerald-600">{r.phone}</p>
                         </div>
-                        <span className="text-[15px] font-bold text-emerald-700">{recipient.fullName} (Agent)</span>
-                      </div>
+                      </button>
+                    ))}
+                    {filteredRecent.length === 0 && (
+                      <p className="px-2 py-6 text-center text-sm font-medium text-gray-400">
+                        {recentRecipients.length === 0
+                          ? "No recent cash-out contacts."
+                          : "No recent matches."}
+                      </p>
                     )}
                   </div>
-
-                  {/* Amount Input */}
-                  <div className="space-y-3">
-                    <label className="block text-[11px] font-bold uppercase tracking-[0.15em] text-gray-400 px-1">Amount to Withdraw</label>
-                    <div className="relative group">
-                      <span className="absolute left-5 top-1/2 -translate-y-1/2 text-2xl font-black text-gray-400 transition-colors group-focus-within:text-primary-600">
-                        ৳
-                      </span>
-                      <input
-                        type="number"
-                        value={form.amount}
-                        onChange={(e) => setForm(p => ({ ...p, amount: e.target.value }))}
-                        placeholder="0.00"
-                        className="w-full rounded-2xl border-2 border-gray-100 py-5 pl-12 pr-4 text-2xl font-black transition-all focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-50"
-                        min="0"
-                        step="0.01"
-                      />
-                    </div>
-                  </div>
-
-                  <button 
-                    onClick={handleReview} 
-                    disabled={!recipient || loading || !form.amount}
-                    className="flex w-full items-center justify-center rounded-2xl bg-primary-600 py-5 text-base font-black text-white shadow-xl shadow-primary-200 transition-all hover:bg-primary-700 active:scale-[0.99] disabled:opacity-50 disabled:shadow-none"
-                  >
-                    {loading ? <LoadingSpinner size="sm" /> : 'Review Cash Out'}
-                  </button>
                 </div>
-              )}
 
-              {step === 'review' && preview && (
-                <div className="space-y-10 animate-in zoom-in-95 duration-300">
-                  <div className="text-center">
-                    <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-2">Withdrawal Amount</p>
-                    <p className="text-5xl font-black tracking-tight text-gray-900">{formatBDT(preview.amount)}</p>
-                  </div>
-
-                  <div className="space-y-4 rounded-3xl bg-gray-50/50 p-8">
-                    <div className="flex justify-between items-center text-[15px]">
-                      <span className="font-bold text-gray-400">Agent</span>
-                      <span className="font-black text-gray-900">{preview.receiver.name}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-[15px]">
-                      <span className="font-bold text-gray-400">Transaction Fee (1.85%)</span>
-                      <span className="font-black text-red-600">+{formatBDT(preview.fee)}</span>
-                    </div>
-                    <div className="h-px bg-gray-200" />
-                    <div className="flex justify-between items-center text-lg">
-                      <span className="font-black text-gray-400">Total Debit</span>
-                      <span className="font-black text-primary-600">{formatBDT(preview.totalDebit)}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row gap-4">
-                    <button 
-                      onClick={() => setStep('form')} 
-                      className="flex-1 flex items-center justify-center gap-2 rounded-2xl border-2 border-gray-100 py-4 text-[15px] font-bold text-gray-600 transition-all hover:bg-gray-50 active:scale-[0.98]"
-                    >
-                      <ArrowLeftIcon className="h-5 w-5" strokeWidth={2} />
-                      Edit Details
-                    </button>
-                    <button 
-                      onClick={() => setPinOpen(true)} 
-                      className="flex-1 rounded-2xl bg-primary-600 py-4 text-[15px] font-black text-white shadow-lg shadow-primary-100 transition-all hover:bg-primary-700 active:scale-[0.98]"
-                    >
-                      Confirm Withdrawal
-                    </button>
+                <div className="min-w-0">
+                  {!(searchTrimmed || searchDigits) && (
+                    <h3 className="mb-3 px-1 text-[12px] font-bold uppercase tracking-[0.15em] text-gray-400">
+                      Saved
+                    </h3>
+                  )}
+                  <div className="custom-scrollbar max-h-[400px] space-y-2 overflow-y-auto pr-2">
+                    {filteredRecipients.map((contact) => (
+                      <button
+                        key={contact.saved_recipient_id || contact.target_phone}
+                        type="button"
+                        onClick={() => handleSelectContact(contact)}
+                        className="flex w-full items-center gap-4 rounded-2xl p-3 text-left transition-colors hover:bg-gray-50"
+                      >
+                        <ProfileAvatar
+                          pictureUrl={contact.target_profile_picture_url}
+                          name={contact.nickname || contact.target_name}
+                          className="h-12 w-12 text-lg"
+                          accentColor={ACCENT}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[15px] font-bold text-gray-900">
+                            {contact.nickname || contact.target_name}
+                          </p>
+                          <p className="mt-0.5 text-[14px] font-medium text-emerald-600">
+                            {contact.target_phone}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                    {filteredRecipients.length === 0 && (
+                      <p className="px-2 py-6 text-center text-sm font-medium text-gray-400">
+                        {savedRecipients.length === 0
+                          ? "No saved agents yet."
+                          : "No saved matches."}
+                      </p>
+                    )}
                   </div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
-      </main>
+      )}
 
-      <PinConfirmModal 
-        isOpen={pinOpen} 
-        onClose={() => setPinOpen(false)} 
-        onConfirm={handleConfirmPin} 
-        loading={loading} 
-      />
-    </div>
+      {step === "amount" && recipient && (
+        <div className="flex flex-1 flex-col animate-in slide-in-from-right-4 duration-300">
+          <div className="mb-10 space-y-3 text-center">
+            <p className="text-[12px] font-bold uppercase tracking-[0.15em] text-gray-400">
+              Agent
+            </p>
+            <div className="flex flex-col items-center justify-center gap-2">
+              <ProfileAvatar
+                pictureUrl={recipient.profilePictureUrl}
+                name={recipient.fullName}
+                className="h-16 w-16 text-2xl"
+                accentColor={ACCENT}
+              />
+              <div>
+                <p className="text-lg font-black text-gray-900">
+                  {recipient.fullName} (Agent)
+                </p>
+                <p className="text-[15px] font-medium text-gray-500">{form.receiverPhone}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-1 flex-col px-4">
+            <div className="flex flex-col items-center text-center">
+              <p className="mb-6 text-[11px] font-bold uppercase tracking-[0.25em] text-gray-400">
+                Amount to withdraw
+              </p>
+              <div className="group relative flex items-center justify-center text-primary-600">
+                <span className="mr-2 mt-2 text-5xl font-semibold text-gray-500">৳</span>
+                <div className="relative inline-flex min-w-[40px]">
+                  <span className="invisible whitespace-pre text-6xl font-black">
+                    {form.amount || "0"}
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={form.amount}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (/^\d*\.?\d*$/.test(val)) {
+                        setForm((p) => ({ ...p, amount: val }));
+                      }
+                    }}
+                    placeholder="0"
+                    className="absolute inset-0 w-full bg-transparent text-left text-6xl font-black text-primary-600 placeholder:text-gray-300 focus:outline-none"
+                    autoFocus
+                  />
+                </div>
+              </div>
+              <p className="mt-6 text-[14px] font-medium text-gray-500">
+                Available Balance:
+                <span className="ml-1 font-semibold text-gray-900">
+                  ৳{walletBalance.toFixed(2)}
+                </span>
+              </p>
+              {amountExceedsBalance && (
+                <p className="mt-2 text-sm font-medium text-red-500">Insufficient balance</p>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleReview}
+              disabled={!canProceedAmountStep}
+              className={`mt-8 flex w-full items-center justify-center rounded-2xl py-4 text-[15px] font-black shadow-xl transition-all active:scale-[0.99] disabled:cursor-not-allowed disabled:active:scale-100 ${loading || canProceedAmountStep
+                  ? "bg-primary-600 text-white shadow-primary-200 hover:bg-primary-700 disabled:hover:bg-primary-600"
+                  : "bg-gray-200 text-gray-400 shadow-none"
+                }`}
+            >
+              {loading ? <LoadingSpinner size="sm" /> : <ArrowRightIcon className="h-6 w-6" strokeWidth={2.5} />}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === "review" && preview && recipient && (
+        <div className="flex flex-1 flex-col animate-in slide-in-from-right-4 duration-300">
+          <div className="mb-6 flex flex-col items-center gap-2">
+            <p className="text-[12px] font-bold uppercase tracking-[0.15em] text-gray-400">
+              Agent
+            </p>
+            <div className="flex items-center gap-3">
+              <ProfileAvatar
+                pictureUrl={recipient.profilePictureUrl}
+                name={preview.receiver.name}
+                className="h-10 w-10 text-lg"
+                accentColor={ACCENT}
+              />
+              <div className="text-left">
+                <p className="text-[15px] font-bold text-gray-900">{preview.receiver.name}</p>
+                <p className="text-[13px] font-medium text-gray-500">{form.receiverPhone}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4 px-2">
+            <div className="flex items-center justify-between text-[15px]">
+              <span className="font-bold text-gray-500">Amount</span>
+              <span className="font-black text-gray-900">{formatBDT(preview.amount)}</span>
+            </div>
+            <div className="flex items-center justify-between text-[15px]">
+              <span className="font-bold text-gray-500">Transaction Fee (1.85%)</span>
+              <span className="font-black text-red-600">+{formatBDT(preview.fee)}</span>
+            </div>
+            <div className="my-2 h-px bg-gray-100" />
+            <div className="flex items-center justify-between text-lg">
+              <span className="font-bold text-gray-500">Total Debit</span>
+              <span className="font-black text-primary-600">{formatBDT(preview.totalDebit)}</span>
+            </div>
+          </div>
+
+          <div className="mt-auto flex flex-col items-center pt-10">
+            <div className="relative flex w-full items-center justify-center">
+              <LockClosedIcon
+                className="absolute left-4 h-5 w-5 text-primary-600 sm:left-12"
+                strokeWidth={2.5}
+              />
+              <input
+                type="password"
+                ref={pinInputRef}
+                value={form.pin}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, pin: e.target.value.replace(/\D/g, "").slice(0, 5) }))
+                }
+                placeholder="Enter PIN"
+                className="w-[200px] border-b-2 border-primary-100 bg-transparent py-2 text-center text-lg font-black tracking-[0.5em] text-gray-900 placeholder:text-[15px] placeholder:font-medium placeholder:tracking-normal placeholder:text-gray-300 transition-colors focus:border-primary-600 focus:outline-none"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && form.pin.length === 5) handleConfirmPin();
+                }}
+              />
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleConfirmPin}
+            disabled={loading || form.pin.length !== 5}
+            className={`mt-8 flex w-full items-center justify-center rounded-2xl py-4 text-[15px] font-black shadow-xl transition-all active:scale-[0.99] disabled:cursor-not-allowed disabled:active:scale-100 ${loading || form.pin.length === 5
+                ? "bg-primary-600 text-white shadow-primary-200 hover:bg-primary-700 disabled:hover:bg-primary-600"
+                : "bg-gray-200 text-gray-400 shadow-none hover:bg-gray-200"
+              }`}
+          >
+            {loading ? <LoadingSpinner size="sm" /> : "Confirm Withdrawal"}
+          </button>
+        </div>
+      )}
+    </TransactionFlowLayout>
   );
 }

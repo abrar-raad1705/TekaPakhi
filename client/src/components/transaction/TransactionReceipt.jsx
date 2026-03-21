@@ -252,7 +252,7 @@ export default function TransactionReceipt({ receipt, onDone }) {
                   )}
                 </div>
 
-                {receipt.receiver?.phone && !contactSaved && (
+                {receipt.receiver?.phone && !contactSaved && receipt.type !== 'CASH_IN' && (
                   <div className="mt-8 border-t border-slate-100 pt-8">
                     {!showSaveContact ? (
                       <button

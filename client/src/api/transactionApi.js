@@ -11,7 +11,7 @@ export const transactionApi = {
   preview: (type, data) => api.post(`/transactions/preview/${type}`, data),
 
   getHistory: (params) => api.get('/transactions/history', { params }),
-  getMiniStatement: () => api.get('/transactions/mini-statement'),
+  getMiniStatement: (params) => api.get('/transactions/mini-statement', { params }),
   getDetail: (id) => api.get(`/transactions/${id}`),
 
   lookupRecipient: (phone) => api.get(`/profile/lookup/${phone}`),

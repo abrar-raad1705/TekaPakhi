@@ -18,7 +18,7 @@ export default function DistributorDashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([fetchBalance(), fetchRecentTxns()]).finally(() => setLoading(false));
+    fetchBalance().finally(() => setLoading(false));
   }, []);
 
   const fetchBalance = async () => {
