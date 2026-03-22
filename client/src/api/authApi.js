@@ -8,6 +8,11 @@ export const authApi = {
   forgotPin: (data) => api.post('/auth/forgot-pin', data),
   resetPin: (data) => api.post('/auth/reset-pin', data),
   changePin: (data) => api.post('/auth/change-pin', data),
+<<<<<<< Updated upstream
   logout: () => api.post('/auth/logout'),
+=======
+  logout: (data) => api.post('/auth/logout', data),
+>>>>>>> Stashed changes
   checkPhone: (data) => api.post('/auth/check-phone', data),
 };
+

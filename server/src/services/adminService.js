@@ -14,79 +14,122 @@ const adminService = {
   // ── Dashboard ────────────────────────────────────────────────
 
   async getDashboard() {
-    const [userCounts, txStats, todayStats, monthStats, monthlyTrend, recentUsers, platformFinancials] = await Promise.all([
-      adminModel.getUserCountsByType(),
-      adminModel.getTransactionStats(),
-      adminModel.getTodayStats(),
-      adminModel.getThisMonthStats(),
-      adminModel.getMonthlyTrend(6),
-      adminModel.getRecentRegistrations(5),
-      adminModel.getPlatformFinancials(),
-    ]);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    const totalUsers = userCounts.reduce((sum, r) => sum + r.count, 0);
+      const [userCounts, txStats, todayStats, monthStats, monthlyTrend, recentUsers, platformFinancials] = await Promise.all([
+        adminModel.getUserCountsByType(client),
+        adminModel.getTransactionStats(client),
+        adminModel.getTodayStats(client),
+        adminModel.getThisMonthStats(client),
+        adminModel.getMonthlyTrend(6, client),
+        adminModel.getRecentRegistrations(5, client),
+        adminModel.getPlatformFinancials(client),
+      ]);
 
-    return {
-      users: {
-        total: totalUsers,
-        byType: userCounts,
-      },
-      platform: platformFinancials,
-      transactions: {
-        allTime: {
-          count: txStats.total_count,
-          volume: parseFloat(txStats.total_volume),
-          revenue: parseFloat(txStats.total_revenue),
+      const totalUsers = userCounts.reduce((sum, r) => sum + r.count, 0);
+
+      await client.query('COMMIT');
+
+      return {
+        users: {
+          total: totalUsers,
+          byType: userCounts,
         },
-        today: {
-          count: todayStats.count,
-          volume: parseFloat(todayStats.volume),
-          revenue: parseFloat(todayStats.revenue),
+        platform: platformFinancials,
+        transactions: {
+          allTime: {
+            count: txStats.total_count,
+            volume: parseFloat(txStats.total_volume),
+            revenue: parseFloat(txStats.total_revenue),
+          },
+          today: {
+            count: todayStats.count,
+            volume: parseFloat(todayStats.volume),
+            revenue: parseFloat(todayStats.revenue),
+          },
+          thisMonth: {
+            count: monthStats.count,
+            volume: parseFloat(monthStats.volume),
+            revenue: parseFloat(monthStats.revenue),
+          },
+          monthlyTrend: monthlyTrend.map((r) => ({
+            month: r.month,
+            count: r.count,
+            volume: parseFloat(r.volume),
+            revenue: parseFloat(r.revenue),
+          })),
         },
-        thisMonth: {
-          count: monthStats.count,
-          volume: parseFloat(monthStats.volume),
-          revenue: parseFloat(monthStats.revenue),
-        },
-        monthlyTrend: monthlyTrend.map((r) => ({
-          month: r.month,
-          count: r.count,
-          volume: parseFloat(r.volume),
-          revenue: parseFloat(r.revenue),
-        })),
-      },
-      recentRegistrations: recentUsers,
-    };
+        recentRegistrations: recentUsers,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   },
+
 
   // ── User Management ──────────────────────────────────────────
 
   async listUsers(filters) {
-    return adminModel.getUsers(filters);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await adminModel.getUsers(filters, client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   },
 
   async getUserDetail(profileId) {
-    const detail = await adminModel.getUserDetail(profileId);
-    if (!detail) throw new AppError('User not found.', 404);
-    return detail;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const detail = await adminModel.getUserDetail(profileId, client);
+      if (!detail) throw new AppError('User not found.', 404);
+      await client.query('COMMIT');
+      return detail;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   },
+
 
   /**
    * Create a Distributor or Biller profile (admin-only)
    */
   async createProfile({ phoneNumber, fullName, securityPin, accountType, ...subtypeFields }) {
-    const existing = await profileModel.findByPhone(phoneNumber);
-    if (existing) throw new AppError('An account with this phone number already exists.', 409);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    const typeId = PROFILE_TYPES[accountType];
-    if (!typeId) throw new AppError('Invalid account type.', 400);
+      const existing = await profileModel.findByPhone(phoneNumber, client);
+      if (existing) throw new AppError('An account with this phone number already exists.', 409);
 
+<<<<<<< Updated upstream
     const pinHash = await bcrypt.hash(securityPin, SALT_ROUNDS);
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
+=======
+      const typeId = PROFILE_TYPES[accountType];
+      if (!typeId) throw new AppError('Invalid account type.', 400);
+
+      const pinHash = await bcrypt.hash(securityPin, SALT_ROUNDS);
+>>>>>>> Stashed changes
       const profile = await profileModel.create({ phoneNumber, fullName, pinHash, typeId }, client);
 
       if (accountType === 'DISTRIBUTOR') {
@@ -112,35 +155,35 @@ const adminService = {
     }
   },
 
+
   /**
-   * Load e-cash to a profile's wallet (admin receives physical cash, credits e-money)
-   * This creates new e-money in the system (backed by physical cash deposit).
-   * Records as a transaction for audit trail.
+   * Load e-cash to a profile's wallet
    */
   async loadWallet(targetProfileId, amount, adminProfileId) {
     if (amount <= 0) throw new AppError('Amount must be positive.', 400);
-
-    const target = await profileModel.findById(targetProfileId);
-    if (!target) throw new AppError('Target profile not found.', 404);
-
-    // Get system wallet (sender for audit trail — NOT debited)
-    const systemWalletResult = await pool.query(
-      `SELECT w.wallet_id FROM tp.wallets w
-       JOIN tp.profiles p ON w.profile_id = p.profile_id
-       JOIN tp.profile_types pt ON p.type_id = pt.type_id
-       WHERE pt.type_name = 'SYSTEM' LIMIT 1`
-    );
-    if (systemWalletResult.rows.length === 0) throw new AppError('System wallet not found.', 500);
-    const systemWalletId = systemWalletResult.rows[0].wallet_id;
 
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
+      const target = await profileModel.findById(targetProfileId, client);
+      if (!target) throw new AppError('Target profile not found.', 404);
+
+      // Get system wallet (sender for audit trail — NOT debited)
+      const systemWalletResult = await client.query(
+        `SELECT w.wallet_id FROM tp.wallets w
+         JOIN tp.profiles p ON w.profile_id = p.profile_id
+         JOIN tp.profile_types pt ON p.type_id = pt.type_id
+         WHERE pt.type_name = 'SYSTEM' LIMIT 1`
+      );
+      if (systemWalletResult.rows.length === 0) throw new AppError('System wallet not found.', 500);
+      const systemWalletId = systemWalletResult.rows[0].wallet_id;
+
       // Lock target wallet
-      const targetWallet = await walletModel.findByProfileIdForUpdate(client, targetProfileId);
+      const targetWallet = await walletModel.findByProfileIdForUpdate(targetProfileId, client);
       if (!targetWallet) throw new AppError('Target wallet not found.', 404);
 
+<<<<<<< Updated upstream
       // Credit target wallet (new money creation)
       await walletModel.credit(client, targetWallet.wallet_id, amount);
 
@@ -156,6 +199,31 @@ const adminService = {
         [txRef, amount, systemWalletId, targetWallet.wallet_id,
           `ADMIN_LOAD: ৳${amount} loaded by admin #${adminProfileId}`]
       );
+=======
+      // Insert transaction record (Triggers will handle balance)
+      let txRef;
+      try {
+        const txType = await client.query("SELECT type_id FROM tp.transaction_types WHERE type_name = 'CASH_IN'");
+        if (txType.rows.length === 0) throw new AppError('CASH_IN transaction type not found.', 500);
+
+        ({ txRef } = await transactionModel.createWithTxRef({
+          amount,
+          fee: 0,
+          typeId: txType.rows[0].type_id,
+          senderWalletId: systemWalletId,
+          receiverWalletId: targetWallet.wallet_id,
+          senderDebit: 0,
+          receiverCredit: amount,
+          note: `ADMIN_LOAD: ৳${amount} loaded by admin #${adminProfileId}`,
+          status: 'COMPLETED',
+        }, undefined, client));
+      } catch (e) {
+        if (e.code === 'TX_REF_EXHAUSTED') {
+          throw new AppError('Could not assign a transaction ID. Please try again.', 503);
+        }
+        throw e;
+      }
+>>>>>>> Stashed changes
 
       await client.query('COMMIT');
 
@@ -179,6 +247,10 @@ const adminService = {
     try {
       await client.query('BEGIN');
 
+<<<<<<< Updated upstream
+=======
+      // First get the user's type
+>>>>>>> Stashed changes
       const userResult = await client.query(
         `SELECT p.profile_id, pt.type_name
          FROM tp.profiles p
@@ -206,8 +278,20 @@ const adminService = {
   },
 
   async listTransactions(filters) {
-    return adminModel.getAllTransactions(filters);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await adminModel.getAllTransactions(filters, client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   },
+
 
   // ── Transaction Reversal ─────────────────────────────────────
 
@@ -250,8 +334,8 @@ const adminService = {
       await client.query('BEGIN');
 
       // Lock wallets
-      const senderWallet = await walletModel.findByProfileIdForUpdate(client, original.sender_profile_id);
-      const receiverWallet = await walletModel.findByProfileIdForUpdate(client, original.receiver_profile_id);
+      const senderWallet = await walletModel.findByProfileIdForUpdate(original.sender_profile_id, client);
+      const receiverWallet = await walletModel.findByProfileIdForUpdate(original.receiver_profile_id, client);
 
       if (!senderWallet) throw new AppError('Sender wallet not found.', 404);
       if (!receiverWallet) throw new AppError('Receiver wallet not found.', 404);
@@ -265,13 +349,14 @@ const adminService = {
       }
 
       // Credit sender
-      await walletModel.credit(client, senderWallet.wallet_id, senderCreditBack);
+      await walletModel.credit(senderWallet.wallet_id, senderCreditBack, client);
 
       // Debit receiver
-      await walletModel.debit(client, receiverWallet.wallet_id, receiverDebitBack);
+      await walletModel.debit(receiverWallet.wallet_id, receiverDebitBack, client);
 
       // Reverse commissions — debit each beneficiary wallet directly
-      const commissions = await commissionModel.findByTransactionId(transactionId);
+      const commissions = await commissionModel.findByTransactionId(transactionId, client);
+
       for (const entry of commissions) {
         await client.query(
           `UPDATE tp.wallets SET balance = balance - $1, last_activity_date = NOW()
@@ -323,57 +408,165 @@ const adminService = {
   // ── Config Management ────────────────────────────────────────
 
   async getTransactionTypes() {
-    return adminModel.getTransactionTypes();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await adminModel.getTransactionTypes(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   },
 
   async updateTransactionType(typeId, fields) {
-    const allowed = ['fee_percentage', 'fee_flat_amount', 'fee_bearer', 'fee_min_amount', 'fee_max_amount'];
-    const filtered = {};
-    for (const key of allowed) {
-      if (fields[key] !== undefined) filtered[key] = fields[key];
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const allowed = ['fee_percentage', 'fee_flat_amount', 'fee_bearer', 'fee_min_amount', 'fee_max_amount'];
+      const filtered = {};
+      for (const key of allowed) {
+        if (fields[key] !== undefined) filtered[key] = fields[key];
+      }
+      const result = await adminModel.updateTransactionType(typeId, filtered, client);
+      if (!result) throw new AppError('Transaction type not found or no valid fields.', 404);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
-    const result = await adminModel.updateTransactionType(typeId, filtered);
-    if (!result) throw new AppError('Transaction type not found or no valid fields.', 404);
-    return result;
   },
 
   async getTransactionLimits() {
-    return adminModel.getTransactionLimits();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await adminModel.getTransactionLimits(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   },
 
   async upsertTransactionLimit(data) {
-    return adminModel.upsertTransactionLimit(data);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await adminModel.upsertTransactionLimit(data, client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   },
 
   async deleteTransactionLimit(profileTypeId, transactionTypeId) {
-    const result = await adminModel.deleteTransactionLimit(profileTypeId, transactionTypeId);
-    if (!result) throw new AppError('Limit not found.', 404);
-    return result;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await adminModel.deleteTransactionLimit(profileTypeId, transactionTypeId, client);
+      if (!result) throw new AppError('Limit not found.', 404);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   },
 
   async getCommissionPolicies() {
-    return adminModel.getCommissionPolicies();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await adminModel.getCommissionPolicies(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   },
 
   async upsertCommissionPolicy(data) {
-    return adminModel.upsertCommissionPolicy(data);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await adminModel.upsertCommissionPolicy(data, client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   },
 
   async deleteCommissionPolicy(profileTypeId, transactionTypeId) {
-    const result = await adminModel.deleteCommissionPolicy(profileTypeId, transactionTypeId);
-    if (!result) throw new AppError('Policy not found.', 404);
-    return result;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await adminModel.deleteCommissionPolicy(profileTypeId, transactionTypeId, client);
+      if (!result) throw new AppError('Policy not found.', 404);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   },
 
   // ── Reports ──────────────────────────────────────────────────
 
   async getTransactionReport(filters) {
-    return adminModel.getTransactionReport(filters);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await adminModel.getTransactionReport(filters, client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   },
 
   async getUserGrowthReport(filters) {
-    return adminModel.getUserGrowthReport(filters);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await adminModel.getUserGrowthReport(filters, client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   },
+
 };
 
 module.exports = adminService;

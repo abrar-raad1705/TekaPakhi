@@ -23,7 +23,7 @@ const commissionService = {
   async distribute(client, txTypeId, feeAmount, transactionId, parties) {
     if (feeAmount <= 0) return [];
 
-    const policies = await commissionModel.findByTransactionType(txTypeId);
+    const policies = await commissionModel.findByTransactionType(txTypeId, client);
     if (policies.length === 0) return [];
 
     const entries = [];
@@ -49,21 +49,22 @@ const commissionService = {
         beneficiaryProfileId = SYSTEM_PROFILE_ID;
       }
 
-      const wallet = await walletModel.findByProfileIdForUpdate(client, beneficiaryProfileId);
+      const wallet = await walletModel.findByProfileIdForUpdate(beneficiaryProfileId, client);
       if (!wallet) continue;
 
       // Credit the beneficiary's wallet
-      await walletModel.credit(client, wallet.wallet_id, shareAmount);
+      await walletModel.credit(wallet.wallet_id, shareAmount, client);
 
       // Record the commission entry
-      const entry = await commissionModel.createEntry(client, {
+      const entry = await commissionModel.createEntry({
         transactionId,
         beneficiaryWalletId: wallet.wallet_id,
         commissionAmount: shareAmount,
-      });
+      }, client);
 
       entries.push(entry);
     }
+
 
     return entries;
   },

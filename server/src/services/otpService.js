@@ -6,11 +6,16 @@ const AppError = require('../utils/AppError');
 const otpService = {
   /**
    * Generate and store an OTP for a phone number
-   * In development mode, the OTP is returned in the response
    */
+<<<<<<< Updated upstream
   async sendOTP(phoneNumber, purpose = 'VERIFY_PHONE', client = null) {
     // Invalidate any previous unused OTPs for this phone + purpose
     await (client || pool).query(
+=======
+  async sendOTP(phoneNumber, purpose = 'VERIFY_PHONE', client = pool) {
+    // Invalidate any previous unused OTPs for this phone + purpose
+    await client.query(
+>>>>>>> Stashed changes
       `UPDATE tp.otp_codes SET is_used = TRUE
        WHERE phone_number = $1 AND purpose = $2 AND is_used = FALSE`,
       [phoneNumber, purpose]
@@ -19,7 +24,11 @@ const otpService = {
     const otpCode = generateOTP();
     const expiresAt = new Date(Date.now() + env.OTP_EXPIRY_MINUTES * 60 * 1000);
 
+<<<<<<< Updated upstream
     await (client || pool).query(
+=======
+    await client.query(
+>>>>>>> Stashed changes
       `INSERT INTO tp.otp_codes (phone_number, otp_code, purpose, expires_at)
        VALUES ($1, $2, $3, $4)`,
       [phoneNumber, otpCode, purpose, expiresAt]
@@ -33,17 +42,24 @@ const otpService = {
     return {
       message: 'OTP sent successfully.',
       expiresInMinutes: env.OTP_EXPIRY_MINUTES,
+<<<<<<< Updated upstream
       // Only expose OTP in development
+=======
+>>>>>>> Stashed changes
       ...(env.NODE_ENV === 'development' && { otp: otpCode }),
     };
   },
 
   /**
    * Verify an OTP code
-   * Throws AppError if OTP is invalid or expired
    */
+<<<<<<< Updated upstream
   async verifyOTP(phoneNumber, otpCode, purpose = 'VERIFY_PHONE', client = null) {
     const result = await (client || pool).query(
+=======
+  async verifyOTP(phoneNumber, otpCode, purpose = 'VERIFY_PHONE', client = pool) {
+    const result = await client.query(
+>>>>>>> Stashed changes
       `SELECT * FROM tp.otp_codes
        WHERE phone_number = $1 AND otp_code = $2 AND purpose = $3
          AND is_used = FALSE AND expires_at > NOW()
@@ -57,7 +73,11 @@ const otpService = {
     }
 
     // Mark OTP as used
+<<<<<<< Updated upstream
     await (client || pool).query(
+=======
+    await client.query(
+>>>>>>> Stashed changes
       `UPDATE tp.otp_codes SET is_used = TRUE WHERE otp_id = $1`,
       [result.rows[0].otp_id]
     );
@@ -66,4 +86,9 @@ const otpService = {
   },
 };
 
+<<<<<<< Updated upstream
 module.exports = otpService;
+=======
+
+export default otpService;
+>>>>>>> Stashed changes

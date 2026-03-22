@@ -2,33 +2,53 @@ const pool = require('../config/db');
 
 const transactionModel = {
   /**
-   * Insert a new transaction (within an existing DB client/transaction)
+   * Insert a new transaction
    */
-  async create(client, { txRef, amount, fee, typeId, senderWalletId, receiverWalletId, note, status = 'COMPLETED' }) {
+  async create({ txRef, amount, fee, typeId, senderWalletId, receiverWalletId, senderDebit, receiverCredit, note, status = 'COMPLETED' }, client = pool) {
     const result = await client.query(
       `INSERT INTO tp.transactions
-         (transaction_ref, amount, fee_amount, type_id, sender_wallet_id, receiver_wallet_id, user_note, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::tp.transaction_status)
+         (transaction_ref, amount, fee_amount, type_id, sender_wallet_id, receiver_wallet_id, sender_debit, receiver_credit, user_note, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::tp.transaction_status)
        RETURNING *`,
-      [txRef, amount, fee, typeId, senderWalletId, receiverWalletId, note, status]
+      [txRef, amount, fee, typeId, senderWalletId, receiverWalletId, senderDebit, receiverCredit, note, status]
     );
     return result.rows[0];
   },
 
   /**
+<<<<<<< Updated upstream
+=======
+   * Generate a new transaction_ref and insert
+   */
+  async createWithTxRef(
+    { amount, fee, typeId, senderWalletId, receiverWalletId, senderDebit, receiverCredit, note, status = 'COMPLETED' },
+    options,
+    client = pool
+  ) {
+    const { txRef, result: row } = await allocateUniqueTxRef(
+      (txRef) => this.create({ txRef, amount, fee, typeId, senderWalletId, receiverWalletId, senderDebit, receiverCredit, note, status }, client),
+      options
+    );
+    return { txRef, row };
+  },
+
+
+
+  /**
+>>>>>>> Stashed changes
    * Find transaction by reference (public receipt lookup)
    */
-  async findByRef(txRef) {
-    const result = await pool.query(
+  async findByRef(txRef, client = pool) {
+    const result = await client.query(
       `SELECT t.*, tt.type_name,
               sp.full_name AS sender_name, sp.phone_number AS sender_phone,
               rp.full_name AS receiver_name, rp.phone_number AS receiver_phone
        FROM tp.transactions t
        JOIN tp.transaction_types tt ON t.type_id = tt.type_id
-       JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
-       JOIN tp.profiles sp ON sw.profile_id = sp.profile_id
-       JOIN tp.wallets rw ON t.receiver_wallet_id = rw.wallet_id
-       JOIN tp.profiles rp ON rw.profile_id = rp.profile_id
+       LEFT JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
+       LEFT JOIN tp.profiles sp ON sw.profile_id = sp.profile_id
+       LEFT JOIN tp.wallets rw ON t.receiver_wallet_id = rw.wallet_id
+       LEFT JOIN tp.profiles rp ON rw.profile_id = rp.profile_id
        WHERE t.transaction_ref = $1`,
       [txRef]
     );
@@ -38,19 +58,25 @@ const transactionModel = {
   /**
    * Find transaction by ID with full details
    */
+<<<<<<< Updated upstream
   async findByIdForProfile(transactionId, profileId) {
     const result = await pool.query(
       `SELECT t.*, tt.type_name,
+=======
+  async findByIdForProfile(transactionId, profileId, client = pool) {
+    const result = await client.query(
+      `SELECT t.*, tt.type_name, tt.fee_bearer,
+>>>>>>> Stashed changes
               sw.profile_id AS sender_profile_id,
               sp.full_name AS sender_name, sp.phone_number AS sender_phone,
               rw.profile_id AS receiver_profile_id,
               rp.full_name AS receiver_name, rp.phone_number AS receiver_phone
        FROM tp.transactions t
        JOIN tp.transaction_types tt ON t.type_id = tt.type_id
-       JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
-       JOIN tp.profiles sp ON sw.profile_id = sp.profile_id
-       JOIN tp.wallets rw ON t.receiver_wallet_id = rw.wallet_id
-       JOIN tp.profiles rp ON rw.profile_id = rp.profile_id
+       LEFT JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
+       LEFT JOIN tp.profiles sp ON sw.profile_id = sp.profile_id
+       LEFT JOIN tp.wallets rw ON t.receiver_wallet_id = rw.wallet_id
+       LEFT JOIN tp.profiles rp ON rw.profile_id = rp.profile_id
        WHERE t.transaction_id = $1
          AND (sw.profile_id = $2 OR rw.profile_id = $2)`,
       [transactionId, profileId]
@@ -61,7 +87,7 @@ const transactionModel = {
   /**
    * Paginated transaction history for a profile
    */
-  async findByProfileId(profileId, { page = 1, limit = 20, type = null, fromDate = null, toDate = null } = {}) {
+  async findByProfileId(profileId, { page = 1, limit = 20, type = null, fromDate = null, toDate = null } = {}, client = pool) {
     const offset = (page - 1) * limit;
     const params = [profileId];
     let paramIdx = 2;
@@ -90,27 +116,28 @@ const transactionModel = {
              rp.full_name AS receiver_name, rp.phone_number AS receiver_phone
       FROM tp.transactions t
       JOIN tp.transaction_types tt ON t.type_id = tt.type_id
-      JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
-      JOIN tp.profiles sp ON sw.profile_id = sp.profile_id
-      JOIN tp.wallets rw ON t.receiver_wallet_id = rw.wallet_id
-      JOIN tp.profiles rp ON rw.profile_id = rp.profile_id
+      LEFT JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
+      LEFT JOIN tp.profiles sp ON sw.profile_id = sp.profile_id
+      LEFT JOIN tp.wallets rw ON t.receiver_wallet_id = rw.wallet_id
+      LEFT JOIN tp.profiles rp ON rw.profile_id = rp.profile_id
       WHERE (sw.profile_id = $1 OR rw.profile_id = $1)
         ${whereExtra}
       ORDER BY t.transaction_time DESC
       LIMIT $${paramIdx++} OFFSET $${paramIdx++}`;
 
     const countQuery = `
-      SELECT COUNT(*) AS total
+      SELECT COUNT(*)::int AS total
       FROM tp.transactions t
       JOIN tp.transaction_types tt ON t.type_id = tt.type_id
-      JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
-      JOIN tp.wallets rw ON t.receiver_wallet_id = rw.wallet_id
+      LEFT JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
+      LEFT JOIN tp.wallets rw ON t.receiver_wallet_id = rw.wallet_id
       WHERE (sw.profile_id = $1 OR rw.profile_id = $1)
         ${whereExtra}`;
 
+
     const [dataResult, countResult] = await Promise.all([
-      pool.query(dataQuery, params),
-      pool.query(countQuery, params.slice(0, -2)), // exclude limit/offset
+      client.query(dataQuery, params),
+      client.query(countQuery, params.slice(0, -2)), // exclude limit/offset
     ]);
 
     return {
@@ -125,7 +152,7 @@ const transactionModel = {
   /**
    * Count transactions today for a specific profile + type (for limit checking)
    */
-  async countToday(client, profileId, typeId) {
+  async countToday(profileId, typeId, client = pool) {
     const result = await client.query(
       `SELECT COUNT(*)::int AS count, COALESCE(SUM(t.amount), 0)::numeric AS total_amount
        FROM tp.transactions t
@@ -141,7 +168,7 @@ const transactionModel = {
   /**
    * Count transactions this month for a specific profile + type
    */
-  async countThisMonth(client, profileId, typeId) {
+  async countThisMonth(profileId, typeId, client = pool) {
     const result = await client.query(
       `SELECT COUNT(*)::int AS count, COALESCE(SUM(t.amount), 0)::numeric AS total_amount
        FROM tp.transactions t
@@ -155,11 +182,10 @@ const transactionModel = {
   },
 
   /**
-   * Get the monthly Send Money total for a profile (pool-based, no client needed).
-   * Used for tiered fee calculation outside of an atomic transaction (e.g. preview).
+   * Get the monthly Send Money total for a profile
    */
-  async getMonthlyTotal(profileId, typeId) {
-    const result = await pool.query(
+  async getMonthlyTotal(profileId, typeId, client = pool) {
+    const result = await client.query(
       `SELECT COALESCE(SUM(t.amount), 0)::numeric AS total_amount
        FROM tp.transactions t
        JOIN tp.wallets w ON t.sender_wallet_id = w.wallet_id
@@ -172,9 +198,9 @@ const transactionModel = {
   },
 
   /**
-   * Get the monthly Send Money total within a transaction client (for execute).
+   * Get the monthly Send Money total within a transaction client (for update).
    */
-  async getMonthlyTotalForUpdate(client, profileId, typeId) {
+  async getMonthlyTotalForUpdate(profileId, typeId, client = pool) {
     const result = await client.query(
       `SELECT COALESCE(SUM(t.amount), 0)::numeric AS total_amount
        FROM tp.transactions t
@@ -190,8 +216,8 @@ const transactionModel = {
   /**
    * Get last N transactions for mini statement
    */
-  async miniStatement(profileId, count = 5) {
-    const result = await pool.query(
+  async miniStatement(profileId, count = 5, client = pool) {
+    const result = await client.query(
       `SELECT t.*, tt.type_name,
               sw.profile_id AS sender_profile_id,
               sp.full_name AS sender_name, sp.phone_number AS sender_phone,
@@ -199,10 +225,10 @@ const transactionModel = {
               rp.full_name AS receiver_name, rp.phone_number AS receiver_phone
        FROM tp.transactions t
        JOIN tp.transaction_types tt ON t.type_id = tt.type_id
-       JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
-       JOIN tp.profiles sp ON sw.profile_id = sp.profile_id
-       JOIN tp.wallets rw ON t.receiver_wallet_id = rw.wallet_id
-       JOIN tp.profiles rp ON rw.profile_id = rp.profile_id
+       LEFT JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
+       LEFT JOIN tp.profiles sp ON sw.profile_id = sp.profile_id
+       LEFT JOIN tp.wallets rw ON t.receiver_wallet_id = rw.wallet_id
+       LEFT JOIN tp.profiles rp ON rw.profile_id = rp.profile_id
        WHERE (sw.profile_id = $1 OR rw.profile_id = $1)
          AND t.status = 'COMPLETED'
        ORDER BY t.transaction_time DESC

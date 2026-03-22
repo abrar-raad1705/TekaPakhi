@@ -14,7 +14,7 @@ const limitService = {
    * @param {number} amount - Transaction amount
    */
   async check(client, profileTypeId, txTypeId, senderProfileId, amount) {
-    const limits = await limitModel.findByTypes(profileTypeId, txTypeId);
+    const limits = await limitModel.findByTypes(profileTypeId, txTypeId, client);
 
     // If no limits are configured, allow the transaction
     if (!limits) return;
@@ -36,7 +36,7 @@ const limitService = {
     }
 
     // 3. Daily limits
-    const daily = await transactionModel.countToday(client, senderProfileId, txTypeId);
+    const daily = await transactionModel.countToday(senderProfileId, txTypeId, client);
 
     if (limits.max_count_daily && daily.count >= limits.max_count_daily) {
       throw new AppError(
@@ -53,7 +53,7 @@ const limitService = {
     }
 
     // 4. Monthly limits
-    const monthly = await transactionModel.countThisMonth(client, senderProfileId, txTypeId);
+    const monthly = await transactionModel.countThisMonth(senderProfileId, txTypeId, client);
 
     if (limits.max_count_monthly && monthly.count >= limits.max_count_monthly) {
       throw new AppError(
@@ -69,6 +69,7 @@ const limitService = {
       );
     }
   },
+
 };
 
 module.exports = limitService;

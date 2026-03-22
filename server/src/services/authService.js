@@ -28,15 +28,16 @@ const authService = {
     );
   },
 
+<<<<<<< Updated upstream
 
 
+=======
+>>>>>>> Stashed changes
   /**
    * Register a new account (Customer, Agent, or Merchant)
    * Flow: validate → hash PIN → create profile → create subtype → send OTP
-   *
-   * - Customers are set to ACTIVE immediately
-   * - Agents & Merchants are set to PENDING_KYC (need admin approval to transact)
    */
+<<<<<<< Updated upstream
   async register({ phoneNumber, fullName, securityPin, accountType = 'CUSTOMER', ...subtypeFields }) {
     const existing = await profileModel.findByPhone(phoneNumber);
     if (existing) {
@@ -102,18 +103,91 @@ const authService = {
     } finally {
       client.release();
     }
+=======
+  async register({ phoneNumber, fullName, securityPin, accountType = 'CUSTOMER', ...subtypeFields }, clientArg) {
+    const isInternallyManaged = !clientArg;
+    const client = clientArg || await pool.connect();
+    try {
+      if (isInternallyManaged) await client.query('BEGIN');
+
+      // Check if phone already registered
+      const existing = await profileModel.findByPhone(phoneNumber, client);
+      if (existing) {
+        throw new AppError('An account with this phone number already exists.', 409);
+      }
+
+      // Map account type string to type ID
+      const typeId = PROFILE_TYPES[accountType];
+      if (!typeId || !['CUSTOMER', 'AGENT', 'MERCHANT'].includes(accountType)) {
+        throw new AppError('Invalid account type for self-registration.', 400);
+      }
+
+      // Hash the security PIN
+      const pinHash = await bcrypt.hash(securityPin, SALT_ROUNDS);
+
+      // Create profile (DB trigger auto-creates wallet)
+      const profile = await profileModel.create({ phoneNumber, fullName, pinHash, typeId }, client);
+
+      // Create the appropriate subtype profile
+      let accountStatus;
+      if (accountType === 'CUSTOMER') {
+        await profileModel.createCustomerSubtype(profile.profile_id, client);
+        accountStatus = 'ACTIVE';
+      } else if (accountType === 'AGENT') {
+        const agentCode = generateAgentCode();
+        await profileModel.createAgentSubtype(profile.profile_id, {
+          ...subtypeFields,
+          agentCode,
+        }, client);
+        accountStatus = 'PENDING_KYC';
+      } else if (accountType === 'MERCHANT') {
+        const merchantCode = generateMerchantCode();
+        await profileModel.createMerchantSubtype(profile.profile_id, {
+          ...subtypeFields,
+          merchantCode,
+        }, client);
+        accountStatus = 'PENDING_KYC';
+      }
+
+      // Send OTP for phone verification
+      const otpResult = await otpService.sendOTP(phoneNumber, 'VERIFY_PHONE', client);
+
+      if (isInternallyManaged) await client.query('COMMIT');
+
+      const pendingMsg = accountStatus === 'PENDING_KYC'
+        ? ' Your account is pending verification by admin.'
+        : '';
+
+      return {
+        message: `Registration successful. Please verify your phone number.${pendingMsg}`,
+        profileId: profile.profile_id,
+        phoneNumber: profile.phone_number,
+        fullName: profile.full_name,
+        accountType,
+        accountStatus,
+        ...otpResult,
+      };
+    } catch (error) {
+      if (isInternallyManaged) await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      if (isInternallyManaged) client.release();
+    }
+>>>>>>> Stashed changes
   },
+
 
   /**
    * Login with phone + PIN
-   * Flow: find profile → check lock → verify PIN → generate tokens
+   * Flow: find profile → check lock → verify PIN → generate token
    */
-  async login({ phoneNumber, securityPin }) {
-    const profile = await profileModel.findByPhone(phoneNumber);
-    if (!profile) {
-      throw new AppError('Invalid phone number or PIN.', 401);
-    }
+  async login({ phoneNumber, securityPin }, clientArg) {
+    const isInternallyManaged = !clientArg;
+    const client = clientArg || await pool.connect();
+    try {
+      if (isInternallyManaged) await client.query('BEGIN');
 
+<<<<<<< Updated upstream
     if (profile.locked_until && new Date(profile.locked_until) > new Date()) {
       const minutesLeft = Math.ceil((new Date(profile.locked_until) - new Date()) / 60000);
       throw new AppError(`Account is temporarily locked. Try again in ${minutesLeft} minute(s).`, 423);
@@ -149,6 +223,64 @@ const authService = {
       const accessToken = this.generateAccessToken(profile);
 
       await client.query('COMMIT');
+=======
+      const profile = await profileModel.findByPhone(phoneNumber, client);
+      if (!profile) {
+        throw new AppError('Invalid phone number or PIN.', 401);
+      }
+
+      // Check if account is locked
+      if (profile.locked_until && new Date(profile.locked_until) > new Date()) {
+        const minutesLeft = Math.ceil(
+          (new Date(profile.locked_until) - new Date()) / 60000
+        );
+        throw new AppError(
+          `Account is temporarily locked. Try again in ${minutesLeft} minute(s).`,
+          423
+        );
+      }
+
+      // Verify PIN
+      const isPinValid = await bcrypt.compare(securityPin, profile.security_pin_hash);
+
+      if (!isPinValid) {
+        const { failed_pin_attempts } = await profileModel.incrementFailedAttempts(
+          profile.profile_id,
+          client
+        );
+
+        if (failed_pin_attempts >= env.MAX_PIN_ATTEMPTS) {
+          const lockUntil = new Date(
+            Date.now() + env.PIN_LOCK_DURATION_MINUTES * 60 * 1000
+          );
+          await profileModel.lockAccount(profile.profile_id, lockUntil, client);
+
+          if (isInternallyManaged) await client.query('COMMIT'); // Commit the lock
+
+          throw new AppError(
+            `Too many failed attempts. Account locked for ${env.PIN_LOCK_DURATION_MINUTES} minutes.`,
+            423
+          );
+        }
+
+        if (isInternallyManaged) await client.query('COMMIT'); // Commit the increment
+        throw new AppError(
+          `Invalid phone number or PIN. ${env.MAX_PIN_ATTEMPTS - failed_pin_attempts} attempt(s) remaining.`,
+          403
+        );
+      }
+
+      // Reset failed attempts on successful login
+      await profileModel.resetFailedAttempts(profile.profile_id, client);
+
+      // Get account status from subtype table
+      const accountStatus = await profileModel.getAccountStatus(profile.profile_id, profile.type_name, client);
+
+      // Generate access token
+      const accessToken = this.generateAccessToken(profile);
+
+      if (isInternallyManaged) await client.query('COMMIT');
+>>>>>>> Stashed changes
 
       return {
         accessToken,
@@ -163,10 +295,17 @@ const authService = {
         },
       };
     } catch (error) {
+<<<<<<< Updated upstream
       await client.query('ROLLBACK');
       throw error;
     } finally {
       client.release();
+=======
+      if (isInternallyManaged) await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      if (isInternallyManaged) client.release();
+>>>>>>> Stashed changes
     }
   },
 
@@ -174,16 +313,25 @@ const authService = {
   /**
    * Verify phone number with OTP
    */
+<<<<<<< Updated upstream
   async verifyOtp({ phoneNumber, otpCode, purpose = 'VERIFY_PHONE' }) {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+=======
+  async verifyOtp({ phoneNumber, otpCode, purpose = 'VERIFY_PHONE' }, clientArg) {
+    const isInternallyManaged = !clientArg;
+    const client = clientArg || await pool.connect();
+    try {
+      if (isInternallyManaged) await client.query('BEGIN');
+>>>>>>> Stashed changes
 
       await otpService.verifyOTP(phoneNumber, otpCode, purpose, client);
       if (purpose === 'VERIFY_PHONE') {
         await profileModel.setPhoneVerified(phoneNumber, client);
       }
 
+<<<<<<< Updated upstream
       await client.query('COMMIT');
       return { message: 'OTP verified successfully.' };
     } catch (error) {
@@ -191,12 +339,23 @@ const authService = {
       throw error;
     } finally {
       client.release();
+=======
+      if (isInternallyManaged) await client.query('COMMIT');
+      return { message: 'OTP verified successfully.' };
+    } catch (error) {
+      if (isInternallyManaged) await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      if (isInternallyManaged) client.release();
+>>>>>>> Stashed changes
     }
   },
+
 
   /**
    * Request OTP for PIN reset
    */
+<<<<<<< Updated upstream
   async forgotPin(phoneNumber) {
     const profile = await profileModel.findByPhone(phoneNumber);
     if (!profile) {
@@ -209,11 +368,40 @@ const authService = {
       message: 'If this phone number is registered, you will receive an OTP.',
       ...otpResult,
     };
+=======
+  async requestOtp(phoneNumber, purpose = 'RESET_PIN', clientArg) {
+    const isInternallyManaged = !clientArg;
+    const client = clientArg || await pool.connect();
+    try {
+      if (isInternallyManaged) await client.query('BEGIN');
+
+      const profile = await profileModel.findByPhone(phoneNumber, client);
+      if (!profile) {
+        if (isInternallyManaged) await client.query('COMMIT');
+        return { message: 'OTP sent successfully.' };
+      }
+
+      const otpResult = await otpService.sendOTP(phoneNumber, purpose, client);
+
+      if (isInternallyManaged) await client.query('COMMIT');
+      return {
+        message: 'OTP sent successfully.',
+        ...otpResult,
+      };
+    } catch (error) {
+      if (isInternallyManaged) await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      if (isInternallyManaged) client.release();
+    }
+>>>>>>> Stashed changes
   },
+
 
   /**
    * Reset PIN with OTP verification
    */
+<<<<<<< Updated upstream
   async resetPin({ phoneNumber, otpCode, newPin }) {
     const profile = await profileModel.findByPhone(phoneNumber);
     if (!profile) {
@@ -244,34 +432,77 @@ const authService = {
     } finally {
       client.release();
     }
+=======
+  async resetPin({ phoneNumber, otpCode, newPin }, clientArg) {
+    const isInternallyManaged = !clientArg;
+    const client = clientArg || await pool.connect();
+    try {
+      if (isInternallyManaged) await client.query('BEGIN');
+
+      const profile = await profileModel.findByPhone(phoneNumber, client);
+      if (!profile) {
+        throw new AppError('Profile not found.', 404);
+      }
+
+      // Hash new PIN and update
+      const pinHash = await bcrypt.hash(newPin, SALT_ROUNDS);
+      await profileModel.updatePin(profile.profile_id, pinHash, client);
+
+      // Reset failed attempts and unlock
+      await profileModel.resetFailedAttempts(profile.profile_id, client);
+
+      if (isInternallyManaged) await client.query('COMMIT');
+      return { message: 'PIN reset successful. Please login with your new PIN.' };
+    } catch (error) {
+      if (isInternallyManaged) await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      if (isInternallyManaged) client.release();
+    }
+>>>>>>> Stashed changes
   },
+
 
   /**
    * Change PIN (authenticated user, requires old PIN)
    */
-  async changePin({ profileId, oldPin, newPin }) {
-    const profile = await profileModel.findById(profileId);
-    if (!profile) {
-      throw new AppError('Profile not found.', 404);
+  async changePin({ profileId, oldPin, newPin }, clientArg) {
+    const isInternallyManaged = !clientArg;
+    const client = clientArg || await pool.connect();
+    try {
+      if (isInternallyManaged) await client.query('BEGIN');
+
+      const profile = await profileModel.findById(profileId, client);
+      if (!profile) {
+        throw new AppError('Profile not found.', 404);
+      }
+
+      // Verify old PIN
+      const isPinValid = await bcrypt.compare(oldPin, profile.security_pin_hash);
+      if (!isPinValid) {
+        throw new AppError('Current PIN is incorrect.', 401);
+      }
+
+      // Hash and update new PIN
+      const pinHash = await bcrypt.hash(newPin, SALT_ROUNDS);
+      await profileModel.updatePin(profileId, pinHash, client);
+
+      if (isInternallyManaged) await client.query('COMMIT');
+      return { message: 'PIN changed successfully.' };
+    } catch (error) {
+      if (isInternallyManaged) await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      if (isInternallyManaged) client.release();
     }
-
-    // Verify old PIN
-    const isPinValid = await bcrypt.compare(oldPin, profile.security_pin_hash);
-    if (!isPinValid) {
-      throw new AppError('Current PIN is incorrect.', 401);
-    }
-
-    // Hash and update new PIN
-    const pinHash = await bcrypt.hash(newPin, SALT_ROUNDS);
-    await profileModel.updatePin(profileId, pinHash);
-
-    return { message: 'PIN changed successfully.' };
   },
+
 
   /**
    * Verify transaction PIN (reusable for any PIN-gated action)
    * Includes brute force protection (lock after MAX_PIN_ATTEMPTS)
    */
+<<<<<<< Updated upstream
   async verifyTransactionPin(profileId, pin, client = null) {
     const db = client || await pool.connect();
     const isInternalClient = !client;
@@ -299,12 +530,42 @@ const authService = {
           await profileModel.lockAccount(profileId, lockUntil, db);
 
           if (isInternalClient) await db.query('COMMIT');
+=======
+  async verifyTransactionPin(profileId, pin, clientArg) {
+    const isInternallyManaged = !clientArg;
+    const client = clientArg || await pool.connect();
+    try {
+      if (isInternallyManaged) await client.query('BEGIN');
+
+      const profile = await profileModel.findById(profileId, client);
+      if (!profile) {
+        throw new AppError('Profile not found.', 404);
+      }
+
+      // Check if account is locked
+      if (profile.locked_until && new Date(profile.locked_until) > new Date()) {
+        const minutesLeft = Math.ceil((new Date(profile.locked_until) - new Date()) / 60000);
+        throw new AppError(`Account locked. Try again in ${minutesLeft} minute(s).`, 423);
+      }
+
+      const isPinValid = await bcrypt.compare(pin, profile.security_pin_hash);
+
+      if (!isPinValid) {
+        const { failed_pin_attempts } = await profileModel.incrementFailedAttempts(profileId, client);
+
+        if (failed_pin_attempts >= env.MAX_PIN_ATTEMPTS) {
+          const lockUntil = new Date(Date.now() + env.PIN_LOCK_DURATION_MINUTES * 60 * 1000);
+          await profileModel.lockAccount(profileId, lockUntil, client);
+
+          if (isInternallyManaged) await client.query('COMMIT'); // Commit the lock
+>>>>>>> Stashed changes
           throw new AppError(
             `Too many failed attempts. Account locked for ${env.PIN_LOCK_DURATION_MINUTES} minutes.`,
             423
           );
         }
 
+<<<<<<< Updated upstream
         if (isInternalClient) await db.query('COMMIT');
         throw new AppError(
           `Invalid PIN. ${env.MAX_PIN_ATTEMPTS - failed_pin_attempts} attempt(s) remaining.`,
@@ -321,15 +582,69 @@ const authService = {
       throw error;
     } finally {
       if (isInternalClient) db.release();
+=======
+        if (isInternallyManaged) await client.query('COMMIT'); // Commit increment
+        throw new AppError(
+          `Invalid PIN. ${env.MAX_PIN_ATTEMPTS - failed_pin_attempts} attempt(s) remaining.`,
+          403
+        );
+      }
+
+
+      // Reset on success
+      await profileModel.resetFailedAttempts(profileId, client);
+
+      if (isInternallyManaged) await client.query('COMMIT');
+      return true;
+    } catch (error) {
+      if (isInternallyManaged) await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      if (isInternallyManaged) client.release();
+>>>>>>> Stashed changes
     }
   },
 
+
   /**
-   * Logout — revoke the specific refresh token
+   * Logout (clears session on client side)
    */
+<<<<<<< Updated upstream
   async logout() {
     return { message: 'Logged out successfully.' };
   },
 };
 
 module.exports = authService;
+=======
+  async logout(profileId, clientArg) {
+    const isInternallyManaged = !clientArg;
+    const client = clientArg || await pool.connect();
+    try {
+      if (isInternallyManaged) await client.query('BEGIN');
+
+      if (isInternallyManaged) await client.query('COMMIT');
+      return { message: 'Logged out successfully.' };
+    } catch (error) {
+      if (isInternallyManaged) await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      if (isInternallyManaged) client.release();
+    }
+  },
+
+  /**
+   * Check if a phone number already exists
+   */
+  async checkPhone(phoneNumber, clientArg) {
+    const client = clientArg || pool;
+    const existing = await profileModel.findByPhone(phoneNumber, client);
+    return { exists: !!existing };
+  },
+
+};
+
+
+export default authService;
+
+>>>>>>> Stashed changes

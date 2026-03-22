@@ -1,6 +1,10 @@
+<<<<<<< Updated upstream
 const recipientModel = require('../models/recipientModel');
 const profileModel = require('../models/profileModel');
 const AppError = require('../utils/AppError');
+=======
+import recipientService from '../services/recipientService.js';
+>>>>>>> Stashed changes
 
 const recipientController = {
   /**
@@ -8,8 +12,8 @@ const recipientController = {
    */
   async list(req, res, next) {
     try {
-      const recipients = await recipientModel.findBySaver(req.user.profileId);
-      res.status(200).json({ success: true, data: recipients });
+      const data = await recipientService.list(req.user.profileId);
+      res.status(200).json({ success: true, data });
     } catch (error) {
       next(error);
     }
@@ -21,18 +25,8 @@ const recipientController = {
   async create(req, res, next) {
     try {
       const { phoneNumber, nickname } = req.validatedBody;
-
-      const target = await profileModel.findByPhone(phoneNumber);
-      if (!target) {
-        throw new AppError('No account found with this phone number.', 404);
-      }
-
-      if (target.profile_id.toString() === req.user.profileId.toString()) {
-        throw new AppError('You cannot save yourself as a recipient.', 400);
-      }
-
-      const recipient = await recipientModel.create(req.user.profileId, target.profile_id, nickname);
-      res.status(201).json({ success: true, data: recipient });
+      const data = await recipientService.create(req.user.profileId, phoneNumber, nickname);
+      res.status(201).json({ success: true, data });
     } catch (error) {
       next(error);
     }
@@ -43,10 +37,7 @@ const recipientController = {
    */
   async delete(req, res, next) {
     try {
-      const deleted = await recipientModel.delete(req.params.id, req.user.profileId);
-      if (!deleted) {
-        throw new AppError('Recipient not found.', 404);
-      }
+      await recipientService.delete(req.params.id, req.user.profileId);
       res.status(200).json({ success: true, message: 'Recipient removed.' });
     } catch (error) {
       next(error);
@@ -54,4 +45,9 @@ const recipientController = {
   },
 };
 
+<<<<<<< Updated upstream
 module.exports = recipientController;
+=======
+export default recipientController;
+
+>>>>>>> Stashed changes

@@ -88,12 +88,17 @@ const changePinSchema = z.object({
     .regex(/^\d{5}$/, 'New PIN must contain only digits'),
 });
 
+<<<<<<< Updated upstream
 const checkPhoneSchema = z.object({
+=======
+export const checkPhoneSchema = z.object({
+>>>>>>> Stashed changes
   phoneNumber: z
     .string()
     .regex(bdPhoneRegex, 'Invalid Bangladeshi phone number'),
 });
 
+<<<<<<< Updated upstream
 module.exports = {
   registerSchema,
   loginSchema,
@@ -103,3 +108,5 @@ module.exports = {
   changePinSchema,
   checkPhoneSchema,
 };
+=======
+>>>>>>> Stashed changes

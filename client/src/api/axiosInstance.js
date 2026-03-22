@@ -20,6 +20,7 @@ api.interceptors.request.use(
   },
   (error) => Promise.reject(error)
 );
+<<<<<<< Updated upstream
 // Response interceptor — handle 401 and errors
 api.interceptors.response.use(
   (response) => response,
@@ -30,9 +31,25 @@ api.interceptors.response.use(
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';
       }
+=======
+
+// Response interceptor — handle unauthorized errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // If 401 (Unauthorized) and not an auth endpoint, clear session and redirect
+    const originalRequest = error.config;
+    const isAuthEndpoint = originalRequest.url?.startsWith('/auth/');
+
+    if (error.response?.status === 401 && !isAuthEndpoint) {
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+>>>>>>> Stashed changes
     }
     return Promise.reject(error);
   }
 );
+
 
 export default api;

@@ -25,7 +25,10 @@ const authController = {
     }
   },
 
+<<<<<<< Updated upstream
 
+=======
+>>>>>>> Stashed changes
   /**
    * POST /api/v1/auth/request-otp
    */
@@ -96,7 +99,25 @@ const authController = {
    */
   async logout(req, res, next) {
     try {
+<<<<<<< Updated upstream
       const result = await authService.logout();
+=======
+      const result = await authService.logout(req.user.profileId);
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+
+  /**
+   * GET /api/v1/auth/check-phone/:phoneNumber
+   */
+  async checkPhone(req, res, next) {
+    try {
+      const { phoneNumber } = req.validatedBody;
+      const result = await authService.checkPhone(phoneNumber);
+>>>>>>> Stashed changes
       res.status(200).json({ success: true, data: result });
     } catch (error) {
       next(error);

@@ -4,8 +4,8 @@ const commissionModel = {
   /**
    * Get all commission policies for a transaction type
    */
-  async findByTransactionType(transactionTypeId) {
-    const result = await pool.query(
+  async findByTransactionType(transactionTypeId, client = pool) {
+    const result = await client.query(
       `SELECT cp.*, pt.type_name AS beneficiary_type_name
        FROM tp.commission_policies cp
        JOIN tp.profile_types pt ON cp.profile_type_id = pt.type_id
@@ -17,9 +17,9 @@ const commissionModel = {
   },
 
   /**
-   * Insert a commission entry (within an existing DB client/transaction)
+   * Insert a commission entry
    */
-  async createEntry(client, { transactionId, beneficiaryWalletId, commissionAmount }) {
+  async createEntry({ transactionId, beneficiaryWalletId, commissionAmount }, client = pool) {
     const result = await client.query(
       `INSERT INTO tp.commission_entries (transaction_id, beneficiary_wallet_id, commission_amount)
        VALUES ($1, $2, $3)
@@ -32,8 +32,8 @@ const commissionModel = {
   /**
    * Get commission entries for a transaction
    */
-  async findByTransactionId(transactionId) {
-    const result = await pool.query(
+  async findByTransactionId(transactionId, client = pool) {
+    const result = await client.query(
       `SELECT ce.*, p.full_name AS beneficiary_name, pt.type_name AS beneficiary_type
        FROM tp.commission_entries ce
        JOIN tp.wallets w ON ce.beneficiary_wallet_id = w.wallet_id
@@ -46,4 +46,9 @@ const commissionModel = {
   },
 };
 
+<<<<<<< Updated upstream
 module.exports = commissionModel;
+=======
+
+export default commissionModel;
+>>>>>>> Stashed changes

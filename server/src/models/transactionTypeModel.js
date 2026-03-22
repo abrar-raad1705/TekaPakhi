@@ -1,8 +1,8 @@
 const pool = require('../config/db');
 
 const transactionTypeModel = {
-  async findByName(typeName) {
-    const result = await pool.query(
+  async findByName(typeName, client = pool) {
+    const result = await client.query(
       `SELECT * FROM tp.transaction_types WHERE type_name = $1`,
       [typeName]
     );
@@ -23,4 +23,9 @@ const transactionTypeModel = {
   },
 };
 
+<<<<<<< Updated upstream
 module.exports = transactionTypeModel;
+=======
+export default transactionTypeModel;
+
+>>>>>>> Stashed changes

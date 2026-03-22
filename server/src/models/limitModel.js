@@ -4,8 +4,8 @@ const limitModel = {
   /**
    * Get transaction limits for a profile type + transaction type
    */
-  async findByTypes(profileTypeId, transactionTypeId) {
-    const result = await pool.query(
+  async findByTypes(profileTypeId, transactionTypeId, client = pool) {
+    const result = await client.query(
       `SELECT * FROM tp.transaction_limits
        WHERE profile_type_id = $1 AND transaction_type_id = $2`,
       [profileTypeId, transactionTypeId]
@@ -14,4 +14,9 @@ const limitModel = {
   },
 };
 
+<<<<<<< Updated upstream
 module.exports = limitModel;
+=======
+export default limitModel;
+
+>>>>>>> Stashed changes

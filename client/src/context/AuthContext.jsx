@@ -44,6 +44,7 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+<<<<<<< Updated upstream
   const logout = useCallback(async () => {
     try {
       await authApi.logout();
@@ -54,7 +55,15 @@ export function AuthProvider({ children }) {
       localStorage.removeItem('user');
       setUser(null);
     }
+=======
+  const logout = useCallback(() => {
+
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('user');
+    setUser(null);
+>>>>>>> Stashed changes
   }, []);
+
 
   /**
    * Determine the home route based on user role

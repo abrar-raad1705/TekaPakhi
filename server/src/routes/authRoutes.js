@@ -16,9 +16,16 @@ const {
 const router = Router();
 
 // Public routes
+<<<<<<< Updated upstream
 router.post('/register', authLimiter, validate(registerSchema), authController.register);
 router.post('/login', authLimiter, validate(loginSchema), authController.login);
 router.post('/request-otp', otpLimiter, validate(requestOtpSchema), authController.requestOtp);
+=======
+router.post('/register', validate(registerSchema), authController.register);
+router.post('/login', validate(loginSchema), authController.login);
+router.post('/request-otp', validate(requestOtpSchema), authController.requestOtp);
+
+>>>>>>> Stashed changes
 router.post('/verify-otp', validate(verifyOtpSchema), authController.verifyOtp);
 router.post('/forgot-pin', otpLimiter, validate(requestOtpSchema), authController.forgotPin);
 router.post('/reset-pin', authLimiter, validate(resetPinSchema), authController.resetPin);
