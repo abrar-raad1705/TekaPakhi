@@ -2,9 +2,36 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { adminApi } from '../../api/adminApi';
 import { formatBDT } from '../../utils/formatCurrency';
+import { ChevronDownIcon, ClipboardDocumentIcon, ClipboardDocumentCheckIcon } from '@heroicons/react/24/outline';
 import AdminLayout from '../../components/admin/AdminLayout';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { toast } from 'sonner';
+
+function CopyableRef({ value }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+    toast.success('Reference copied to clipboard', { duration: 1500 });
+  };
+
+  return (
+    <div
+      onClick={handleCopy}
+      className="group flex cursor-pointer items-center gap-1.5 font-mono text-[10px] text-gray-500 hover:text-primary-600"
+      title="Click to copy"
+    >
+      <span className="truncate">{value}</span>
+      {copied ? (
+        <ClipboardDocumentCheckIcon className="h-3.5 w-3.5 text-green-500" />
+      ) : (
+        <ClipboardDocumentIcon className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
+      )}
+    </div>
+  );
+}
 
 const txTypes = [
   { id: '', label: 'All Types' },
@@ -96,14 +123,14 @@ export default function TransactionMonitorPage() {
       </div>
 
       {/* Filters */}
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <form onSubmit={handleSearch} className="flex gap-2">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+        <form onSubmit={handleSearch} className="flex flex-[2] gap-2">
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by ref or phone..."
-            className="w-64 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
           />
           <button
             type="submit"
@@ -113,25 +140,31 @@ export default function TransactionMonitorPage() {
           </button>
         </form>
 
-        <select
-          value={typeId}
-          onChange={(e) => updateParams('typeId', e.target.value)}
-          className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none"
-        >
-          {txTypes.map((t) => (
-            <option key={t.id} value={t.id}>{t.label}</option>
-          ))}
-        </select>
+        <div className="relative w-full sm:w-48">
+          <select
+            value={typeId}
+            onChange={(e) => updateParams('typeId', e.target.value)}
+            className="w-full appearance-none rounded-lg border border-gray-300 bg-white pl-3 pr-8 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+          >
+            {txTypes.map((t) => (
+              <option key={t.id} value={t.id}>{t.label}</option>
+            ))}
+          </select>
+          <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        </div>
 
-        <select
-          value={status}
-          onChange={(e) => updateParams('status', e.target.value)}
-          className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none"
-        >
-          {txStatuses.map((s) => (
-            <option key={s.id} value={s.id}>{s.label}</option>
-          ))}
-        </select>
+        <div className="relative w-full sm:w-48">
+          <select
+            value={status}
+            onChange={(e) => updateParams('status', e.target.value)}
+            className="w-full appearance-none rounded-lg border border-gray-300 bg-white pl-3 pr-8 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+          >
+            {txStatuses.map((s) => (
+              <option key={s.id} value={s.id}>{s.label}</option>
+            ))}
+          </select>
+          <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        </div>
       </div>
 
       {/* Table */}
@@ -159,7 +192,9 @@ export default function TransactionMonitorPage() {
               <tbody className="divide-y divide-gray-100">
                 {data.transactions.map((tx) => (
                   <tr key={tx.transaction_id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{tx.transaction_ref}</td>
+                    <td className="px-4 py-3">
+                      <CopyableRef value={tx.transaction_ref} />
+                    </td>
                     <td className="px-4 py-3 text-gray-700">{tx.type_name}</td>
                     <td className="px-4 py-3">
                       <p className="text-xs font-medium text-gray-900">{tx.sender_name}</p>
@@ -180,7 +215,7 @@ export default function TransactionMonitorPage() {
                       {new Date(tx.transaction_time).toLocaleString()}
                     </td>
                     <td className="px-4 py-3">
-                      {tx.status === 'COMPLETED' && (
+                      {tx.status === 'COMPLETED' && !tx.original_transaction_id && (
                         <button
                           disabled={reversing === tx.transaction_id}
                           onClick={() => handleReverse(tx.transaction_id)}

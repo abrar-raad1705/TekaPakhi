@@ -7,12 +7,6 @@ export const generateOTP = () => {
   return crypto.randomInt(100000, 999999).toString();
 };
 
-// Hash a token using SHA-256 (for refresh token storage)
-export const hashToken = (token) => {
-  return crypto.createHash('sha256').update(token).digest('hex');
-};
-
-
 // Format balance as BDT currency
 export const formatBDT = (amount) => {
   return `৳${parseFloat(amount).toLocaleString('en-BD', { minimumFractionDigits: 2 })}`;

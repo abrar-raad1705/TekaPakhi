@@ -87,48 +87,121 @@ const transactionModel = {
     const params = [profileId];
     let paramIdx = 2;
 
-    let whereExtra = '';
+    let whereExtra = 'WHERE 1=1';
     if (type) {
-      whereExtra += ` AND tt.type_name = $${paramIdx++}`;
+      whereExtra += ` AND history.type_name = $${paramIdx++}`;
       params.push(type);
     }
     if (fromDate) {
-      whereExtra += ` AND t.transaction_time >= $${paramIdx++}`;
+      whereExtra += ` AND history.transaction_time >= $${paramIdx++}`;
       params.push(fromDate);
     }
     if (toDate) {
-      whereExtra += ` AND t.transaction_time <= $${paramIdx++}`;
+      whereExtra += ` AND history.transaction_time <= $${paramIdx++}`;
       params.push(toDate);
     }
 
     params.push(limit, offset);
 
     const dataQuery = `
-      SELECT t.*, tt.type_name,
-             sw.profile_id AS sender_profile_id,
-             sp.full_name AS sender_name, sp.phone_number AS sender_phone,
-             sp.profile_picture_url AS sender_profile_picture_url,
-             rw.profile_id AS receiver_profile_id,
-             rp.full_name AS receiver_name, rp.phone_number AS receiver_phone,
-             rp.profile_picture_url AS receiver_profile_picture_url
-      FROM tp.transactions t
-      JOIN tp.transaction_types tt ON t.type_id = tt.type_id
-      JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
-      JOIN tp.profiles sp ON sw.profile_id = sp.profile_id
-      JOIN tp.wallets rw ON t.receiver_wallet_id = rw.wallet_id
-      JOIN tp.profiles rp ON rw.profile_id = rp.profile_id
-      WHERE (sw.profile_id = $1 OR rw.profile_id = $1)
-        ${whereExtra}
-      ORDER BY t.transaction_time DESC
+      WITH history AS (
+        SELECT
+          CONCAT('TX-', t.transaction_id) AS history_id,
+          'TRANSACTION' AS history_kind,
+          NULL::bigint AS ledger_entry_id,
+          t.transaction_id,
+          t.transaction_ref,
+          t.transaction_time,
+          t.amount,
+          t.fee_amount,
+          tt.type_name,
+          NULL::varchar AS source_tx_type_name,
+          t.user_note,
+          t.status,
+          sw.profile_id AS sender_profile_id,
+          sp.full_name AS sender_name,
+          sp.phone_number AS sender_phone,
+          sp.profile_picture_url AS sender_profile_picture_url,
+          rw.profile_id AS receiver_profile_id,
+          rp.full_name AS receiver_name,
+          rp.phone_number AS receiver_phone,
+          rp.profile_picture_url AS receiver_profile_picture_url
+        FROM tp.transactions t
+        JOIN tp.transaction_types tt ON t.type_id = tt.type_id
+        JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
+        JOIN tp.profiles sp ON sw.profile_id = sp.profile_id
+        JOIN tp.wallets rw ON t.receiver_wallet_id = rw.wallet_id
+        JOIN tp.profiles rp ON rw.profile_id = rp.profile_id
+        WHERE (sw.profile_id = $1 OR rw.profile_id = $1)
+
+        UNION ALL
+
+        SELECT
+          CONCAT('LE-', le.id) AS history_id,
+          'COMMISSION' AS history_kind,
+          le.id AS ledger_entry_id,
+          t.transaction_id,
+          t.transaction_ref,
+          le.created_at AS transaction_time,
+          le.amount,
+          0::numeric AS fee_amount,
+          'COMMISSION' AS type_name,
+          tt_src.type_name AS source_tx_type_name,
+          le.description AS user_note,
+          'COMPLETED'::tp.transaction_status AS status,
+          NULL::bigint AS sender_profile_id,
+          NULL::varchar AS sender_name,
+          NULL::varchar AS sender_phone,
+          NULL::text AS sender_profile_picture_url,
+          w.profile_id AS receiver_profile_id,
+          p.full_name AS receiver_name,
+          p.phone_number AS receiver_phone,
+          p.profile_picture_url AS receiver_profile_picture_url
+        FROM tp.ledger_entries le
+        JOIN tp.wallets w ON le.wallet_id = w.wallet_id
+        JOIN tp.profiles p ON w.profile_id = p.profile_id
+        JOIN tp.transactions t ON le.transaction_id = t.transaction_id
+        JOIN tp.transaction_types tt_src ON t.type_id = tt_src.type_id
+        WHERE w.profile_id = $1
+          AND le.entry_type = 'CREDIT'
+          AND (
+            le.description ILIKE 'Commission share%'
+            OR le.description ILIKE 'Commission Earned -%'
+          )
+      )
+      SELECT *
+      FROM history
+      ${whereExtra}
+      ORDER BY history.transaction_time DESC
       LIMIT $${paramIdx++} OFFSET $${paramIdx++}`;
 
     const countQuery = `
+      WITH history AS (
+        SELECT
+          t.transaction_time,
+          tt.type_name
+        FROM tp.transactions t
+        JOIN tp.transaction_types tt ON t.type_id = tt.type_id
+        JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
+        JOIN tp.wallets rw ON t.receiver_wallet_id = rw.wallet_id
+        WHERE (sw.profile_id = $1 OR rw.profile_id = $1)
+
+        UNION ALL
+
+        SELECT
+          le.created_at AS transaction_time,
+          'COMMISSION' AS type_name
+        FROM tp.ledger_entries le
+        JOIN tp.wallets w ON le.wallet_id = w.wallet_id
+        WHERE w.profile_id = $1
+          AND le.entry_type = 'CREDIT'
+          AND (
+            le.description ILIKE 'Commission share%'
+            OR le.description ILIKE 'Commission Earned -%'
+          )
+      )
       SELECT COUNT(*) AS total
-      FROM tp.transactions t
-      JOIN tp.transaction_types tt ON t.type_id = tt.type_id
-      JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
-      JOIN tp.wallets rw ON t.receiver_wallet_id = rw.wallet_id
-      WHERE (sw.profile_id = $1 OR rw.profile_id = $1)
+      FROM history
         ${whereExtra}`;
 
     const [dataResult, countResult] = await Promise.all([

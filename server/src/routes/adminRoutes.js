@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import adminController from '../controllers/adminController.js';
-import authenticate from '../middleware/authenticate.js';
-import roleGuard from '../middleware/roleGuard.js';
+import adminAuthenticate from '../middleware/adminAuthenticate.js';
 import validate from '../middleware/validate.js';
 import {
   updateStatusSchema,
@@ -14,9 +13,8 @@ import {
 
 const router = Router();
 
-// All admin routes require authentication + SYSTEM role
-router.use(authenticate);
-router.use(roleGuard('SYSTEM'));
+// All admin routes require admin JWT (password login at POST /api/v1/root/login)
+router.use(adminAuthenticate);
 
 // Dashboard
 router.get('/dashboard', adminController.dashboard);
@@ -45,6 +43,9 @@ router.delete('/config/limits/:profileTypeId/:txTypeId', adminController.deleteT
 router.get('/config/commissions', adminController.getCommissionPolicies);
 router.put('/config/commissions', validate(upsertCommissionSchema), adminController.upsertCommissionPolicy);
 router.delete('/config/commissions/:profileTypeId/:txTypeId', adminController.deleteCommissionPolicy);
+
+// Config: misc
+router.get('/config/profile-types', adminController.getProfileTypes);
 
 // Reports
 router.get('/reports/transactions', adminController.transactionReport);

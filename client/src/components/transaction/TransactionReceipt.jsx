@@ -9,6 +9,7 @@ import {
 import { formatBDT, formatPhone } from '../../utils/formatCurrency';
 import { recipientApi } from '../../api/recipientApi';
 import { transactionApi } from '../../api/transactionApi';
+import { useAuth } from '../../context/AuthContext';
 import { toast } from 'sonner';
 import LoadingSpinner from '../common/LoadingSpinner';
 import { useSiteHeader } from '../../context/SiteHeaderContext';
@@ -68,10 +69,11 @@ export default function TransactionReceipt({ receipt, onDone }) {
     }
   };
 
+  const { user, getHomeRoute } = useAuth();
   const handleDone = useCallback(() => {
     if (onDone) onDone();
-    else navigate('/dashboard', { replace: true });
-  }, [onDone, navigate]);
+    else navigate(getHomeRoute(), { replace: true });
+  }, [onDone, navigate, getHomeRoute]);
 
   const { setSiteHeaderOverrides, resetSiteHeaderOverrides } = useSiteHeader();
   const label = typeLabels[receipt.type] || receipt.type;

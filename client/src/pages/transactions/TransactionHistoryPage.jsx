@@ -12,10 +12,9 @@ import { useAuth } from "../../context/AuthContext";
 import { useSiteHeader } from "../../context/SiteHeaderContext";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import TransactionDetailPanel from "../../components/transaction/TransactionDetailPanel";
+import ProfileAvatar from "../../components/common/ProfileAvatar";
 import { formatPhone } from "../../utils/formatCurrency";
 import { formatTaka, typeLabels } from "../../utils/transactionDetailFormat";
-import ProfileAvatar from "../../components/common/ProfileAvatar";
-import { TransactionTypeGlyph } from "../../constants/transactionTypeUi";
 
 const ACCENT = "#2563EB";
 
@@ -27,6 +26,7 @@ const TYPES = [
   "PAYMENT",
   "PAY_BILL",
   "B2B",
+  "COMMISSION",
 ];
 
 function filterChipLabel(t) {
@@ -38,7 +38,17 @@ function ninetyDaysAgoIso() {
   return new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
 }
 
+function commissionTitleFromSource(sourceTxTypeName) {
+  if (!sourceTxTypeName) return "Commission";
+  if (sourceTxTypeName === "CASH_IN") return "Cash In Commission";
+  if (sourceTxTypeName === "CASH_OUT") return "Cash Out Commission";
+  return `${typeLabels[sourceTxTypeName] || sourceTxTypeName.replace(/_/g, " ")} Commission`;
+}
+
 function historyRowTitle(tx, isSender) {
+  if (tx.type_name === "COMMISSION") {
+    return commissionTitleFromSource(tx.source_tx_type_name);
+  }
   if (tx.type_name === "SEND_MONEY") {
     return isSender ? "Send Money" : "Received Money";
   }
@@ -60,7 +70,8 @@ function matchesSearch(tx, q) {
   const names = [tx.sender_name, tx.receiver_name]
     .filter(Boolean)
     .map((n) => n.toLowerCase());
-  return names.some((n) => n.includes(raw));
+  if (names.some((n) => n.includes(raw))) return true;
+  return String(tx.user_note || "").toLowerCase().includes(raw);
 }
 
 function formatListTime(iso) {
@@ -136,6 +147,11 @@ function aggregateMonth(transactions, profileId) {
         outgoing = isSender;
         label = outgoing ? "B2B Transfer" : "B2B received";
         key = outgoing ? "B2B_OUT" : "B2B_IN";
+        break;
+      case "COMMISSION":
+        key = `COMMISSION_${tx.source_tx_type_name || "OTHER"}`;
+        label = commissionTitleFromSource(tx.source_tx_type_name);
+        outgoing = false;
         break;
       default:
         outgoing = isSender;
@@ -417,7 +433,7 @@ export default function TransactionHistoryPage() {
               Transactions from the last 90 days
             </p>
 
-            <div className="mt-4 overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm">
+            <div className="mt-4 overflow-hidden rounded-xl border border-slate-300/90 bg-white shadow-sm">
               {loading ? (
                 <div className="flex flex-col items-center py-16">
                   <LoadingSpinner size="lg" />
@@ -435,10 +451,10 @@ export default function TransactionHistoryPage() {
                   </p>
                 </div>
               ) : (
-                <ul className="divide-y divide-slate-100">
+                <ul className="divide-y divide-slate-300">
                   {filteredTransactions.map((tx) => (
                     <HistoryRow
-                      key={tx.transaction_id}
+                      key={tx.history_id || `${tx.history_kind}-${tx.transaction_id}-${tx.ledger_entry_id ?? ""}`}
                       tx={tx}
                       profileId={user?.profileId}
                       onOpen={() => handleTxClick(tx)}
@@ -509,7 +525,7 @@ export default function TransactionHistoryPage() {
               ) : null}
             </div>
 
-            <div className="mt-4 overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm">
+            <div className="mt-4 overflow-hidden rounded-xl border border-slate-300/90 bg-white shadow-sm">
               {summaryLoading ? (
                 <div className="flex flex-col items-center py-16">
                   <LoadingSpinner size="lg" />
@@ -649,8 +665,9 @@ export default function TransactionHistoryPage() {
 }
 
 function HistoryRow({ tx, profileId, onOpen }) {
+  const isCommission = tx.history_kind === "COMMISSION";
   const isSender =
-    String(tx.sender_profile_id) === String(profileId ?? "");
+    !isCommission && String(tx.sender_profile_id) === String(profileId ?? "");
   const counterparty = isSender
     ? {
         name: tx.receiver_name,
@@ -664,57 +681,60 @@ function HistoryRow({ tx, profileId, onOpen }) {
       };
   const title = historyRowTitle(tx, isSender);
 
+  const avatarName = isCommission ? tx.receiver_name : counterparty.name;
+  const avatarUrl = isCommission
+    ? tx.receiver_profile_picture_url
+    : counterparty.pictureUrl;
+
   return (
-    <li>
+    <li className="w-full">
       <button
         type="button"
         onClick={onOpen}
-        className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-slate-50 active:bg-slate-100/80"
+        className="group flex min-h-[7rem] w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 active:bg-slate-100/80"
       >
-        <div className="flex shrink-0 items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
-            <TransactionTypeGlyph typeName={tx.type_name} className="h-4 w-4" />
-          </div>
-          <ProfileAvatar
-            pictureUrl={counterparty.pictureUrl}
-            name={counterparty.name}
-            className="h-11 w-11 text-base"
-            accentColor={ACCENT}
-          />
-        </div>
-        <div className="min-w-0 flex-1">
+        <ProfileAvatar
+          pictureUrl={avatarUrl}
+          name={avatarName || "?"}
+          className="h-12 w-12 text-lg"
+          accentColor={ACCENT}
+        />
+        <div className="flex min-w-0 flex-1 flex-col justify-center">
           <p className="text-[15px] font-bold text-slate-900">{title}</p>
-          <p className="truncate text-sm text-slate-500">
-            {counterparty.name || "—"}
-          </p>
-          {counterparty.phone ? (
-            <p className="truncate text-sm text-slate-500">
-              {formatPhone(counterparty.phone)}
-            </p>
+          {!isCommission ? (
+            <>
+              <p className="truncate text-sm text-slate-500">
+                {counterparty.name || "—"}
+              </p>
+              {counterparty.phone ? (
+                <p className="truncate text-sm text-slate-500">
+                  {formatPhone(counterparty.phone)}
+                </p>
+              ) : null}
+            </>
           ) : null}
           <p className="mt-0.5 truncate font-mono text-xs text-slate-400">
             TrxID : {tx.transaction_ref}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
-          <div className="text-right">
-            <p
-              className={`text-[15px] font-bold ${
-                isSender ? "text-rose-600" : "text-emerald-600"
-              }`}
-            >
-              {isSender ? "− " : "+ "}
-              {formatTaka(tx.amount)}
-            </p>
-            <p className="text-xs text-slate-400">
-              {formatListTime(tx.transaction_time)}
-            </p>
-          </div>
-          <ChevronRightIcon
-            className="h-5 w-5 text-slate-300"
-            strokeWidth={2}
-          />
+        <div className="flex w-[10rem] shrink-0 flex-col items-end justify-center text-right tabular-nums">
+          <p
+            className={`text-[15px] font-bold ${
+              isSender ? "text-rose-600" : "text-emerald-600"
+            }`}
+          >
+            {isSender ? "− " : "+ "}
+            {formatTaka(tx.amount)}
+          </p>
+          <p className="text-xs text-slate-400">
+            {formatListTime(tx.transaction_time)}
+          </p>
         </div>
+        <ChevronRightIcon
+          className="h-5 w-5 shrink-0 text-slate-300 transition-colors group-hover:text-primary-600"
+          strokeWidth={2}
+          aria-hidden
+        />
       </button>
     </li>
   );

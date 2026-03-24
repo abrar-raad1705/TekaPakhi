@@ -12,6 +12,15 @@ const walletController = {
       next(error);
     }
   },
+
+  async getDashboardStats(req, res, next) {
+    try {
+      const result = await walletService.getDashboardStats(req.user.profileId);
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  },
 };
 
 export default walletController;

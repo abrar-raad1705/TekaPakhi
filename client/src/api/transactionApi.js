@@ -7,6 +7,8 @@ export const transactionApi = {
   payment: (data) => api.post('/transactions/payment', data),
   payBill: (data) => api.post('/transactions/pay-bill', data),
   b2b: (data) => api.post('/transactions/b2b', data),
+  getB2BAgents: () => api.get('/transactions/b2b-agents'),
+  getB2BDistributor: () => api.get('/transactions/b2b-distributor'),
 
   preview: (type, data) => api.post(`/transactions/preview/${type}`, data),
 

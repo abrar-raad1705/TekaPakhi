@@ -34,3 +34,10 @@ export const OTP_PURPOSE = {
   VERIFY_PHONE: 'VERIFY_PHONE',
   RESET_PIN: 'RESET_PIN',
 };
+
+/** System wallet roles (tp.wallets.role) */
+export const WALLET_ROLES = {
+  TREASURY: 'TREASURY',
+  REVENUE: 'REVENUE',
+  ADJUSTMENT: 'ADJUSTMENT',
+};

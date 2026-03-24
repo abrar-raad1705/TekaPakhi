@@ -4,11 +4,27 @@ import { formatBDT } from '../../utils/formatCurrency';
 import AdminLayout from '../../components/admin/AdminLayout';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { toast } from 'sonner';
+import { ChevronDownIcon, PlusIcon, XMarkIcon, ListBulletIcon, ScaleIcon, BanknotesIcon } from '@heroicons/react/24/outline';
+
+function StyledSelect({ label, ...props }) {
+  return (
+    <div className="relative">
+      {label && <label className="mb-1 block text-xs text-gray-500">{label}</label>}
+      <div className="relative">
+        <select
+          {...props}
+          className={`w-full appearance-none rounded-lg border border-gray-300 bg-white pl-3 pr-9 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 ${props.className || ''}`}
+        />
+        <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+      </div>
+    </div>
+  );
+}
 
 const tabs = [
-  { id: 'types', label: 'Transaction Types' },
-  { id: 'limits', label: 'Limits' },
-  { id: 'commissions', label: 'Commissions' },
+  { id: 'types', label: 'Transaction Types', icon: ListBulletIcon },
+  { id: 'limits', label: 'Limits', icon: ScaleIcon },
+  { id: 'commissions', label: 'Commissions', icon: BanknotesIcon },
 ];
 
 export default function ConfigPage() {
@@ -23,20 +39,27 @@ export default function ConfigPage() {
       </div>
 
       {/* Tabs */}
-      <div className="mb-6 flex gap-1 rounded-lg bg-gray-100 p-1">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors
-              ${activeTab === tab.id
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-              }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="mb-6 border-b border-gray-200">
+        <div className="flex -mb-px">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 px-1 border-b-2 text-sm font-medium transition-all duration-200
+                  ${isActive
+                    ? 'border-primary-600 text-primary-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+              >
+                <Icon className={`h-4 w-4 ${isActive ? 'text-primary-600' : 'text-gray-400'}`} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {activeTab === 'types' && <TransactionTypesTab />}
@@ -131,12 +154,13 @@ function TransactionTypesTab() {
                         className="w-20 rounded border border-gray-300 px-2 py-1 text-sm" />
                     </td>
                     <td className="px-4 py-3">
-                      <select value={form.fee_bearer}
+                      <StyledSelect
+                        value={form.fee_bearer}
                         onChange={(e) => setForm({ ...form, fee_bearer: e.target.value })}
-                        className="rounded border border-gray-300 px-2 py-1 text-sm">
+                      >
                         <option value="SENDER">SENDER</option>
                         <option value="RECEIVER">RECEIVER</option>
-                      </select>
+                      </StyledSelect>
                     </td>
                     <td className="px-4 py-3 flex gap-1">
                       <button onClick={() => handleSave(t.type_id)}
@@ -182,15 +206,24 @@ function LimitsTab() {
     maxCountDaily: '', maxCountMonthly: '', minPerTransaction: '', maxPerTransaction: '',
   });
 
-  const fetchLimits = async () => {
+  const [profileTypes, setProfileTypes] = useState([]);
+  const [txTypes, setTxTypes] = useState([]);
+
+  const fetchData = async () => {
     try {
-      const res = await adminApi.getTransactionLimits();
-      setLimits(res.data.data);
-    } catch { toast.error('Failed to load limits.'); }
+      const [limitsRes, ptRes, ttRes] = await Promise.all([
+        adminApi.getTransactionLimits(),
+        adminApi.getProfileTypes(),
+        adminApi.getTransactionTypes()
+      ]);
+      setLimits(limitsRes.data.data);
+      setProfileTypes(ptRes.data.data);
+      setTxTypes(ttRes.data.data);
+    } catch { toast.error('Failed to load dependency data.'); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchLimits(); }, []);
+  useEffect(() => { fetchData(); }, []);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -200,7 +233,7 @@ function LimitsTab() {
       setShowAdd(false);
       setForm({ profileTypeId: '', transactionTypeId: '', dailyLimit: '', monthlyLimit: '',
         maxCountDaily: '', maxCountMonthly: '', minPerTransaction: '', maxPerTransaction: '' });
-      fetchLimits();
+      fetchData();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to save.');
     }
@@ -211,7 +244,7 @@ function LimitsTab() {
     try {
       await adminApi.deleteTransactionLimit(l.profile_type_id, l.transaction_type_id);
       toast.success('Limit removed.');
-      fetchLimits();
+      fetchData();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to delete.');
     }
@@ -221,21 +254,40 @@ function LimitsTab() {
 
   return (
     <div>
-      <button onClick={() => setShowAdd(!showAdd)}
-        className="mb-4 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">
-        {showAdd ? 'Cancel' : '+ Add/Update Limit'}
-      </button>
+      <div className="mb-4 flex justify-end">
+        <button onClick={() => setShowAdd(!showAdd)}
+          className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors
+            ${showAdd ? 'bg-gray-500 hover:bg-gray-600' : 'bg-primary-600 hover:bg-primary-700'}`}>
+          {showAdd ? <XMarkIcon className="h-4 w-4" /> : <PlusIcon className="h-4 w-4" />}
+          {showAdd ? 'Cancel' : 'Add/Update Limit'}
+        </button>
+      </div>
 
       {showAdd && (
-        <form onSubmit={handleSave} className="mb-6 grid grid-cols-2 gap-3 rounded-xl border border-gray-200 bg-white p-5 sm:grid-cols-4">
-          <div><label className="mb-1 block text-xs text-gray-500">Profile Type ID</label>
-            <input type="number" required value={form.profileTypeId}
-              onChange={(e) => setForm({ ...form, profileTypeId: e.target.value })}
-              className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm" /></div>
-          <div><label className="mb-1 block text-xs text-gray-500">Tx Type ID</label>
-            <input type="number" required value={form.transactionTypeId}
-              onChange={(e) => setForm({ ...form, transactionTypeId: e.target.value })}
-              className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm" /></div>
+        <form onSubmit={handleSave} className="mb-6 grid grid-cols-2 gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:grid-cols-4">
+          <StyledSelect
+            label="Profile Type"
+            required
+            value={form.profileTypeId}
+            onChange={(e) => setForm({ ...form, profileTypeId: e.target.value })}
+          >
+            <option value="">Select Profile</option>
+            {profileTypes.filter(p => p.type_name !== 'SYSTEM').map(p => (
+              <option key={p.type_id} value={p.type_id}>{p.type_name}</option>
+            ))}
+          </StyledSelect>
+
+          <StyledSelect
+            label="Transaction Type"
+            required
+            value={form.transactionTypeId}
+            onChange={(e) => setForm({ ...form, transactionTypeId: e.target.value })}
+          >
+            <option value="">Select Type</option>
+            {txTypes.map(t => (
+              <option key={t.type_id} value={t.type_id}>{t.type_name.replace(/_/g, ' ')}</option>
+            ))}
+          </StyledSelect>
           <div><label className="mb-1 block text-xs text-gray-500">Daily Limit</label>
             <input type="number" step="0.01" value={form.dailyLimit}
               onChange={(e) => setForm({ ...form, dailyLimit: e.target.value })}
@@ -317,15 +369,24 @@ function CommissionsTab() {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ profileTypeId: '', transactionTypeId: '', commissionShare: '' });
 
-  const fetchPolicies = async () => {
+  const [profileTypes, setProfileTypes] = useState([]);
+  const [txTypes, setTxTypes] = useState([]);
+
+  const fetchData = async () => {
     try {
-      const res = await adminApi.getCommissionPolicies();
-      setPolicies(res.data.data);
-    } catch { toast.error('Failed to load policies.'); }
+      const [policyRes, ptRes, ttRes] = await Promise.all([
+        adminApi.getCommissionPolicies(),
+        adminApi.getProfileTypes(),
+        adminApi.getTransactionTypes()
+      ]);
+      setPolicies(policyRes.data.data);
+      setProfileTypes(ptRes.data.data);
+      setTxTypes(ttRes.data.data);
+    } catch { toast.error('Failed to load dependency data.'); }
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchPolicies(); }, []);
+  useEffect(() => { fetchData(); }, []);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -334,7 +395,7 @@ function CommissionsTab() {
       toast.success('Policy saved.');
       setShowAdd(false);
       setForm({ profileTypeId: '', transactionTypeId: '', commissionShare: '' });
-      fetchPolicies();
+      fetchData();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to save.');
     }
@@ -345,7 +406,7 @@ function CommissionsTab() {
     try {
       await adminApi.deleteCommissionPolicy(p.profile_type_id, p.transaction_type_id);
       toast.success('Policy removed.');
-      fetchPolicies();
+      fetchData();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to delete.');
     }
@@ -355,21 +416,40 @@ function CommissionsTab() {
 
   return (
     <div>
-      <button onClick={() => setShowAdd(!showAdd)}
-        className="mb-4 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700">
-        {showAdd ? 'Cancel' : '+ Add/Update Policy'}
-      </button>
+      <div className="mb-4 flex justify-end">
+        <button onClick={() => setShowAdd(!showAdd)}
+          className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors
+            ${showAdd ? 'bg-gray-500 hover:bg-gray-600' : 'bg-primary-600 hover:bg-primary-700'}`}>
+          {showAdd ? <XMarkIcon className="h-4 w-4" /> : <PlusIcon className="h-4 w-4" />}
+          {showAdd ? 'Cancel' : 'Add/Update Policy'}
+        </button>
+      </div>
 
       {showAdd && (
-        <form onSubmit={handleSave} className="mb-6 grid grid-cols-3 gap-3 rounded-xl border border-gray-200 bg-white p-5">
-          <div><label className="mb-1 block text-xs text-gray-500">Beneficiary Type ID</label>
-            <input type="number" required value={form.profileTypeId}
-              onChange={(e) => setForm({ ...form, profileTypeId: e.target.value })}
-              className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm" /></div>
-          <div><label className="mb-1 block text-xs text-gray-500">Tx Type ID</label>
-            <input type="number" required value={form.transactionTypeId}
-              onChange={(e) => setForm({ ...form, transactionTypeId: e.target.value })}
-              className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm" /></div>
+        <form onSubmit={handleSave} className="mb-6 grid grid-cols-1 gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:grid-cols-3">
+          <StyledSelect
+            label="Beneficiary Type"
+            required
+            value={form.profileTypeId}
+            onChange={(e) => setForm({ ...form, profileTypeId: e.target.value })}
+          >
+            <option value="">Select Profile</option>
+            {profileTypes.filter(p => !['SYSTEM', 'CUSTOMER'].includes(p.type_name)).map(p => (
+              <option key={p.type_id} value={p.type_id}>{p.type_name}</option>
+            ))}
+          </StyledSelect>
+
+          <StyledSelect
+            label="Transaction Type"
+            required
+            value={form.transactionTypeId}
+            onChange={(e) => setForm({ ...form, transactionTypeId: e.target.value })}
+          >
+            <option value="">Select Type</option>
+            {txTypes.map(t => (
+              <option key={t.type_id} value={t.type_id}>{t.type_name.replace(/_/g, ' ')}</option>
+            ))}
+          </StyledSelect>
           <div><label className="mb-1 block text-xs text-gray-500">Share %</label>
             <input type="number" step="0.01" required value={form.commissionShare}
               onChange={(e) => setForm({ ...form, commissionShare: e.target.value })}

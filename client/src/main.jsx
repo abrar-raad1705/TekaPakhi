@@ -20,6 +20,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
           expand={false}
           visibleToasts={3}
           duration={3000}
+          closeButton
         />
       </AuthProvider>
     </BrowserRouter>

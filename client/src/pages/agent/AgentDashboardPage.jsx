@@ -22,6 +22,12 @@ const quickActions = [
     to: "/pay-bill",
     desc: "Pay utility bills",
   },
+  {
+    label: "B2B Transfer",
+    typeName: "B2B",
+    to: "/b2b",
+    desc: "Send float to distributor",
+  },
 ];
 
 export default function AgentDashboardPage() {
@@ -46,6 +52,9 @@ export default function AgentDashboardPage() {
       console.error(e);
     }
   };
+
+
+
   return (
     <div className="min-h-dvh bg-gray-50 pb-20">
       {/* Header */}
@@ -119,6 +128,8 @@ export default function AgentDashboardPage() {
             </>
           )}
         </div>
+
+
 
         {/* Quick Actions */}
         <div className="mb-6">

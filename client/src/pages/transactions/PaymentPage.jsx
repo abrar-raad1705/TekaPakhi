@@ -239,7 +239,7 @@ export default function PaymentPage() {
     <TransactionFlowLayout
       icon={ShoppingBagIcon}
       title="Merchant Payment"
-      subtitle="Pay at any authorized TekaPakhi merchant. Enter the merchant phone — payments are free for you; the merchant pays the fee."
+      subtitle="Pay at any authorized TekaPakhi merchant. Enter the merchant phone — payments are free for you."
       steps={flowSteps}
       currentStepKey={step}
     >
@@ -514,11 +514,11 @@ export default function PaymentPage() {
             </div>
             <div className="flex items-center justify-between text-[15px]">
               <span className="font-bold text-gray-500">Transaction Fee</span>
-              <span className="font-bold italic text-gray-400">Free for you</span>
+              <span className="font-black text-gray-900">৳0.00</span>
             </div>
-            <div className="my-2 h-px bg-gray-100" />
-            <div className="flex items-center justify-between text-lg">
-              <span className="font-bold text-gray-500">Total Debit</span>
+            <hr className="my-2 h-px border-gray-300" />
+            <div className="flex items-center justify-between text-[15px]">
+              <span className="font-bold text-gray-500">Total Payment</span>
               <span className="font-black text-primary-600">{formatBDT(preview.totalDebit)}</span>
             </div>
           </div>

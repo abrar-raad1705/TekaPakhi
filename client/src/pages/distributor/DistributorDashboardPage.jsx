@@ -29,6 +29,9 @@ export default function DistributorDashboardPage() {
       console.error(e);
     }
   };
+
+
+
   return (
     <div className="min-h-dvh bg-gray-50 pb-20">
       {/* Header */}
@@ -81,6 +84,8 @@ export default function DistributorDashboardPage() {
             </>
           )}
         </div>
+
+
 
         {/* B2B Action */}
         <div className="mb-6">

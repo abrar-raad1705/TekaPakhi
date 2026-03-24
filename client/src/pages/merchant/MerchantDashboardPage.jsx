@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ArrowRightEndOnRectangleIcon,
   ExclamationCircleIcon,
@@ -7,11 +8,40 @@ import { useAuth } from "../../context/AuthContext";
 import { walletApi } from "../../api/walletApi";
 import { formatBDT } from "../../utils/formatCurrency";
 import { getDashboardTheme } from "../../utils/roleTheme";
+import { TransactionTypeGlyph } from "../../constants/transactionTypeUi";
 import BottomNav from "../../components/layout/BottomNav";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 
+const quickActions = [
+  {
+    label: "Agent Cashout",
+    typeName: "CASH_OUT",
+    to: "/cash-out",
+    desc: "Cash out via agent",
+  },
+  {
+    label: "Send Money",
+    typeName: "SEND_MONEY",
+    to: "/send-money",
+    desc: "Send to customer",
+  },
+  {
+    label: "Pay Bill",
+    typeName: "PAY_BILL",
+    to: "/pay-bill",
+    desc: "Pay utility bills",
+  },
+  {
+    label: "Merchant Payment",
+    typeName: "PAYMENT",
+    to: "/payment",
+    desc: "Pay a merchant",
+  },
+];
+
 export default function MerchantDashboardPage() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const theme = getDashboardTheme("MERCHANT");
   const [wallet, setWallet] = useState(null);
   const [showBalance, setShowBalance] = useState(false);
@@ -103,6 +133,33 @@ export default function MerchantDashboardPage() {
               </div>
             </>
           )}
+        </div>
+
+        {/* Quick Actions */}
+        <div className="mb-6">
+          <h2 className="mb-3 text-sm font-semibold text-gray-700">Services</h2>
+          <div className="grid grid-cols-2 gap-3">
+            {quickActions.map((action) => (
+              <button
+                key={action.label}
+                disabled={isPendingKYC}
+                onClick={() => !isPendingKYC && navigate(action.to)}
+                className="flex flex-col items-center gap-1.5 rounded-xl bg-white p-3 shadow-sm transition-shadow hover:shadow-md disabled:opacity-40"
+              >
+                <div
+                  className={`flex h-11 w-11 items-center justify-center ${theme.quickActionTileClass}`}
+                >
+                  <TransactionTypeGlyph
+                    typeName={action.typeName}
+                    className={`h-6 w-6 ${theme.quickActionIconClass}`}
+                  />
+                </div>
+                <span className="text-[11px] font-medium text-gray-600">
+                  {action.label}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Receive Payments Info */}

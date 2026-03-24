@@ -16,11 +16,20 @@ export default function AdminDashboardPage() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
-    adminApi.getDashboard()
+    adminApi
+      .getDashboard()
       .then((res) => setData(res.data.data))
-      .catch(console.error)
+      .catch((err) => {
+        const msg =
+          err.response?.data?.message ||
+          err.message ||
+          'Could not reach the server. Is the API running on port 5000?';
+        setLoadError(msg);
+        console.error(err);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -35,7 +44,27 @@ export default function AdminDashboardPage() {
   if (!data) {
     return (
       <AdminLayout>
-        <p className="py-24 text-center text-gray-500">Failed to load dashboard.</p>
+        <div className="py-12 text-center">
+          <p className="text-lg font-medium text-gray-800">Failed to load dashboard</p>
+          {loadError && (
+            <p className="mt-2 text-sm text-red-600">{loadError}</p>
+          )}
+          <p className="mt-4 text-sm text-gray-500">
+            Ensure <code className="rounded bg-gray-100 px-1">server/.env</code> has{' '}
+            <code className="rounded bg-gray-100 px-1">ADMIN_PASSWORD_HASH</code> and the API is running (
+            <code className="rounded bg-gray-100 px-1">npm run server:dev</code>).
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              localStorage.removeItem('adminToken');
+              navigate('/root', { replace: true });
+            }}
+            className="mt-6 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
+          >
+            Sign in again
+          </button>
+        </div>
       </AdminLayout>
     );
   }
@@ -73,8 +102,16 @@ export default function AdminDashboardPage() {
         </div>
         <div className="mt-3 rounded-lg bg-white/60 px-3 py-2 text-[11px] text-gray-500">
           Total E-Money in System: <span className="font-semibold text-gray-700">{formatBDT(platform?.totalEmoney || 0)}</span>
-          &nbsp;&middot;&nbsp;
-          Invariant: Cash Reserve = Total E-Money Outstanding
+          {platform?.treasuryBalance != null && (
+            <>
+              &nbsp;&middot;&nbsp; Treasury:{' '}
+              <span className="font-semibold text-gray-700">{formatBDT(platform.treasuryBalance)}</span>
+              &nbsp;&middot;&nbsp; Revenue:{' '}
+              <span className="font-semibold text-gray-700">{formatBDT(platform.revenueBalance)}</span>
+              &nbsp;&middot;&nbsp; Adjustment:{' '}
+              <span className="font-semibold text-gray-700">{formatBDT(platform.adjustmentBalance)}</span>
+            </>
+          )}
         </div>
       </div>
 

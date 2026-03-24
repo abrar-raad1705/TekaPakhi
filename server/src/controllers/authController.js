@@ -26,19 +26,6 @@ const authController = {
   },
 
   /**
-   * POST /api/v1/auth/refresh-token
-   */
-  async refreshToken(req, res, next) {
-    try {
-      const { refreshToken } = req.validatedBody;
-      const result = await authService.refreshToken(refreshToken);
-      res.status(200).json({ success: true, data: result });
-    } catch (error) {
-      next(error);
-    }
-  },
-
-  /**
    * POST /api/v1/auth/request-otp
    */
   async requestOtp(req, res, next) {
@@ -108,8 +95,7 @@ const authController = {
    */
   async logout(req, res, next) {
     try {
-      const { refreshToken } = req.body;
-      const result = await authService.logout(req.user.profileId, refreshToken);
+      const result = await authService.logout();
       res.status(200).json({ success: true, data: result });
     } catch (error) {
       next(error);
@@ -122,6 +108,21 @@ const authController = {
     try {
       const { phoneNumber } = req.validatedBody;
       const result = await authService.checkPhone(phoneNumber);
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * POST /api/v1/auth/distributor/finalize-pin (authenticated distributor)
+   */
+  async finalizeDistributorPin(req, res, next) {
+    try {
+      const result = await authService.finalizeDistributorPin(
+        req.user.profileId,
+        req.validatedBody.newPin
+      );
       res.status(200).json({ success: true, data: result });
     } catch (error) {
       next(error);

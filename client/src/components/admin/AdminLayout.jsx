@@ -7,8 +7,7 @@ import {
   Squares2X2Icon,
   UsersIcon,
 } from "@heroicons/react/24/outline";
-import { NavLink } from "react-router-dom";
-import { useAuth } from "../../context/AuthContext";
+import { NavLink, useNavigate } from "react-router-dom";
 
 const navItems = [
   { to: "/admin", label: "Dashboard", icon: Squares2X2Icon, end: true },
@@ -23,7 +22,12 @@ const navItems = [
 ];
 
 export default function AdminLayout({ children }) {
-  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  function adminLogout() {
+    localStorage.removeItem("adminToken");
+    navigate("/root", { replace: true });
+  }
 
   return (
     <div className="flex min-h-dvh bg-gray-100">
@@ -32,7 +36,7 @@ export default function AdminLayout({ children }) {
         {/* Brand */}
         <div className="flex h-20 flex-col justify-center border-b border-gray-200 px-6 py-4">
           <img src={logo} alt="TekaPakhi" className="h-8 w-auto self-start" />
-          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mt-1">
+          <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-gray-400">
             Admin Panel
           </p>
         </div>
@@ -67,17 +71,18 @@ export default function AdminLayout({ children }) {
         <div className="border-t border-gray-200 p-4">
           <div className="mb-3 flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-xs font-bold text-primary-600">
-              {(user?.fullName || "A")[0]}
+              A
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-semibold text-gray-900">
-                {user?.fullName}
+                Admin
               </p>
               <p className="text-[10px] text-gray-400">System Admin</p>
             </div>
           </div>
           <button
-            onClick={logout}
+            type="button"
+            onClick={adminLogout}
             className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-gray-500 hover:bg-red-50 hover:text-red-600"
           >
             <ArrowRightStartOnRectangleIcon className="h-4 w-4" />
@@ -87,7 +92,7 @@ export default function AdminLayout({ children }) {
       </aside>
 
       {/* Main content */}
-      <main className="ml-64 flex-1">
+      <main className="ml-64 flex-1 bg-gray-100">
         <div className="mx-auto max-w-7xl px-6 py-6">{children}</div>
       </main>
     </div>

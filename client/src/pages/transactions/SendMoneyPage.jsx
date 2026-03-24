@@ -21,6 +21,7 @@ import { useAuth } from '../../context/AuthContext';
 import { mergeRecentWithSavedNicknames } from '../../utils/mergeRecentWithSavedNicknames';
 
 const ACCENT = '#2563EB';
+const SEND_MONEY_RECEIVER_TYPE = 'CUSTOMER';
 
 /** Deduped SEND_MONEY counterparties from mini-statement (newest first). */
 function buildRecentSendMoneyRecipients(transactions, profileId) {
@@ -75,6 +76,11 @@ export default function SendMoneyPage() {
   const [receipt, setReceipt] = useState(null);
   const [loading, setLoading] = useState(false);
   const pinInputRef = useRef(null);
+
+  const getInvalidRecipientMessage = (typeName) =>
+    typeName
+      ? 'Send money is only available to customer accounts.'
+      : 'Invalid recipient type.';
 
   const fetchRecipients = async () => {
     setLoadingContacts(true);
@@ -139,6 +145,11 @@ export default function SendMoneyPage() {
       setLoading(true);
       try {
         const { data } = await transactionApi.lookupRecipient(digits);
+        if (data.data.typeName !== SEND_MONEY_RECEIVER_TYPE) {
+          if (cancelled) return;
+          setLookupError(getInvalidRecipientMessage(data.data.typeName));
+          return;
+        }
         if (cancelled) return;
         setRecipient({
           name: data.data.fullName,
@@ -149,15 +160,7 @@ export default function SendMoneyPage() {
         setStep('amount');
       } catch {
         if (cancelled) return;
-        const fallback = nameParam
-          ? decodeURIComponent(nameParam)
-          : 'Recipient';
-        setRecipient({ name: fallback, phone: digits, pictureUrl: null });
-        setForm((p) => ({ ...p, receiverPhone: digits }));
-        setStep('amount');
-        if (!nameParam) {
-          toast.error('Could not verify number — check recipient before sending');
-        }
+        setLookupError('Could not verify this number. Please search for a customer account.');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -177,6 +180,10 @@ export default function SendMoneyPage() {
     setLoading(true);
     try {
       const { data } = await transactionApi.lookupRecipient(phoneToLookup);
+      if (data.data.typeName !== SEND_MONEY_RECEIVER_TYPE) {
+        setLookupError(getInvalidRecipientMessage(data.data.typeName));
+        return;
+      }
       setRecipient({
         name: data.data.fullName,
         phone: phoneToLookup,
@@ -315,7 +322,7 @@ export default function SendMoneyPage() {
       icon={PaperAirplaneIcon}
       asideIconClassName="-rotate-45"
       title="Send money"
-      subtitle="Send money instantly to any TekaPakhi user — simple, fast, secure."
+      subtitle="Send money instantly to customer accounts — simple, fast, secure."
       steps={wizardSteps}
       currentStepKey={step}
     >
@@ -545,8 +552,8 @@ export default function SendMoneyPage() {
                       {/* Balance + validation */}
                       <p className="mt-6 text-[14px] font-medium text-gray-500">
                         Available Balance:
-                        <span className="text-gray-900 ml-1 font-semibold">
-                          ৳{walletBalance.toFixed(2)}
+                        <span className="ml-1 font-semibold tabular-nums text-gray-900">
+                          {formatBDT(walletBalance)}
                         </span>
                       </p>
 
@@ -650,10 +657,10 @@ export default function SendMoneyPage() {
                     </div>
                     <div className="flex justify-between items-center text-[15px]">
                       <span className="font-bold text-gray-500">Charge</span>
-                      <span className="font-black text-gray-900">+ {formatBDT(preview.fee)}</span>
+                      <span className="font-black text-gray-900">{formatBDT(preview.fee)}</span>
                     </div>
-                    <div className="h-px bg-gray-100 my-2" />
-                    <div className="flex justify-between items-center text-lg">
+                    <div className="h-px bg-gray-200 my-2" />
+                    <div className="flex justify-between items-center text-[15px]">
                       <span className="font-bold text-gray-500">Total</span>
                       <span className="font-black text-primary-600">{formatBDT(preview.totalDebit)}</span>
                     </div>

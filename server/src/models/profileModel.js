@@ -1,4 +1,4 @@
-import pool from '../config/db.js';
+import pool from "../config/db.js";
 
 const profileModel = {
   /**
@@ -10,7 +10,7 @@ const profileModel = {
        FROM tp.profiles p
        JOIN tp.profile_types pt ON p.type_id = pt.type_id
        WHERE p.phone_number = $1`,
-      [phoneNumber]
+      [phoneNumber],
     );
     return result.rows[0] || null;
   },
@@ -24,9 +24,86 @@ const profileModel = {
        FROM tp.profiles p
        JOIN tp.profile_types pt ON p.type_id = pt.type_id
        WHERE p.profile_id = $1`,
-      [profileId]
+      [profileId],
     );
     return result.rows[0] || null;
+  },
+
+  async listConnectedAgentsForDistributor(distributorProfileId) {
+    const result = await pool.query(
+      `SELECT
+         p.profile_id,
+         p.full_name AS target_name,
+         p.phone_number AS target_phone,
+         p.profile_picture_url AS target_profile_picture_url,
+         sr.recipient_id AS saved_recipient_id,
+         sr.nickname,
+         w.balance AS target_balance,
+         w.max_balance AS target_max_balance,
+         ap.agent_code,
+         ap.shop_name
+       FROM tp.agent_profiles ap
+       JOIN tp.profiles p
+         ON p.profile_id = ap.profile_id
+       JOIN tp.wallets w
+         ON w.profile_id = p.profile_id
+       LEFT JOIN tp.saved_recipients sr
+         ON sr.saver_profile_id = $1
+        AND sr.target_profile_id = p.profile_id
+       WHERE ap.distributor_id = $1
+         AND ap.status = 'ACTIVE'
+       ORDER BY
+         LOWER(COALESCE(NULLIF(TRIM(sr.nickname), ''), p.full_name)),
+         LOWER(p.full_name),
+         p.phone_number`,
+      [distributorProfileId],
+    );
+    return result.rows;
+  },
+
+  async getAgentDistributorId(agentProfileId) {
+    const result = await pool.query(
+      `SELECT distributor_id
+       FROM tp.agent_profiles
+       WHERE profile_id = $1
+         AND status = 'ACTIVE'
+       LIMIT 1`,
+      [agentProfileId],
+    );
+    return result.rows[0]?.distributor_id || null;
+  },
+
+  async getConnectedDistributorForAgent(agentProfileId) {
+    const result = await pool.query(
+      `SELECT
+         p.profile_id,
+         p.full_name AS target_name,
+         p.phone_number AS target_phone,
+         p.profile_picture_url AS target_profile_picture_url,
+         w.balance AS target_balance,
+         w.max_balance AS target_max_balance
+       FROM tp.agent_profiles ap
+       JOIN tp.profiles p ON p.profile_id = ap.distributor_id
+       JOIN tp.wallets w ON w.profile_id = p.profile_id
+       WHERE ap.profile_id = $1
+         AND ap.status = 'ACTIVE'
+       LIMIT 1`,
+      [agentProfileId],
+    );
+    return result.rows[0] || null;
+  },
+
+  async isAgentConnectedToDistributor(distributorProfileId, agentProfileId) {
+    const result = await pool.query(
+      `SELECT 1
+       FROM tp.agent_profiles
+       WHERE distributor_id = $1
+         AND profile_id = $2
+         AND status = 'ACTIVE'
+       LIMIT 1`,
+      [distributorProfileId, agentProfileId],
+    );
+    return result.rowCount > 0;
   },
 
   /**
@@ -38,11 +115,11 @@ const profileModel = {
 
     // Map type names to their subtype tables
     const subtypeTableMap = {
-      CUSTOMER: 'customer_profiles',
-      AGENT: 'agent_profiles',
-      MERCHANT: 'merchant_profiles',
-      DISTRIBUTOR: 'distributor_profiles',
-      BILLER: 'biller_profiles',
+      CUSTOMER: "customer_profiles",
+      AGENT: "agent_profiles",
+      MERCHANT: "merchant_profiles",
+      DISTRIBUTOR: "distributor_profiles",
+      BILLER: "biller_profiles",
     };
 
     let subtypeData = null;
@@ -51,7 +128,7 @@ const profileModel = {
     if (table) {
       const result = await pool.query(
         `SELECT * FROM tp.${table} WHERE profile_id = $1`,
-        [profileId]
+        [profileId],
       );
       subtypeData = result.rows[0] || null;
     }
@@ -63,12 +140,16 @@ const profileModel = {
    * Create a new profile
    * Note: DB trigger auto-creates a wallet after insert
    */
-  async create({ phoneNumber, fullName, pinHash, typeId = 1 }) {
-    const result = await pool.query(
-      `INSERT INTO tp.profiles (phone_number, full_name, security_pin_hash, type_id)
-       VALUES ($1, $2, $3, $4)
+  async create(
+    { phoneNumber, fullName, pinHash, typeId = 1, email = null },
+    client = null,
+  ) {
+    const db = client || pool;
+    const result = await db.query(
+      `INSERT INTO tp.profiles (phone_number, full_name, security_pin_hash, type_id, email)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING profile_id, phone_number, full_name, email, is_phone_verified, registration_date, type_id`,
-      [phoneNumber, fullName, pinHash, typeId]
+      [phoneNumber, fullName, pinHash, typeId, email || null],
     );
     return result.rows[0];
   },
@@ -76,12 +157,13 @@ const profileModel = {
   /**
    * Create customer subtype profile (set to ACTIVE immediately)
    */
-  async createCustomerSubtype(profileId) {
-    const result = await pool.query(
+  async createCustomerSubtype(profileId, client = null) {
+    const db = client || pool;
+    const result = await db.query(
       `INSERT INTO tp.customer_profiles (profile_id, status, approved_date)
        VALUES ($1, 'ACTIVE', CURRENT_TIMESTAMP)
        RETURNING *`,
-      [profileId]
+      [profileId],
     );
     return result.rows[0];
   },
@@ -89,12 +171,24 @@ const profileModel = {
   /**
    * Create agent subtype profile (PENDING_KYC — needs admin approval)
    */
-  async createAgentSubtype(profileId, { agentCode, shopName, shopAddress }) {
-    const result = await pool.query(
-      `INSERT INTO tp.agent_profiles (profile_id, agent_code, shop_name, shop_address, status)
-       VALUES ($1, $2, $3, $4, 'PENDING_KYC')
+  async createAgentSubtype(
+    profileId,
+    { agentCode, shopName, shopAddress, district, area },
+    client = null,
+  ) {
+    const db = client || pool;
+    const result = await db.query(
+      `INSERT INTO tp.agent_profiles (profile_id, agent_code, shop_name, shop_address, district, area, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'PENDING_KYC')
        RETURNING *`,
-      [profileId, agentCode, shopName, shopAddress || null]
+      [
+        profileId,
+        agentCode,
+        shopName,
+        shopAddress || null,
+        district || null,
+        area || null,
+      ],
     );
     return result.rows[0];
   },
@@ -102,26 +196,50 @@ const profileModel = {
   /**
    * Create merchant subtype profile (PENDING_KYC — needs admin approval)
    */
-  async createMerchantSubtype(profileId, { merchantCode, businessName, businessType }) {
-    const result = await pool.query(
-      `INSERT INTO tp.merchant_profiles (profile_id, merchant_code, business_name, business_type, status)
-       VALUES ($1, $2, $3, $4, 'PENDING_KYC')
+  async createMerchantSubtype(
+    profileId,
+    { merchantCode, shopName, shopAddress, district, area },
+    client = null,
+  ) {
+    const db = client || pool;
+    const result = await db.query(
+      `INSERT INTO tp.merchant_profiles (profile_id, merchant_code, shop_name, shop_address, district, area, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'PENDING_KYC')
        RETURNING *`,
-      [profileId, merchantCode, businessName, businessType || null]
+      [
+        profileId,
+        merchantCode,
+        shopName,
+        shopAddress || null,
+        district || null,
+        area || null,
+      ],
     );
     return result.rows[0];
   },
 
   /**
-   * Create distributor subtype profile (ACTIVE — admin-created)
+   * Create distributor subtype (admin). business_name, areas in distributor_areas; contact saved as profiles.full_name.
    */
-  async createDistributorSubtype(profileId, { region }) {
-    const result = await pool.query(
-      `INSERT INTO tp.distributor_profiles (profile_id, region, status, approved_date)
-       VALUES ($1, $2, 'ACTIVE', CURRENT_TIMESTAMP)
+  async createDistributorSubtype(
+    profileId,
+    { businessName, additionalInfo, areas },
+    client = null,
+  ) {
+    const db = client || pool;
+    const result = await db.query(
+      `INSERT INTO tp.distributor_profiles
+         (profile_id, business_name, additional_info, status, created_at, pending_pin_setup)
+       VALUES ($1, $2, $3, 'ACTIVE', CURRENT_TIMESTAMP, TRUE)
        RETURNING *`,
-      [profileId, region || null]
+      [profileId, businessName, additionalInfo || null],
     );
+    for (const { district, area } of areas) {
+      await db.query(
+        `INSERT INTO tp.distributor_areas (profile_id, district, area) VALUES ($1, $2, $3)`,
+        [profileId, district, area],
+      );
+    }
     return result.rows[0];
   },
 
@@ -133,7 +251,7 @@ const profileModel = {
       `INSERT INTO tp.biller_profiles (profile_id, biller_code, service_name, category, status)
        VALUES ($1, $2, $3, $4, 'ACTIVE')
        RETURNING *`,
-      [profileId, billerCode, serviceName, category || null]
+      [profileId, billerCode, serviceName, category || null],
     );
     return result.rows[0];
   },
@@ -143,18 +261,18 @@ const profileModel = {
    */
   async getAccountStatus(profileId, typeName) {
     const tableMap = {
-      CUSTOMER: 'customer_profiles',
-      AGENT: 'agent_profiles',
-      MERCHANT: 'merchant_profiles',
-      DISTRIBUTOR: 'distributor_profiles',
-      BILLER: 'biller_profiles',
+      CUSTOMER: "customer_profiles",
+      AGENT: "agent_profiles",
+      MERCHANT: "merchant_profiles",
+      DISTRIBUTOR: "distributor_profiles",
+      BILLER: "biller_profiles",
     };
     const table = tableMap[typeName];
-    if (!table) return 'ACTIVE'; // SYSTEM profiles are always active
+    if (!table) return "ACTIVE"; // SYSTEM profiles are always active
 
     const result = await pool.query(
       `SELECT status FROM tp.${table} WHERE profile_id = $1`,
-      [profileId]
+      [profileId],
     );
     return result.rows[0]?.status || null;
   },
@@ -185,10 +303,10 @@ const profileModel = {
     values.push(profileId);
     const result = await pool.query(
       `UPDATE tp.profiles
-       SET ${setClauses.join(', ')}
+       SET ${setClauses.join(", ")}
        WHERE profile_id = $${paramIdx}
        RETURNING profile_id, phone_number, full_name, email, nid_number, is_phone_verified, type_id`,
-      values
+      values,
     );
     return result.rows[0];
   },
@@ -199,19 +317,20 @@ const profileModel = {
   async updatePin(profileId, pinHash) {
     await pool.query(
       `UPDATE tp.profiles SET security_pin_hash = $1 WHERE profile_id = $2`,
-      [pinHash, profileId]
+      [pinHash, profileId],
     );
   },
 
   /**
    * Mark phone number as verified
    */
-  async setPhoneVerified(phoneNumber) {
-    const result = await pool.query(
+  async setPhoneVerified(phoneNumber, client = null) {
+    const db = client || pool;
+    const result = await db.query(
       `UPDATE tp.profiles SET is_phone_verified = TRUE
        WHERE phone_number = $1
        RETURNING profile_id, phone_number, is_phone_verified`,
-      [phoneNumber]
+      [phoneNumber],
     );
     return result.rows[0];
   },
@@ -225,7 +344,7 @@ const profileModel = {
        SET failed_pin_attempts = COALESCE(failed_pin_attempts, 0) + 1
        WHERE profile_id = $1
        RETURNING failed_pin_attempts`,
-      [profileId]
+      [profileId],
     );
     return result.rows[0];
   },
@@ -236,7 +355,7 @@ const profileModel = {
   async lockAccount(profileId, lockUntil) {
     await pool.query(
       `UPDATE tp.profiles SET locked_until = $1 WHERE profile_id = $2`,
-      [lockUntil, profileId]
+      [lockUntil, profileId],
     );
   },
 
@@ -248,7 +367,7 @@ const profileModel = {
       `UPDATE tp.profiles
        SET failed_pin_attempts = 0, locked_until = NULL
        WHERE profile_id = $1`,
-      [profileId]
+      [profileId],
     );
   },
 
@@ -261,7 +380,7 @@ const profileModel = {
        SET profile_picture_url = $1
        WHERE profile_id = $2
        RETURNING profile_id, profile_picture_url`,
-      [imageUrl, profileId]
+      [imageUrl, profileId],
     );
     return result.rows[0];
   },

@@ -43,8 +43,7 @@ const adminController = {
     try {
       const data = await adminService.loadWallet(
         req.params.id,
-        req.validatedBody.amount,
-        req.user.profileId
+        req.validatedBody.amount
       );
       res.json({ success: true, data, message: `৳${data.amount} loaded successfully.` });
     } catch (error) {
@@ -74,7 +73,7 @@ const adminController = {
 
   async reverseTransaction(req, res, next) {
     try {
-      const data = await adminService.reverseTransaction(req.params.id, req.user.profileId);
+      const data = await adminService.reverseTransaction(req.params.id);
       res.json({ success: true, data, message: 'Transaction reversed successfully.' });
     } catch (error) {
       next(error);
@@ -154,6 +153,15 @@ const adminController = {
     try {
       const data = await adminService.deleteCommissionPolicy(req.params.profileTypeId, req.params.txTypeId);
       res.json({ success: true, data, message: 'Policy removed.' });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getProfileTypes(req, res, next) {
+    try {
+      const data = await adminService.getProfileTypes();
+      res.json({ success: true, data });
     } catch (error) {
       next(error);
     }

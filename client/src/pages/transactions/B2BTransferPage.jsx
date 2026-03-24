@@ -6,8 +6,8 @@ import {
   LockClosedIcon,
   MagnifyingGlassIcon,
 } from "@heroicons/react/24/outline";
+import { useAuth } from "../../context/AuthContext";
 import { transactionApi } from "../../api/transactionApi";
-import { recipientApi } from "../../api/recipientApi";
 import { walletApi } from "../../api/walletApi";
 import { toast } from "sonner";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
@@ -16,21 +16,28 @@ import { GlobalError } from "../../components/common/FormError";
 import TransactionReceipt from "../../components/transaction/TransactionReceipt";
 import TransactionFlowLayout from "../../components/transaction/TransactionFlowLayout";
 import { formatBDT } from "../../utils/formatCurrency";
-import { useAuth } from "../../context/AuthContext";
-import { buildRecentCounterpartyFromMiniStatement } from "../../utils/recentCounterpartyFromMiniStatement";
-import { mergeRecentWithSavedNicknames } from "../../utils/mergeRecentWithSavedNicknames";
 
 const ACCENT = "#2563EB";
+const normalizePhone = (value) => String(value || "").replace(/\D/g, "");
+const getAgentDisplayName = (agent) => agent.nickname?.trim() || agent.target_name || "";
 
-const flowSteps = [
+const DISTRIBUTOR_FLOW_STEPS = [
   { key: "recipient", label: "Agent", hint: "Verify receiver" },
+  { key: "amount", label: "Amount", hint: "Transfer amount" },
+  { key: "review", label: "Confirm", hint: "Verify & enter PIN" },
+];
+
+const AGENT_FLOW_STEPS = [
   { key: "amount", label: "Amount", hint: "Transfer amount" },
   { key: "review", label: "Confirm", hint: "Verify & enter PIN" },
 ];
 
 export default function B2BTransferPage() {
   const { user } = useAuth();
-  const [step, setStep] = useState("recipient");
+  const isAgent = user?.typeName === "AGENT";
+  const flowSteps = isAgent ? AGENT_FLOW_STEPS : DISTRIBUTOR_FLOW_STEPS;
+
+  const [step, setStep] = useState(isAgent ? "amount" : "recipient");
   const [form, setForm] = useState({ receiverPhone: "", amount: "", note: "", pin: "" });
   const [recipient, setRecipient] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -40,11 +47,10 @@ export default function B2BTransferPage() {
   const pinInputRef = useRef(null);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [savedRecipients, setSavedRecipients] = useState([]);
-  const [recentRecipients, setRecentRecipients] = useState([]);
-  const [loadingContacts, setLoadingContacts] = useState(false);
-  const [loadingRecent, setLoadingRecent] = useState(false);
+  const [connectedAgents, setConnectedAgents] = useState([]);
+  const [loadingAgents, setLoadingAgents] = useState(false);
   const [lookupError, setLookupError] = useState("");
+  const [loadingDistributor, setLoadingDistributor] = useState(isAgent);
 
   useEffect(() => {
     (async () => {
@@ -57,48 +63,45 @@ export default function B2BTransferPage() {
     })();
   }, []);
 
-  const fetchRecipients = async () => {
-    setLoadingContacts(true);
-    try {
-      const { data } = await recipientApi.getAll();
-      const agents = data.data.filter(
-        (r) => r.target_type?.toLowerCase() === "agent",
-      );
-      setSavedRecipients(agents);
-    } catch (e) {
-      console.error("Failed to load saved agents", e);
-    } finally {
-      setLoadingContacts(false);
-    }
-  };
+  useEffect(() => {
+    if (!isAgent) return;
+    (async () => {
+      try {
+        const { data } = await transactionApi.getB2BDistributor();
+        const d = data.data;
+        setRecipient({
+          fullName: d.target_name,
+          profilePictureUrl: d.target_profile_picture_url ?? null,
+          typeName: "DISTRIBUTOR",
+          balance: d.target_balance != null ? parseFloat(d.target_balance) : null,
+          maxBalance: d.target_max_balance != null ? parseFloat(d.target_max_balance) : null,
+        });
+        setForm((p) => ({ ...p, receiverPhone: d.target_phone }));
+      } catch (e) {
+        console.error("Failed to load connected distributor", e);
+        toast.error("Failed to load connected distributor");
+      } finally {
+        setLoadingDistributor(false);
+      }
+    })();
+  }, [isAgent]);
 
-  const fetchRecentRecipients = async () => {
-    if (user?.profileId == null) return;
-    setLoadingRecent(true);
+  const fetchConnectedAgents = async () => {
+    setLoadingAgents(true);
     try {
-      const { data } = await transactionApi.getMiniStatement({ limit: 50 });
-      setRecentRecipients(
-        buildRecentCounterpartyFromMiniStatement(
-          data.data,
-          user.profileId,
-          "B2B",
-        ),
-      );
+      const { data } = await transactionApi.getB2BAgents();
+      setConnectedAgents(data.data || []);
     } catch (e) {
-      console.error("Failed to load recent B2B contacts", e);
+      console.error("Failed to load connected agents", e);
+      toast.error("Failed to load connected agents");
     } finally {
-      setLoadingRecent(false);
+      setLoadingAgents(false);
     }
   };
 
   useEffect(() => {
-    fetchRecipients();
-  }, []);
-
-  useEffect(() => {
-    if (user?.profileId == null) return;
-    fetchRecentRecipients();
-  }, [user?.profileId]);
+    if (!isAgent) fetchConnectedAgents();
+  }, [isAgent]);
 
   const handleLookup = async () => {
     const phoneToLookup = searchQuery.replace(/\D/g, "");
@@ -107,34 +110,28 @@ export default function B2BTransferPage() {
       setLookupError("Enter a valid 11-digit mobile number to look up");
       return;
     }
-    setLoading(true);
-    try {
-      const { data } = await transactionApi.lookupRecipient(phoneToLookup);
-      const profile = data.data;
-      if (profile.typeName !== "AGENT") {
-        setLookupError("B2B transfer is only allowed to Agent accounts.");
-        setRecipient(null);
-        return;
-      }
-      setRecipient(profile);
-      setForm((p) => ({ ...p, receiverPhone: phoneToLookup }));
-      setSearchQuery("");
-      setStep("amount");
-    } catch (error) {
-      setLookupError(
-        error.response?.data?.message || "No agent found with this phone number.",
-      );
+    const matchedAgent = connectedAgents.find(
+      (agent) => normalizePhone(agent.target_phone) === phoneToLookup,
+    );
+    if (!matchedAgent) {
+      setLookupError("This number is not connected to your distributor account.");
       setRecipient(null);
-    } finally {
-      setLoading(false);
+      return;
     }
+    handleSelectAgent(matchedAgent);
   };
 
-  const handleSelectContact = (contact) => {
+  const handleSelectAgent = (contact) => {
     setRecipient({
-      fullName: contact.nickname?.trim() || contact.target_name,
+      fullName: getAgentDisplayName(contact),
       profilePictureUrl: contact.target_profile_picture_url ?? null,
       typeName: "AGENT",
+      balance:
+        contact.target_balance != null ? parseFloat(contact.target_balance) : null,
+      maxBalance:
+        contact.target_max_balance != null
+          ? parseFloat(contact.target_max_balance)
+          : null,
     });
     setForm((p) => ({ ...p, receiverPhone: contact.target_phone }));
     setSearchQuery("");
@@ -142,49 +139,38 @@ export default function B2BTransferPage() {
     setStep("amount");
   };
 
-  const handleSelectRecent = (r) => {
-    setRecipient({
-      fullName: r.name,
-      profilePictureUrl: r.pictureUrl ?? null,
-      typeName: "AGENT",
-    });
-    setForm((p) => ({ ...p, receiverPhone: r.phone }));
-    setSearchQuery("");
-    setLookupError("");
-    setStep("amount");
-  };
-
   const searchTrimmed = searchQuery.trim();
   const searchDigits = searchQuery.replace(/\D/g, "");
-  const filteredRecipients = savedRecipients.filter((contact) => {
-    if (!searchTrimmed && !searchDigits) return true;
-    const q = searchTrimmed.toLowerCase();
-    const nameMatch =
-      q.length > 0 &&
-      (contact.target_name?.toLowerCase().includes(q) ||
-        contact.nickname?.toLowerCase().includes(q));
-    const phoneNorm = String(contact.target_phone || "").replace(/\D/g, "");
-    const phoneMatch = searchDigits.length > 0 && phoneNorm.includes(searchDigits);
-    return Boolean(nameMatch || phoneMatch);
-  });
-
-  const recentWithNicknames = useMemo(
-    () => mergeRecentWithSavedNicknames(recentRecipients, savedRecipients),
-    [recentRecipients, savedRecipients],
+  const filteredAgents = useMemo(
+    () =>
+      connectedAgents.filter((agent) => {
+        if (!searchTrimmed && !searchDigits) return true;
+        const q = searchTrimmed.toLowerCase();
+        const nameMatch =
+          q.length > 0 &&
+          [getAgentDisplayName(agent), agent.target_name]
+            .filter(Boolean)
+            .some((name) => name.toLowerCase().includes(q));
+        const phoneMatch =
+          searchDigits.length > 0 && normalizePhone(agent.target_phone).includes(searchDigits);
+        return Boolean(nameMatch || phoneMatch);
+      }),
+    [connectedAgents, searchDigits, searchTrimmed],
   );
 
-  const filteredRecent = recentWithNicknames.filter((contact) => {
-    if (!searchTrimmed && !searchDigits) return true;
-    const q = searchTrimmed.toLowerCase();
-    const nameMatch = q.length > 0 && contact.name?.toLowerCase().includes(q);
-    const phoneNorm = String(contact.phone || "").replace(/\D/g, "");
-    const phoneMatch = searchDigits.length > 0 && phoneNorm.includes(searchDigits);
-    return Boolean(nameMatch || phoneMatch);
-  });
-
   const lookupDigits = searchQuery.replace(/\D/g, "");
-  const isExactPhoneMatch = /^01[3-9]\d{8}$/.test(lookupDigits);
-  const showLookupArrow = isExactPhoneMatch;
+  const exactPhoneAgent = useMemo(() => {
+    if (!/^01[3-9]\d{8}$/.test(lookupDigits)) return null;
+    return (
+      connectedAgents.find((agent) => normalizePhone(agent.target_phone) === lookupDigits) || null
+    );
+  }, [connectedAgents, lookupDigits]);
+  const showLookupArrow = Boolean(exactPhoneAgent);
+  const liveLookupError =
+    !loadingAgents && /^01[3-9]\d{8}$/.test(lookupDigits) && !exactPhoneAgent
+      ? "This number is not connected to your distributor account."
+      : "";
+  const activeLookupError = lookupError || liveLookupError;
 
   const handleReview = async () => {
     const amountNum = parseFloat(form.amount);
@@ -197,6 +183,21 @@ export default function B2BTransferPage() {
         receiverPhone: form.receiverPhone,
         amount: amountNum,
       });
+      setRecipient((prev) =>
+        prev
+          ? {
+              ...prev,
+              balance:
+                data.data?.receiver?.balance != null
+                  ? parseFloat(data.data.receiver.balance)
+                  : prev.balance,
+              maxBalance:
+                data.data?.receiver?.maxBalance != null
+                  ? parseFloat(data.data.receiver.maxBalance)
+                  : prev.maxBalance,
+            }
+          : prev,
+      );
       setPreview(data.data);
       setStep("review");
       setTimeout(() => pinInputRef.current?.focus(), 100);
@@ -236,16 +237,36 @@ export default function B2BTransferPage() {
     return <TransactionReceipt receipt={receipt} />;
   }
 
+  if (isAgent && loadingDistributor) {
+    return (
+      <TransactionFlowLayout
+        icon={ArrowPathIcon}
+        title="B2B Float Transfer"
+        subtitle="Loading your connected distributor..."
+        steps={flowSteps}
+        currentStepKey={step}
+      >
+        <div className="flex justify-center py-16">
+          <LoadingSpinner size="lg" />
+        </div>
+      </TransactionFlowLayout>
+    );
+  }
+
   return (
     <TransactionFlowLayout
       icon={ArrowPathIcon}
       title="B2B Float Transfer"
-      subtitle="Transfer business float to another verified TekaPakhi Agent."
+      subtitle={
+        isAgent
+          ? "Transfer float to your connected distributor."
+          : "Transfer business float to one of your connected TekaPakhi agents."
+      }
       steps={flowSteps}
       currentStepKey={step}
     >
       <div className="mb-8 flex items-center gap-4">
-        {step !== "recipient" && (
+        {step !== "recipient" && !(isAgent && step === "amount") && (
           <button
             type="button"
             onClick={() => {
@@ -306,106 +327,65 @@ export default function B2BTransferPage() {
             )}
           </div>
 
-          {lookupError && (
-            <GlobalError message={lookupError} onClose={() => setLookupError("")} />
+          {activeLookupError && (
+            <GlobalError
+              message={activeLookupError}
+              onClose={() => {
+                setLookupError("");
+                if (liveLookupError) setSearchQuery("");
+              }}
+            />
           )}
 
           <div className="flex-1 space-y-4">
             {(searchTrimmed || searchDigits) && (
               <h3 className="px-1 text-[12px] font-bold uppercase tracking-[0.15em] text-gray-400">
-                Matching contacts
+                Matching agents
               </h3>
             )}
 
-            {loadingContacts || loadingRecent ? (
+            {loadingAgents ? (
               <div className="flex justify-center py-8">
                 <LoadingSpinner size="md" className="text-gray-300" />
               </div>
             ) : (
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
-                <div className="min-w-0 flex-1 sm:pr-3">
-                  {!(searchTrimmed || searchDigits) && (
-                    <h3 className="mb-3 px-1 text-[12px] font-bold uppercase tracking-[0.15em] text-gray-400">
-                      Recent
-                    </h3>
+              <div>
+                {!(searchTrimmed || searchDigits) && (
+                  <h3 className="mb-3 px-1 text-[12px] font-bold uppercase tracking-[0.15em] text-gray-400">
+                    Agent list
+                  </h3>
+                )}
+                <div className="custom-scrollbar max-h-[420px] space-y-2 overflow-y-auto pr-2">
+                  {filteredAgents.map((agent) => (
+                    <button
+                      key={agent.saved_recipient_id || agent.profile_id || agent.target_phone}
+                      type="button"
+                      onClick={() => handleSelectAgent(agent)}
+                      className="flex w-full items-center gap-4 rounded-2xl p-3 text-left transition-colors hover:bg-gray-50"
+                    >
+                      <ProfileAvatar
+                        pictureUrl={agent.target_profile_picture_url}
+                        name={getAgentDisplayName(agent)}
+                        className="h-12 w-12 text-lg"
+                        accentColor={ACCENT}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[15px] font-bold text-gray-900">
+                          {getAgentDisplayName(agent)}
+                        </p>
+                        <p className="mt-0.5 text-[14px] font-medium text-emerald-600">
+                          {agent.target_phone}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                  {filteredAgents.length === 0 && (
+                    <p className="px-2 py-6 text-center text-sm font-medium text-gray-400">
+                      {connectedAgents.length === 0
+                        ? "No connected agents found."
+                        : "No matching agents."}
+                    </p>
                   )}
-                  <div className="custom-scrollbar max-h-[400px] space-y-2 overflow-y-auto pr-2">
-                    {filteredRecent.map((r) => (
-                      <button
-                        key={r.key}
-                        type="button"
-                        onClick={() => handleSelectRecent(r)}
-                        className="flex w-full items-center gap-4 rounded-2xl p-3 text-left transition-colors hover:bg-gray-50"
-                      >
-                        <ProfileAvatar
-                          pictureUrl={r.pictureUrl}
-                          name={r.name}
-                          className="h-12 w-12 text-lg"
-                          accentColor={ACCENT}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[15px] font-bold text-gray-900">{r.name}</p>
-                          <p className="mt-0.5 text-[14px] font-medium text-emerald-600">{r.phone}</p>
-                        </div>
-                      </button>
-                    ))}
-                    {filteredRecent.length === 0 && (
-                      <p className="px-2 py-6 text-center text-sm font-medium text-gray-400">
-                        {recentRecipients.length === 0
-                          ? "No recent B2B contacts."
-                          : "No recent matches."}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div
-                  className="h-px w-full shrink-0 bg-slate-100 sm:hidden"
-                  aria-hidden
-                />
-                <div
-                  className="hidden w-px shrink-0 self-stretch bg-slate-100 sm:block"
-                  aria-hidden
-                />
-
-                <div className="min-w-0 flex-1 sm:pl-3">
-                  {!(searchTrimmed || searchDigits) && (
-                    <h3 className="mb-3 px-1 text-[12px] font-bold uppercase tracking-[0.15em] text-gray-400">
-                      Saved
-                    </h3>
-                  )}
-                  <div className="custom-scrollbar max-h-[400px] space-y-2 overflow-y-auto pr-2">
-                    {filteredRecipients.map((contact) => (
-                      <button
-                        key={contact.saved_recipient_id || contact.target_phone}
-                        type="button"
-                        onClick={() => handleSelectContact(contact)}
-                        className="flex w-full items-center gap-4 rounded-2xl p-3 text-left transition-colors hover:bg-gray-50"
-                      >
-                        <ProfileAvatar
-                          pictureUrl={contact.target_profile_picture_url}
-                          name={contact.nickname || contact.target_name}
-                          className="h-12 w-12 text-lg"
-                          accentColor={ACCENT}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-[15px] font-bold text-gray-900">
-                            {contact.nickname || contact.target_name}
-                          </p>
-                          <p className="mt-0.5 text-[14px] font-medium text-emerald-600">
-                            {contact.target_phone}
-                          </p>
-                        </div>
-                      </button>
-                    ))}
-                    {filteredRecipients.length === 0 && (
-                      <p className="px-2 py-6 text-center text-sm font-medium text-gray-400">
-                        {savedRecipients.length === 0
-                          ? "No saved agents yet."
-                          : "No saved matches."}
-                      </p>
-                    )}
-                  </div>
                 </div>
               </div>
             )}
@@ -417,7 +397,7 @@ export default function B2BTransferPage() {
         <div className="flex flex-1 flex-col animate-in slide-in-from-right-4 duration-300">
           <div className="mb-10 space-y-3 text-center">
             <p className="text-[12px] font-bold uppercase tracking-[0.15em] text-gray-400">
-              Receiver agent
+              {isAgent ? "Receiver distributor" : "Receiver agent"}
             </p>
             <div className="flex flex-col items-center justify-center gap-2">
               <ProfileAvatar
@@ -428,7 +408,7 @@ export default function B2BTransferPage() {
               />
               <div>
                 <p className="text-lg font-black text-gray-900">
-                  {recipient.fullName} (Agent)
+                  {recipient.fullName} ({isAgent ? "Distributor" : "Agent"})
                 </p>
                 <p className="text-[15px] font-medium text-gray-500">{form.receiverPhone}</p>
               </div>
@@ -464,10 +444,18 @@ export default function B2BTransferPage() {
               </div>
               <p className="mt-6 text-[14px] font-medium text-gray-500">
                 Available Balance:
-                <span className="ml-1 font-semibold text-gray-900">
-                  ৳{walletBalance.toFixed(2)}
+                <span className="ml-1 font-semibold tabular-nums text-gray-900">
+                  {formatBDT(walletBalance)}
                 </span>
               </p>
+              {!isAgent && (
+                <p className="mt-2 text-[14px] font-medium text-gray-500">
+                  Agent Balance:
+                  <span className="ml-1 font-semibold tabular-nums text-gray-900">
+                    {recipient.balance != null ? formatBDT(recipient.balance) : "—"}
+                  </span>
+                </p>
+              )}
               {amountExceedsBalance && (
                 <p className="mt-2 text-sm font-medium text-red-500">Insufficient balance</p>
               )}
@@ -492,7 +480,7 @@ export default function B2BTransferPage() {
         <div className="flex flex-1 flex-col animate-in slide-in-from-right-4 duration-300">
           <div className="mb-6 flex flex-col items-center gap-2">
             <p className="text-[12px] font-bold uppercase tracking-[0.15em] text-gray-400">
-              Receiver agent
+              {isAgent ? "Receiver distributor" : "Receiver agent"}
             </p>
             <div className="flex items-center gap-3">
               <ProfileAvatar
@@ -517,11 +505,27 @@ export default function B2BTransferPage() {
               <span className="font-bold text-gray-500">Transaction Fee</span>
               <span className="font-black text-gray-900">{formatBDT(preview.fee)}</span>
             </div>
+            {!isAgent && (
+              <div className="flex items-center justify-between text-[15px]">
+                <span className="font-bold text-gray-500">Agent Balance</span>
+                <span className="font-black text-gray-900">
+                  {preview.receiver.balance != null ? formatBDT(preview.receiver.balance) : "—"}
+                </span>
+              </div>
+            )}
             <div className="my-2 h-px bg-gray-100" />
             <div className="flex items-center justify-between text-lg">
               <span className="font-bold text-gray-500">Total Debit</span>
               <span className="font-black text-primary-600">{formatBDT(preview.totalDebit)}</span>
             </div>
+            {!isAgent && preview.receiver.balanceAfterCredit != null && (
+              <div className="flex items-center justify-between text-[15px]">
+                <span className="font-bold text-gray-500">Agent Balance After Transfer</span>
+                <span className="font-black text-primary-600">
+                  {formatBDT(preview.receiver.balanceAfterCredit)}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="relative mb-8 mt-8">

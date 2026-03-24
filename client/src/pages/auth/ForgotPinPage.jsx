@@ -29,9 +29,12 @@ export default function ForgotPinPage() {
         state: { phoneNumber, otp: data.data.otp },
       });
     } catch (error) {
-      setGlobalError({
-        message: error.response?.data?.message || "Failed to send OTP",
-      });
+      const message = error.response?.data?.message || "Failed to send OTP";
+      if (message.toLowerCase().includes("distributor")) {
+        setErrors({ phoneNumber: message });
+      } else {
+        setGlobalError({ message });
+      }
     } finally {
       setLoading(false);
     }

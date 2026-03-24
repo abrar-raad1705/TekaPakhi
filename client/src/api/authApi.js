@@ -8,7 +8,7 @@ export const authApi = {
   forgotPin: (data) => api.post('/auth/forgot-pin', data),
   resetPin: (data) => api.post('/auth/reset-pin', data),
   changePin: (data) => api.post('/auth/change-pin', data),
-  refreshToken: (data) => api.post('/auth/refresh-token', data),
-  logout: (data) => api.post('/auth/logout', data),
+  finalizeDistributorPin: (data) => api.post('/auth/distributor/finalize-pin', data),
+  logout: () => api.post('/auth/logout'),
   checkPhone: (data) => api.post('/auth/check-phone', data),
 };

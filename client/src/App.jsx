@@ -17,6 +17,7 @@ import DashboardPage from './pages/dashboard/DashboardPage';
 import AgentDashboardPage from './pages/agent/AgentDashboardPage';
 import MerchantDashboardPage from './pages/merchant/MerchantDashboardPage';
 import DistributorDashboardPage from './pages/distributor/DistributorDashboardPage';
+import DistributorSetupPinPage from './pages/distributor/DistributorSetupPinPage';
 import BillerDashboardPage from './pages/biller/BillerDashboardPage';
 
 // Shared pages
@@ -36,6 +37,7 @@ import TransactionDetailPage from './pages/transactions/TransactionDetailPage';
 
 // Admin pages
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
+import AdminLoginPage from './pages/admin/AdminLoginPage';
 import UserManagementPage from './pages/admin/UserManagementPage';
 import UserDetailPage from './pages/admin/UserDetailPage';
 import TransactionMonitorPage from './pages/admin/TransactionMonitorPage';
@@ -50,6 +52,7 @@ export default function App() {
     <Routes>
       <Route element={<ShellLayout />}>
         {/* Public routes */}
+        <Route path="/root" element={<AdminLoginPage />} />
         <Route path="/login" element={isAuthenticated ? (user?.isPhoneVerified ? <Navigate to={homeRoute} replace /> : <Navigate to="/verify-phone" state={{ phoneNumber: user?.phoneNumber }} replace />) : <LoginPage />} />
         <Route path="/register" element={isAuthenticated ? (user?.isPhoneVerified ? <Navigate to={homeRoute} replace /> : <Navigate to="/verify-phone" state={{ phoneNumber: user?.phoneNumber }} replace />) : <RegisterPage />} />
         <Route path="/verify-phone" element={<VerifyPhonePage />} />
@@ -57,35 +60,36 @@ export default function App() {
         <Route path="/reset-pin" element={<ResetPinPage />} />
 
         {/* Customer dashboard */}
-        <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
+        <Route path="/dashboard" element={<PrivateRoute allowedRoles={['CUSTOMER', 'SYSTEM']}><DashboardPage /></PrivateRoute>} />
 
         {/* Agent dashboard */}
-        <Route path="/agent" element={<PrivateRoute><AgentDashboardPage /></PrivateRoute>} />
+        <Route path="/agent" element={<PrivateRoute allowedRoles={['AGENT']}><AgentDashboardPage /></PrivateRoute>} />
 
         {/* Merchant dashboard */}
-        <Route path="/merchant" element={<PrivateRoute><MerchantDashboardPage /></PrivateRoute>} />
+        <Route path="/merchant" element={<PrivateRoute allowedRoles={['MERCHANT']}><MerchantDashboardPage /></PrivateRoute>} />
 
-        {/* Distributor dashboard */}
-        <Route path="/distributor" element={<PrivateRoute><DistributorDashboardPage /></PrivateRoute>} />
+        {/* Distributor: mandatory PIN setup after first login (temp PIN) */}
+        <Route path="/distributor/setup-pin" element={<PrivateRoute allowedRoles={['DISTRIBUTOR']}><DistributorSetupPinPage /></PrivateRoute>} />
+        <Route path="/distributor" element={<PrivateRoute allowedRoles={['DISTRIBUTOR']}><DistributorDashboardPage /></PrivateRoute>} />
 
         {/* Biller dashboard */}
-        <Route path="/biller" element={<PrivateRoute><BillerDashboardPage /></PrivateRoute>} />
+        <Route path="/biller" element={<PrivateRoute allowedRoles={['BILLER']}><BillerDashboardPage /></PrivateRoute>} />
 
         {/* Shared protected routes (all roles) */}
         <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
         <Route path="/profile/edit" element={<PrivateRoute><EditProfilePage /></PrivateRoute>} />
         <Route path="/change-pin" element={<PrivateRoute><ChangePinPage /></PrivateRoute>} />
-        <Route path="/recipients" element={<PrivateRoute><SavedRecipientsPage /></PrivateRoute>} />
+        <Route path="/recipients" element={<PrivateRoute allowedRoles={['CUSTOMER']}><SavedRecipientsPage /></PrivateRoute>} />
         <Route path="/transactions" element={<PrivateRoute><TransactionHistoryPage /></PrivateRoute>} />
         <Route path="/transactions/:id" element={<PrivateRoute><TransactionDetailPage /></PrivateRoute>} />
 
         {/* Transaction routes (role-validated on server) */}
-        <Route path="/send-money" element={<PrivateRoute><SendMoneyPage /></PrivateRoute>} />
-        <Route path="/cash-in" element={<PrivateRoute><CashInPage /></PrivateRoute>} />
-        <Route path="/cash-out" element={<PrivateRoute><CashOutPage /></PrivateRoute>} />
-        <Route path="/payment" element={<PrivateRoute><PaymentPage /></PrivateRoute>} />
-        <Route path="/b2b" element={<PrivateRoute><B2BTransferPage /></PrivateRoute>} />
-        <Route path="/pay-bill" element={<PrivateRoute><PayBillPage /></PrivateRoute>} />
+        <Route path="/send-money" element={<PrivateRoute allowedRoles={['CUSTOMER', 'MERCHANT']} requireActiveStatus><SendMoneyPage /></PrivateRoute>} />
+        <Route path="/cash-in" element={<PrivateRoute allowedRoles={['AGENT']} requireActiveStatus><CashInPage /></PrivateRoute>} />
+        <Route path="/cash-out" element={<PrivateRoute allowedRoles={['CUSTOMER', 'MERCHANT']} requireActiveStatus><CashOutPage /></PrivateRoute>} />
+        <Route path="/payment" element={<PrivateRoute allowedRoles={['CUSTOMER', 'MERCHANT']} requireActiveStatus><PaymentPage /></PrivateRoute>} />
+        <Route path="/b2b" element={<PrivateRoute allowedRoles={['DISTRIBUTOR', 'AGENT']} requireActiveStatus><B2BTransferPage /></PrivateRoute>} />
+        <Route path="/pay-bill" element={<PrivateRoute allowedRoles={['CUSTOMER', 'MERCHANT', 'AGENT']} requireActiveStatus><PayBillPage /></PrivateRoute>} />
 
         {/* Admin — ShellLayout renders no SiteHeader for /admin/* (AdminLayout is self-contained) */}
         <Route path="/admin" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />

@@ -41,7 +41,7 @@ const otpService = {
    * Verify an OTP code
    * Throws AppError if OTP is invalid or expired
    */
-  async verifyOTP(phoneNumber, otpCode, purpose = 'VERIFY_PHONE') {
+  async verifyOTP(phoneNumber, otpCode, purpose = 'VERIFY_PHONE', markUsed = true) {
     const result = await pool.query(
       `SELECT * FROM tp.otp_codes
        WHERE phone_number = $1 AND otp_code = $2 AND purpose = $3
@@ -56,10 +56,12 @@ const otpService = {
     }
 
     // Mark OTP as used
-    await pool.query(
-      `UPDATE tp.otp_codes SET is_used = TRUE WHERE otp_id = $1`,
-      [result.rows[0].otp_id]
-    );
+    if (markUsed) {
+      await pool.query(
+        `UPDATE tp.otp_codes SET is_used = TRUE WHERE otp_id = $1`,
+        [result.rows[0].otp_id]
+      );
+    }
 
     return true;
   },

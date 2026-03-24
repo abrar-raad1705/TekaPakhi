@@ -38,6 +38,11 @@ export default function LoginPage() {
     if (result.success) {
       const profile = result.data.profile;
 
+      if (profile.requiresPinSetup && profile.typeName === "DISTRIBUTOR") {
+        navigate("/distributor/setup-pin", { replace: true });
+        return;
+      }
+
       if (!profile.isPhoneVerified) {
         try {
           const { data } = await authApi.requestOtp({
@@ -85,7 +90,7 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-[108dvh] flex-col bg-white overflow-x-hidden">
       {/* Main Content */}
-      <main className="mx-auto flex w-full max-w-[400px] flex-1 flex-col px-6 py-12 md:py-20">
+      <main className="mx-auto flex w-full max-w-100 flex-1 flex-col px-6 py-12 md:py-20">
         <div className="text-center mb-10">
           <h1 className="text-[28px] font-bold tracking-tight text-gray-900 leading-tight">
             Welcome back

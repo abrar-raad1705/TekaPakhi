@@ -116,6 +116,24 @@ const transactionController = {
     }
   },
 
+  async listConnectedB2BAgents(req, res, next) {
+    try {
+      const agents = await transactionService.getConnectedB2BAgents(req.user.profileId);
+      res.status(200).json({ success: true, data: agents });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getConnectedDistributor(req, res, next) {
+    try {
+      const distributor = await transactionService.getConnectedDistributor(req.user.profileId);
+      res.status(200).json({ success: true, data: distributor });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   /**
    * POST /api/v1/transactions/preview
    */

@@ -1,37 +1,71 @@
-import api from './axiosInstance';
+import axios from 'axios';
+
+const API_URL = import.meta.env.VITE_API_URL || '/api/v1';
+
+/** Axios instance for /admin/* — uses `adminToken`, not user `accessToken`. */
+const adminApiClient = axios.create({
+  baseURL: API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+adminApiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('adminToken');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+adminApiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('adminToken');
+      const path = window.location.pathname || '';
+      if (!path.startsWith('/root')) {
+        window.location.href = '/root';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
+/** Public: password login for admin panel */
+export const adminLoginRequest = (password) =>
+  axios.post(`${API_URL}/root/login`, { password });
 
 export const adminApi = {
-  // Dashboard
-  getDashboard: () => api.get('/admin/dashboard'),
+  getDashboard: () => adminApiClient.get('/admin/dashboard'),
 
-  // Users
-  getUsers: (params) => api.get('/admin/users', { params }),
-  createProfile: (data) => api.post('/admin/users', data),
-  getUserDetail: (id) => api.get(`/admin/users/${id}`),
-  updateUserStatus: (id, status) => api.patch(`/admin/users/${id}/status`, { status }),
-  loadWallet: (id, amount) => api.post(`/admin/users/${id}/load-wallet`, { amount }),
+  getUsers: (params) => adminApiClient.get('/admin/users', { params }),
+  createProfile: (data) => adminApiClient.post('/admin/users', data),
+  getUserDetail: (id) => adminApiClient.get(`/admin/users/${id}`),
+  updateUserStatus: (id, status) => adminApiClient.patch(`/admin/users/${id}/status`, { status }),
+  loadWallet: (id, amount) => adminApiClient.post(`/admin/users/${id}/load-wallet`, { amount }),
 
-  // Transactions
-  getTransactions: (params) => api.get('/admin/transactions', { params }),
-  reverseTransaction: (id) => api.post(`/admin/transactions/${id}/reverse`),
+  getTransactions: (params) => adminApiClient.get('/admin/transactions', { params }),
+  reverseTransaction: (id) => adminApiClient.post(`/admin/transactions/${id}/reverse`),
 
-  // Config: Transaction Types
-  getTransactionTypes: () => api.get('/admin/config/transaction-types'),
-  updateTransactionType: (id, data) => api.patch(`/admin/config/transaction-types/${id}`, data),
+  getTransactionTypes: () => adminApiClient.get('/admin/config/transaction-types'),
+  updateTransactionType: (id, data) => adminApiClient.patch(`/admin/config/transaction-types/${id}`, data),
 
-  // Config: Limits
-  getTransactionLimits: () => api.get('/admin/config/limits'),
-  upsertTransactionLimit: (data) => api.put('/admin/config/limits', data),
+  getTransactionLimits: () => adminApiClient.get('/admin/config/limits'),
+  upsertTransactionLimit: (data) => adminApiClient.put('/admin/config/limits', data),
   deleteTransactionLimit: (profileTypeId, txTypeId) =>
-    api.delete(`/admin/config/limits/${profileTypeId}/${txTypeId}`),
+    adminApiClient.delete(`/admin/config/limits/${profileTypeId}/${txTypeId}`),
 
-  // Config: Commissions
-  getCommissionPolicies: () => api.get('/admin/config/commissions'),
-  upsertCommissionPolicy: (data) => api.put('/admin/config/commissions', data),
+  getCommissionPolicies: () => adminApiClient.get('/admin/config/commissions'),
+  upsertCommissionPolicy: (data) => adminApiClient.put('/admin/config/commissions', data),
   deleteCommissionPolicy: (profileTypeId, txTypeId) =>
-    api.delete(`/admin/config/commissions/${profileTypeId}/${txTypeId}`),
+    adminApiClient.delete(`/admin/config/commissions/${profileTypeId}/${txTypeId}`),
 
-  // Reports
-  getTransactionReport: (params) => api.get('/admin/reports/transactions', { params }),
-  getUserGrowthReport: (params) => api.get('/admin/reports/user-growth', { params }),
+  getTransactionReport: (params) => adminApiClient.get('/admin/reports/transactions', { params }),
+  getUserGrowthReport: (params) => adminApiClient.get('/admin/reports/user-growth', { params }),
+
+  getProfileTypes: () => adminApiClient.get('/admin/config/profile-types'),
 };

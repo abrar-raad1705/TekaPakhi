@@ -1,26 +1,93 @@
 import pool from '../config/db.js';
 import AppError from '../utils/AppError.js';
-import { PROFILE_TYPES } from '../utils/constants.js';
+import { PROFILE_TYPES, WALLET_ROLES } from '../utils/constants.js';
 import profileModel from '../models/profileModel.js';
 import walletModel from '../models/walletModel.js';
 import transactionModel from '../models/transactionModel.js';
 import transactionTypeModel from '../models/transactionTypeModel.js';
 import feeService from './feeService.js';
 import limitService from './limitService.js';
-import commissionService from './commissionService.js';
+import ledgerService from './ledgerService.js';
 import authService from './authService.js';
+
+/**
+ * Lock wallets in deterministic order (avoids deadlocks).
+ */
+async function lockWalletsOrdered(client, walletIds) {
+  const sorted = [...new Set(walletIds)].sort((a, b) => a - b);
+  const map = new Map();
+  for (const wid of sorted) {
+    const row = await walletModel.findByWalletIdForUpdate(client, wid);
+    if (row) map.set(wid, row);
+  }
+  return map;
+}
 
 /**
  * Role validation rules: which profile types can send/receive for each tx type
  */
 const ROLE_RULES = {
-  SEND_MONEY:  { sender: [PROFILE_TYPES.CUSTOMER], receiver: [PROFILE_TYPES.CUSTOMER] },
+  SEND_MONEY:  { sender: [PROFILE_TYPES.CUSTOMER, PROFILE_TYPES.MERCHANT], receiver: [PROFILE_TYPES.CUSTOMER] },
   CASH_IN:     { sender: [PROFILE_TYPES.AGENT],    receiver: [PROFILE_TYPES.CUSTOMER] },
-  CASH_OUT:    { sender: [PROFILE_TYPES.CUSTOMER],  receiver: [PROFILE_TYPES.AGENT] },
-  PAYMENT:     { sender: [PROFILE_TYPES.CUSTOMER],  receiver: [PROFILE_TYPES.MERCHANT] },
-  PAY_BILL:    { sender: [PROFILE_TYPES.CUSTOMER],  receiver: [PROFILE_TYPES.BILLER] },
-  B2B:         { sender: [PROFILE_TYPES.DISTRIBUTOR], receiver: [PROFILE_TYPES.AGENT] },
+  CASH_OUT:    { sender: [PROFILE_TYPES.CUSTOMER, PROFILE_TYPES.MERCHANT],  receiver: [PROFILE_TYPES.AGENT] },
+  PAYMENT:     { sender: [PROFILE_TYPES.CUSTOMER, PROFILE_TYPES.MERCHANT],  receiver: [PROFILE_TYPES.MERCHANT] },
+  PAY_BILL:    { sender: [PROFILE_TYPES.CUSTOMER, PROFILE_TYPES.MERCHANT, PROFILE_TYPES.AGENT],  receiver: [PROFILE_TYPES.BILLER] },
+  B2B:         { sender: [PROFILE_TYPES.DISTRIBUTOR, PROFILE_TYPES.AGENT], receiver: [PROFILE_TYPES.AGENT, PROFILE_TYPES.DISTRIBUTOR] },
 };
+
+async function assertB2BReceiverAllowed(sender, receiver) {
+  if (
+    sender.type_id === PROFILE_TYPES.DISTRIBUTOR &&
+    receiver.type_id === PROFILE_TYPES.AGENT
+  ) {
+    const isConnected = await profileModel.isAgentConnectedToDistributor(
+      sender.profile_id,
+      receiver.profile_id,
+    );
+    if (!isConnected) {
+      throw new AppError(
+        'You can only transfer float to agents connected to your distributor account.',
+        403,
+      );
+    }
+    return;
+  }
+
+  if (
+    sender.type_id === PROFILE_TYPES.AGENT &&
+    receiver.type_id === PROFILE_TYPES.DISTRIBUTOR
+  ) {
+    const connectedDistributorId = await profileModel.getAgentDistributorId(sender.profile_id);
+    if (!connectedDistributorId || connectedDistributorId !== receiver.profile_id) {
+      throw new AppError(
+        'You can only transfer float to your connected distributor.',
+        403,
+      );
+    }
+    return;
+  }
+}
+
+async function assertSenderCanTransact(sender) {
+  const senderStatus = await profileModel.getAccountStatus(
+    sender.profile_id,
+    sender.type_name,
+  );
+
+  if (senderStatus === 'PENDING_KYC') {
+    throw new AppError(
+      'Your account is pending verification. Please wait for admin approval before transacting.',
+      403,
+    );
+  }
+
+  if (senderStatus === 'SUSPENDED' || senderStatus === 'BLOCKED') {
+    throw new AppError(
+      `Your account is ${senderStatus.toLowerCase()}. Contact support.`,
+      403,
+    );
+  }
+}
 
 const transactionService = {
   async execute({ senderProfileId, receiverPhone, amount, typeCode, pin, note }) {
@@ -54,14 +121,11 @@ const transactionService = {
       }
     }
 
-    // Check KYC status — block PENDING_KYC accounts
-    const senderStatus = await profileModel.getAccountStatus(sender.profile_id, sender.type_name);
-    if (senderStatus === 'PENDING_KYC') {
-      throw new AppError('Your account is pending verification. Please wait for admin approval before transacting.', 403);
+    if (typeCode === 'B2B') {
+      await assertB2BReceiverAllowed(sender, receiver);
     }
-    if (senderStatus === 'SUSPENDED' || senderStatus === 'BLOCKED') {
-      throw new AppError(`Your account is ${senderStatus.toLowerCase()}. Contact support.`, 403);
-    }
+
+    await assertSenderCanTransact(sender);
     // Verify PIN (with brute force protection)
     await authService.verifyTransactionPin(senderProfileId, pin);
 
@@ -69,13 +133,6 @@ const transactionService = {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
-
-      // Lock wallets to prevent race conditions
-      const senderWallet = await walletModel.findByProfileIdForUpdate(client, sender.profile_id);
-      const receiverWallet = await walletModel.findByProfileIdForUpdate(client, receiver.profile_id);
-
-      if (!senderWallet) throw new AppError('Sender wallet not found.', 404);
-      if (!receiverWallet) throw new AppError('Receiver wallet not found.', 404);
 
       //Calculate fee
       let fee;
@@ -86,6 +143,49 @@ const transactionService = {
         fee = feeService.calculate(txType, amount);
       }
       const { senderDebit, receiverCredit } = feeService.applyFeeBearer(amount, fee, txType.fee_bearer);
+
+      const swRes = await client.query(
+        `SELECT wallet_id FROM tp.wallets WHERE profile_id = $1`,
+        [sender.profile_id]
+      );
+      const rwRes = await client.query(
+        `SELECT wallet_id FROM tp.wallets WHERE profile_id = $1`,
+        [receiver.profile_id]
+      );
+      if (!swRes.rows[0]?.wallet_id)
+        throw new AppError("Sender wallet not found.", 404);
+      if (!rwRes.rows[0]?.wallet_id)
+        throw new AppError("Receiver wallet not found.", 404);
+
+      const revLookup = await client.query(
+        `SELECT wallet_id FROM tp.wallets WHERE role = $1::tp.wallet_role`,
+        [WALLET_ROLES.REVENUE]
+      );
+      const revenueWalletId = revLookup.rows[0]?.wallet_id;
+      if (!revenueWalletId) {
+        throw new AppError("Revenue wallet not configured.", 500);
+      }
+
+      const treasuryLookup = await client.query(
+        `SELECT wallet_id FROM tp.wallets WHERE role = $1::tp.wallet_role`,
+        [WALLET_ROLES.TREASURY]
+      );
+      const treasuryWalletId = treasuryLookup.rows[0]?.wallet_id;
+      if (!treasuryWalletId) {
+        throw new AppError("Treasury wallet not configured.", 500);
+      }
+
+      const lockIds = [
+        swRes.rows[0].wallet_id,
+        rwRes.rows[0].wallet_id,
+        revenueWalletId,
+        treasuryWalletId,
+      ];
+
+      const locked = await lockWalletsOrdered(client, lockIds);
+      const senderWallet = locked.get(swRes.rows[0].wallet_id);
+      const receiverWallet = locked.get(rwRes.rows[0].wallet_id);
+      if (!senderWallet || !receiverWallet) throw new AppError('Wallet lock failed.', 500);
 
       // Check limits
       await limitService.check(client, sender.type_id, txType.type_id, sender.profile_id, amount);
@@ -109,6 +209,11 @@ const transactionService = {
       // Credit receiver
       await walletModel.credit(client, receiverWallet.wallet_id, receiverCredit);
 
+      // Fee to Revenue wallet
+      if (fee > 0 && revenueWalletId) {
+        await walletModel.credit(client, revenueWalletId, fee);
+      }
+
       // Insert transaction record (retry on rare transaction_ref collision)
       let transaction;
       let txRef;
@@ -129,11 +234,21 @@ const transactionService = {
         throw e;
       }
 
-      // Distribute commissions
-      await commissionService.distribute(
+      await ledgerService.recordMainTransactionLedger(client, transaction.transaction_id, {
+        senderWalletId: senderWallet.wallet_id,
+        receiverWalletId: receiverWallet.wallet_id,
+        revenueWalletId,
+        senderDebit,
+        receiverCredit,
+        fee,
+        amount,
+        typeLabel: txType.type_name,
+      });
+
+      await ledgerService.distributeCommissions(
         client,
         txType.type_id,
-        fee,
+        amount,
         transaction.transaction_id,
         {
           senderProfileId: sender.profile_id,
@@ -187,6 +302,7 @@ const transactionService = {
 
     const receiver = await profileModel.findByPhone(receiverPhone);
     if (!receiver) throw new AppError('Recipient not found.', 404);
+    const receiverWallet = await walletModel.getBalance(receiver.profile_id);
 
     if (sender.profile_id === receiver.profile_id) {
       throw new AppError('You cannot send money to yourself.', 400);
@@ -201,6 +317,12 @@ const transactionService = {
         throw new AppError(`Recipient is not valid for ${typeCode}.`, 400);
       }
     }
+
+    if (typeCode === 'B2B') {
+      await assertB2BReceiverAllowed(sender, receiver);
+    }
+
+    await assertSenderCanTransact(sender);
 
     // Tiered fee for SEND_MONEY, standard for others
     let fee;
@@ -220,7 +342,15 @@ const transactionService = {
       totalDebit: senderDebit,
       totalCredit: receiverCredit,
       sender: { name: sender.full_name, phone: sender.phone_number },
-      receiver: { name: receiver.full_name, phone: receiver.phone_number },
+      receiver: {
+        name: receiver.full_name,
+        phone: receiver.phone_number,
+        balance: receiverWallet ? parseFloat(receiverWallet.balance) : null,
+        maxBalance: receiverWallet ? parseFloat(receiverWallet.max_balance) : null,
+        balanceAfterCredit: receiverWallet
+          ? parseFloat(receiverWallet.balance) + receiverCredit
+          : null,
+      },
     };
   },
 
@@ -268,6 +398,30 @@ const transactionService = {
    */
   async getMiniStatement(profileId, count = 5) {
     return await transactionModel.miniStatement(profileId, count);
+  },
+
+  async getConnectedB2BAgents(profileId) {
+    const profile = await profileModel.findById(profileId);
+    if (!profile) throw new AppError('Profile not found.', 404);
+    if (profile.type_id !== PROFILE_TYPES.DISTRIBUTOR) {
+      throw new AppError('Only distributor accounts can access B2B agent list.', 403);
+    }
+
+    return profileModel.listConnectedAgentsForDistributor(profileId);
+  },
+
+  async getConnectedDistributor(profileId) {
+    const profile = await profileModel.findById(profileId);
+    if (!profile) throw new AppError('Profile not found.', 404);
+    if (profile.type_id !== PROFILE_TYPES.AGENT) {
+      throw new AppError('Only agent accounts can access connected distributor.', 403);
+    }
+
+    const distributor = await profileModel.getConnectedDistributorForAgent(profileId);
+    if (!distributor) {
+      throw new AppError('No connected distributor found for your agent account.', 404);
+    }
+    return distributor;
   },
 };
 

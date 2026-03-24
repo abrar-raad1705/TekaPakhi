@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 
-export default function OTPInput({ length = 6, onComplete, error = false }) {
+export default function OTPInput({ length = 6, onComplete, error = false, disabled = false }) {
   const [values, setValues] = useState(Array(length).fill(''));
   const inputRefs = useRef([]);
 
@@ -61,9 +61,11 @@ export default function OTPInput({ length = 6, onComplete, error = false }) {
           onChange={(e) => handleChange(i, e.target.value)}
           onKeyDown={(e) => handleKeyDown(i, e)}
           onPaste={handlePaste}
+          disabled={disabled}
           className={`h-14 w-12 rounded-xl border-2 text-center text-xl font-black transition-all
             focus:outline-none 
-            ${error 
+            ${disabled ? 'bg-gray-50 border-gray-100 text-gray-400' : 
+              error 
               ? 'border-[#CD1C1C] bg-[#FDE8E8] text-[#CD1C1C]' 
               : 'border-gray-200 bg-white focus:border-primary-600'}`}
         />

@@ -20,6 +20,8 @@ router.post('/cash-out', validate(executeTransactionSchema), transactionControll
 router.post('/payment', validate(executeTransactionSchema), transactionController.payment);
 router.post('/pay-bill', validate(executeTransactionSchema), transactionController.payBill);
 router.post('/b2b', validate(executeTransactionSchema), transactionController.b2b);
+router.get('/b2b-agents', transactionController.listConnectedB2BAgents);
+router.get('/b2b-distributor', transactionController.getConnectedDistributor);
 
 // Preview (fee calculation without execution)
 router.post('/preview/:type', validate(previewTransactionSchema), transactionController.preview);

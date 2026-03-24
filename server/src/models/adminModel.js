@@ -427,6 +427,11 @@ const adminModel = {
     return result.rows[0] || null;
   },
 
+  async getProfileTypes() {
+    const result = await pool.query('SELECT * FROM tp.profile_types ORDER BY type_id');
+    return result.rows;
+  },
+
   // ── Reports ──────────────────────────────────────────────────
 
   async getTransactionReport({ fromDate, toDate, groupBy = 'day' }) {
@@ -453,22 +458,21 @@ const adminModel = {
   // ── Platform Financial Stats ───────────────────────────────
 
   async getPlatformFinancials() {
-    // Total E-Money = sum of ALL wallet balances
     const emoneyResult = await pool.query(
       `SELECT COALESCE(SUM(balance), 0)::numeric AS total_emoney FROM tp.wallets`
     );
 
-    // System wallet balance (platform revenue from fees)
-    const systemResult = await pool.query(
-      `SELECT COALESCE(w.balance, 0)::numeric AS system_balance
-       FROM tp.wallets w
-       JOIN tp.profiles p ON w.profile_id = p.profile_id
-       JOIN tp.profile_types pt ON p.type_id = pt.type_id
-       WHERE pt.type_name = 'SYSTEM'
-       LIMIT 1`
+    const systemWallets = await pool.query(
+      `SELECT role::text AS role, COALESCE(balance, 0)::numeric AS balance
+       FROM tp.wallets
+       WHERE role IS NOT NULL`
     );
 
-    // Total Float Loaded (admin loads to distributors) — identified by user_note prefix
+    const byRole = {};
+    for (const row of systemWallets.rows) {
+      byRole[row.role] = parseFloat(row.balance);
+    }
+
     const floatResult = await pool.query(
       `SELECT COALESCE(SUM(amount), 0)::numeric AS total_loaded
        FROM tp.transactions
@@ -476,15 +480,20 @@ const adminModel = {
     );
 
     const totalEmoney = parseFloat(emoneyResult.rows[0].total_emoney);
-    const systemBalance = parseFloat(systemResult.rows[0]?.system_balance || 0);
     const totalFloatLoaded = parseFloat(floatResult.rows[0].total_loaded);
+    const treasuryBalance = byRole.TREASURY ?? 0;
+    const revenueBalance = byRole.REVENUE ?? 0;
+    const adjustmentBalance = byRole.ADJUSTMENT ?? 0;
 
     return {
       totalFloatIssued: totalFloatLoaded,
       cashReserve: totalFloatLoaded,
       totalEmoney,
-      platformRevenue: systemBalance,
-      platformLiability: totalEmoney - systemBalance,
+      treasuryBalance,
+      revenueBalance,
+      adjustmentBalance,
+      platformRevenue: revenueBalance,
+      platformLiability: totalEmoney - treasuryBalance - revenueBalance - adjustmentBalance,
     };
   },
 

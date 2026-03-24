@@ -25,6 +25,39 @@ const walletModel = {
   },
 
   /**
+   * System wallet by role (no lock) — e.g. TREASURY, REVENUE, ADJUSTMENT
+   */
+  async findByRole(role) {
+    const result = await pool.query(
+      `SELECT * FROM tp.wallets WHERE role = $1::tp.wallet_role`,
+      [role]
+    );
+    return result.rows[0] || null;
+  },
+
+  /**
+   * System wallet by role with row lock — use inside a transaction
+   */
+  async findByRoleForUpdate(client, role) {
+    const result = await client.query(
+      `SELECT * FROM tp.wallets WHERE role = $1::tp.wallet_role FOR UPDATE`,
+      [role]
+    );
+    return result.rows[0] || null;
+  },
+
+  /**
+   * Lock a wallet by wallet_id (for commission payouts, etc.)
+   */
+  async findByWalletIdForUpdate(client, walletId) {
+    const result = await client.query(
+      `SELECT * FROM tp.wallets WHERE wallet_id = $1 FOR UPDATE`,
+      [walletId]
+    );
+    return result.rows[0] || null;
+  },
+
+  /**
    * Debit a wallet (use inside a transaction). Fails if insufficient balance.
    */
   async debit(client, walletId, amount) {

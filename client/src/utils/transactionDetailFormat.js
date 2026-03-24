@@ -5,6 +5,7 @@ export const typeLabels = {
   PAYMENT: "Payment",
   PAY_BILL: "Pay Bill",
   B2B: "B2B Transfer",
+  COMMISSION: "Commission",
 };
 
 export function formatTaka(n) {

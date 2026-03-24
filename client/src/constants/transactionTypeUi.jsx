@@ -5,6 +5,7 @@ import {
   ShoppingBagIcon,
   ReceiptPercentIcon,
   ArrowPathIcon,
+  BanknotesIcon,
 } from "@heroicons/react/24/outline";
 
 /**
@@ -18,6 +19,7 @@ export const TRANSACTION_TYPE_ICONS = {
   PAYMENT: ShoppingBagIcon,
   PAY_BILL: ReceiptPercentIcon,
   B2B: ArrowPathIcon,
+  COMMISSION: BanknotesIcon,
 };
 
 /**

@@ -1,0 +1,31 @@
+import { Router } from 'express';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import env from '../config/env.js';
+import AppError from '../utils/AppError.js';
+import validate from '../middleware/validate.js';
+import { adminLoginSchema } from '../validations/adminAuthValidation.js';
+
+const router = Router();
+
+router.post('/login', validate(adminLoginSchema), async (req, res, next) => {
+  try {
+    const { password } = req.validatedBody;
+    const ok = await bcrypt.compare(password, env.ADMIN_PASSWORD_HASH);
+    if (!ok) {
+      throw new AppError('Invalid password.', 401);
+    }
+
+    const adminToken = jwt.sign(
+      { role: 'ADMIN' },
+      env.JWT_SECRET,
+      { expiresIn: env.JWT_ADMIN_EXPIRY }
+    );
+
+    res.status(200).json({ success: true, data: { adminToken } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+export default router;

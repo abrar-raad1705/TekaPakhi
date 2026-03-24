@@ -47,23 +47,53 @@ export const upsertCommissionSchema = z.object({
   commissionShare: z.number({ coerce: true }).min(0).max(100),
 });
 
-export const createProfileSchema = z.object({
-  phoneNumber: z.string().regex(/^01[3-9][0-9]{8}$/, 'Invalid Bangladeshi phone number'),
-  fullName: z.string().min(2).max(100),
-  securityPin: z.string().length(5).regex(/^\d{5}$/, 'PIN must be 5 digits'),
-  accountType: z.enum(['DISTRIBUTOR', 'BILLER']),
-  // Distributor fields
-  region: z.string().max(100).optional(),
-  // Biller fields
-  billerCode: z.string().min(1).max(20).optional(),
-  serviceName: z.string().min(1).max(100).optional(),
-  category: z.string().max(50).optional(),
-}).superRefine((data, ctx) => {
-  if (data.accountType === 'BILLER') {
-    if (!data.billerCode) ctx.addIssue({ code: 'custom', path: ['billerCode'], message: 'Biller code is required' });
-    if (!data.serviceName) ctx.addIssue({ code: 'custom', path: ['serviceName'], message: 'Service name is required' });
-  }
+const areaPairSchema = z.object({
+  district: z.string().min(1).max(100),
+  area: z.string().min(1).max(100),
 });
+
+export const createProfileSchema = z
+  .object({
+    phoneNumber: z.string().regex(/^01[3-9][0-9]{8}$/, 'Invalid Bangladeshi phone number'),
+    fullName: z.string().min(2).max(100).optional(),
+    securityPin: z.string().length(5).regex(/^\d{5}$/, 'PIN must be 5 digits').optional(),
+    accountType: z.enum(['DISTRIBUTOR', 'BILLER']),
+    businessName: z.string().min(1).max(100).optional(),
+    contactPersonName: z.string().min(2).max(100).optional(),
+    email: z.union([z.string().email().max(100), z.literal('')]).optional(),
+    additionalInfo: z.string().max(2000).optional(),
+    areas: z.array(areaPairSchema).optional(),
+    billerCode: z.string().min(1).max(20).optional(),
+    serviceName: z.string().min(1).max(100).optional(),
+    category: z.string().max(50).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.accountType === 'BILLER') {
+      if (!data.fullName?.trim()) {
+        ctx.addIssue({ code: 'custom', path: ['fullName'], message: 'Full name is required' });
+      }
+      if (!data.securityPin) {
+        ctx.addIssue({ code: 'custom', path: ['securityPin'], message: 'PIN is required' });
+      }
+      if (!data.billerCode) {
+        ctx.addIssue({ code: 'custom', path: ['billerCode'], message: 'Biller code is required' });
+      }
+      if (!data.serviceName) {
+        ctx.addIssue({ code: 'custom', path: ['serviceName'], message: 'Service name is required' });
+      }
+    }
+    if (data.accountType === 'DISTRIBUTOR') {
+      if (!data.businessName?.trim()) {
+        ctx.addIssue({ code: 'custom', path: ['businessName'], message: 'Business name is required' });
+      }
+      if (!data.contactPersonName?.trim()) {
+        ctx.addIssue({ code: 'custom', path: ['contactPersonName'], message: 'Contact person is required' });
+      }
+      if (!data.areas?.length) {
+        ctx.addIssue({ code: 'custom', path: ['areas'], message: 'Select at least one area' });
+      }
+    }
+  });
 
 export const loadWalletSchema = z.object({
   amount: z.number({ coerce: true }).positive('Amount must be positive'),

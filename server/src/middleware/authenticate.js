@@ -28,7 +28,7 @@ const authenticate = (req, res, next) => {
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
-      return next(new AppError('Token expired. Please refresh your session.', 401));
+      return next(new AppError('Token expired. Please sign in again.', 401));
     }
     if (error.name === 'JsonWebTokenError') {
       return next(new AppError('Invalid token.', 401));
