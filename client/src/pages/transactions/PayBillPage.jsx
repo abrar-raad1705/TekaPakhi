@@ -1,50 +1,112 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
-  DocumentTextIcon,
-  ChevronRightIcon,
   ReceiptPercentIcon,
   ArrowLeftIcon,
+  ArrowRightIcon,
+  MagnifyingGlassIcon,
+  LockClosedIcon,
+  BoltIcon,
+  FireIcon,
+  BeakerIcon,
+  GlobeAltIcon,
+  PhoneIcon,
+  TvIcon,
+  CreditCardIcon,
+  BuildingLibraryIcon,
+  ShieldCheckIcon,
+  MapPinIcon,
+  EllipsisHorizontalIcon,
 } from "@heroicons/react/24/outline";
 import { profileApi } from "../../api/profileApi";
 import { transactionApi } from "../../api/transactionApi";
+import { recipientApi } from "../../api/recipientApi";
+import { walletApi } from "../../api/walletApi";
 import { toast } from "sonner";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import ProfileAvatar from "../../components/common/ProfileAvatar";
-import PinConfirmModal from "../../components/transaction/PinConfirmModal";
 import TransactionReceipt from "../../components/transaction/TransactionReceipt";
 import TransactionFlowLayout from "../../components/transaction/TransactionFlowLayout";
 import { formatBDT } from "../../utils/formatCurrency";
 
 const ACCENT = "#2563EB";
 
+const BILLER_TYPES = [
+  { id: "Electricity", label: "Electricity", icon: BoltIcon, color: "bg-amber-100 text-amber-600" },
+  { id: "Gas", label: "Gas", icon: FireIcon, color: "bg-red-100 text-red-600" },
+  { id: "Water", label: "Water", icon: BeakerIcon, color: "bg-blue-100 text-blue-600" },
+  { id: "Internet", label: "Internet", icon: GlobeAltIcon, color: "bg-cyan-100 text-cyan-600" },
+  { id: "Telephone", label: "Telephone", icon: PhoneIcon, color: "bg-green-100 text-green-600" },
+  { id: "TV", label: "TV", icon: TvIcon, color: "bg-indigo-100 text-indigo-600" },
+  { id: "Credit Card", label: "Credit Card", icon: CreditCardIcon, color: "bg-slate-100 text-slate-600" },
+  { id: "Govt. Fees", label: "Govt. Fees", icon: BuildingLibraryIcon, color: "bg-purple-100 text-purple-600" },
+  { id: "Insurance", label: "Insurance", icon: ShieldCheckIcon, color: "bg-emerald-100 text-emerald-600" },
+  { id: "Tracker", label: "Tracker", icon: MapPinIcon, color: "bg-orange-100 text-orange-600" },
+  { id: "Others", label: "Others", icon: EllipsisHorizontalIcon, color: "bg-gray-100 text-gray-600" },
+];
+
 const flowSteps = [
   { key: "select", label: "Biller", hint: "Choose a service" },
-  { key: "form", label: "Amount", hint: "Bill details" },
-  { key: "review", label: "Confirm", hint: "Verify & pay" },
+  { key: "bill_info", label: "Bill Details", hint: "Account & contact" },
+  { key: "amount", label: "Amount", hint: "Payment amount" },
+  { key: "review", label: "Confirm", hint: "Verify & enter PIN" },
 ];
 
 export default function PayBillPage() {
   const [step, setStep] = useState("select");
   const [billers, setBillers] = useState([]);
+  const [savedBillers, setSavedBillers] = useState([]);
   const [selectedBiller, setSelectedBiller] = useState(null);
-  const [form, setForm] = useState({ amount: "", note: "" });
+  const [form, setForm] = useState({
+    amount: "",
+    accountNo: "",
+    contactNo: "",
+    pin: "",
+  });
   const [preview, setPreview] = useState(null);
   const [receipt, setReceipt] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [pinOpen, setPinOpen] = useState(false);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const pinInputRef = useRef(null);
+
+  const [search, setSearch] = useState("");
+  const [selectedType, setSelectedType] = useState(null);
 
   useEffect(() => {
-    profileApi
-      .getBillers()
-      .then((res) => setBillers(res.data.data))
+    Promise.all([
+      profileApi.getBillers(),
+      recipientApi.getAll(),
+      walletApi.getBalance().then((r) => r.data.data.balance || 0).catch(() => 0),
+    ])
+      .then(([billRes, recRes, balance]) => {
+        setBillers(billRes.data.data);
+        const saved = recRes.data.data.filter(
+          (r) => String(r.target_type || "").toUpperCase() === "BILLER",
+        );
+        setSavedBillers(saved);
+        setWalletBalance(typeof balance === "number" ? balance : 0);
+      })
       .catch(() => toast.error("Failed to load billers"))
       .finally(() => setLoading(false));
   }, []);
 
   const handleSelectBiller = (biller) => {
+    if (biller.target_profile_id) {
+      const fullBiller = billers.find((b) => b.profile_id === biller.target_profile_id);
+      if (fullBiller) {
+        setSelectedBiller(fullBiller);
+        setStep("bill_info");
+        return;
+      }
+    }
     setSelectedBiller(biller);
-    setStep("form");
+    setStep("bill_info");
+  };
+
+  const handleBillInfoContinue = () => {
+    if (!form.accountNo.trim()) return toast.error("Account number is required");
+    if (!/^01[3-9]\d{8}$/.test(form.contactNo)) return toast.error("Valid contact number is required");
+    setStep("amount");
   };
 
   const handleReview = async () => {
@@ -59,6 +121,7 @@ export default function PayBillPage() {
       });
       setPreview(data.data);
       setStep("review");
+      setTimeout(() => pinInputRef.current?.focus(), 100);
     } catch (error) {
       toast.error(error.response?.data?.message || "Preview failed");
     } finally {
@@ -66,18 +129,40 @@ export default function PayBillPage() {
     }
   };
 
-  const handleConfirmPin = async (pin) => {
+  const handleConfirmPin = async () => {
+    if (form.pin.length !== 5) return toast.error("PIN must be 5 digits");
+
     setSubmitting(true);
     try {
-      const { data } = await transactionApi.payBill({
+      const response = await transactionApi.payBill({
         receiverPhone: selectedBiller.phone_number,
         amount: parseFloat(form.amount),
-        pin,
-        note: form.note || null,
+        pin: form.pin,
+        note: null,
+        billAccountNumber: form.accountNo,
+        billContactNumber: form.contactNo,
       });
-      setReceipt(data.data);
+
+      setReceipt(response.data.data);
+
+      const alreadySaved = savedBillers.some((s) => s.target_profile_id === selectedBiller.profile_id);
+      if (!alreadySaved) {
+        try {
+          await recipientApi.create({
+            phoneNumber: selectedBiller.phone_number,
+            nickname: selectedBiller.service_name,
+          });
+          const { data: listRes } = await recipientApi.getAll();
+          const saved = (listRes.data || []).filter(
+            (r) => String(r.target_type || "").toUpperCase() === "BILLER",
+          );
+          setSavedBillers(saved);
+        } catch (e) {
+          console.error("Failed to auto-save biller", e);
+        }
+      }
+
       setStep("receipt");
-      setPinOpen(false);
     } catch (error) {
       toast.error(error.response?.data?.message || "Payment failed");
     } finally {
@@ -85,273 +170,438 @@ export default function PayBillPage() {
     }
   };
 
+  const filteredBillers = useMemo(() => {
+    let list = billers;
+    if (selectedType) {
+      list = list.filter((b) => b.biller_type === selectedType);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter((b) => b.service_name.toLowerCase().includes(q));
+    }
+    return list;
+  }, [billers, selectedType, search]);
+
+  const filteredMyBillers = useMemo(() => {
+    let list = savedBillers;
+    if (selectedType) {
+      list = list.filter((b) => {
+        const fullBiller = billers.find((all) => all.profile_id === b.target_profile_id);
+        return fullBiller?.biller_type === selectedType;
+      });
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter((b) => (b.nickname || b.target_name || "").toLowerCase().includes(q));
+    }
+    return list;
+  }, [savedBillers, billers, selectedType, search]);
+
+  const amountNum = parseFloat(form.amount);
+  const hasValidAmount = Number.isFinite(amountNum) && amountNum > 0;
+  const amountExceedsBalance = Number.isFinite(amountNum) && amountNum > walletBalance;
+  const canProceedAmountStep = !submitting && hasValidAmount && !amountExceedsBalance;
+
   if (step === "receipt" && receipt) {
     return <TransactionReceipt receipt={receipt} />;
   }
 
-  const grouped = billers.reduce((acc, b) => {
-    const cat = b.category || "Other Services";
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(b);
-    return acc;
-  }, {});
-
   const goBack = () => {
-    if (step === "review") setStep("form");
-    else if (step === "form") {
+    if (step === "review") {
+      setStep("amount");
+      setForm((p) => ({ ...p, pin: "" }));
+    } else if (step === "amount") setStep("bill_info");
+    else if (step === "bill_info") {
       setStep("select");
       setSelectedBiller(null);
-      setForm({ amount: "", note: "" });
     }
   };
 
-  return (
-    <>
-      <TransactionFlowLayout
-        icon={ReceiptPercentIcon}
-        title="Pay Bill"
-        subtitle="Pay utilities, insurance, and more. Pick a biller, enter the amount, then confirm with your PIN. Encrypted and posted immediately."
-        steps={flowSteps}
-        currentStepKey={step}
-      >
-        <div className="mb-6 flex items-center gap-4 sm:mb-8">
-          {step !== "select" && (
+  const renderOrganizationGrid = () => (
+    <div className="h-full rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-sm backdrop-blur-sm sm:p-8">
+      <h3 className="mb-6 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 lg:mb-8">
+        Organization types
+      </h3>
+      <div className="grid grid-cols-3 gap-x-2 gap-y-6 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3">
+        <button
+          type="button"
+          onClick={() => setSelectedType(null)}
+          className={`group flex flex-col items-center gap-2 transition-transform ${!selectedType ? "scale-[1.02]" : "hover:scale-[1.02]"}`}
+        >
+          <div
+            className={`flex h-14 w-14 items-center justify-center rounded-2xl shadow-sm transition-all sm:h-16 sm:w-16 sm:rounded-[1.5rem] ${!selectedType
+                ? "bg-primary-600 text-white shadow-primary-200"
+                : "bg-slate-100 text-slate-500 border border-transparent group-hover:border-slate-100 group-hover:bg-white"
+              }`}
+          >
+            <GlobeAltIcon className="h-7 w-7 sm:h-8 sm:w-8" strokeWidth={2} />
+          </div>
+          <span
+            className={`max-w-[5.5rem] text-center text-[10px] font-black leading-tight sm:max-w-none sm:text-[11px] ${!selectedType ? "text-primary-600" : "text-slate-500"
+              }`}
+          >
+            All
+          </span>
+        </button>
+        {BILLER_TYPES.map((type) => {
+          const Icon = type.icon;
+          const isActive = selectedType === type.id;
+          return (
             <button
+              key={type.id}
               type="button"
-              onClick={goBack}
-              className="-ml-2 rounded-full p-2 text-gray-900 transition-colors hover:bg-gray-50"
+              onClick={() => setSelectedType(isActive ? null : type.id)}
+              className={`group flex flex-col items-center gap-2 transition-transform ${isActive ? "scale-[1.02]" : "hover:scale-[1.02]"}`}
             >
-              <ArrowLeftIcon className="h-6 w-6" strokeWidth={2.5} />
+              <div
+                className={`flex h-14 w-14 items-center justify-center rounded-2xl shadow-sm transition-all sm:h-16 sm:w-16 sm:rounded-[1.5rem] ${isActive
+                    ? "bg-primary-600 text-white shadow-primary-200"
+                    : `${type.color} border border-transparent group-hover:border-slate-100 group-hover:bg-white`
+                  }`}
+              >
+                <Icon className="h-7 w-7 sm:h-8 sm:w-8" strokeWidth={2} />
+              </div>
+              <span
+                className={`max-w-[5.5rem] text-center text-[10px] font-black leading-tight sm:max-w-none sm:text-[11px] ${isActive ? "text-primary-600" : "text-slate-500"
+                  }`}
+              >
+                {type.label}
+              </span>
             </button>
-          )}
-          <h2 className="flex-1 text-xl font-bold tracking-tight text-gray-900">
-            Pay Bill
-          </h2>
-          <div className="ml-auto flex h-8 w-8 items-center justify-center rounded-full bg-primary-50 text-primary-600">
-            <ReceiptPercentIcon className="h-4 w-4" strokeWidth={2} />
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const renderSelectStep = () => (
+    <div className="flex-1 animate-in space-y-6 duration-300 slide-in-from-right-4">
+      <div className="group relative">
+        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
+          <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 transition-colors group-focus-within:text-primary-600" />
+        </div>
+        <input
+          type="search"
+          enterKeyHint="search"
+          autoComplete="off"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search organizations..."
+          className="w-full rounded-2xl border-2 border-gray-100 bg-gray-50/30 py-4 pl-12 pr-6 text-[15px] font-bold transition-all focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-50"
+        />
+      </div>
+
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
+        <div className="min-w-0 flex-1 sm:pr-3">
+          <h3 className="mb-3 px-1 text-[12px] font-bold uppercase tracking-[0.15em] text-gray-400">
+            My organizations
+          </h3>
+          <div className="custom-scrollbar max-h-[400px] space-y-1 overflow-y-auto pr-1">
+            {filteredMyBillers.map((b) => (
+              <button
+                key={b.saved_recipient_id || b.recipient_id || b.target_phone}
+                type="button"
+                onClick={() => handleSelectBiller(b)}
+                className="flex w-full items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-gray-50"
+              >
+                <ProfileAvatar
+                  pictureUrl={b.target_profile_picture_url}
+                  name={b.nickname || b.target_name}
+                  className="h-8 w-8 text-sm"
+                  accentColor={ACCENT}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[14px] font-bold text-gray-900">
+                    {b.nickname || b.target_name}
+                  </p>
+                </div>
+              </button>
+            ))}
+            {filteredMyBillers.length === 0 && (
+              <p className="px-2 py-6 text-center text-sm font-medium text-gray-400">
+                No saved organizations match your search.
+              </p>
+            )}
           </div>
         </div>
 
-        {step === "select" && (
-          <div className="flex min-h-0 flex-1 flex-col">
-            {loading ? (
-              <div className="flex flex-col items-center justify-center py-16">
-                <LoadingSpinner size="lg" />
-                <p className="mt-4 text-[15px] font-bold text-gray-400">
-                  Loading billers...
-                </p>
-              </div>
-            ) : billers.length === 0 ? (
-              <div className="rounded-2xl border-2 border-dashed border-gray-100 p-10 text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-50">
-                  <DocumentTextIcon
-                    className="h-8 w-8 text-gray-200"
-                    strokeWidth={1}
-                  />
-                </div>
-                <h3 className="text-lg font-bold text-gray-900">
-                  No billers found
-                </h3>
-                <p className="mt-2 text-[15px] font-medium text-gray-400">
-                  Billers will appear here once they are added to the platform.
-                </p>
-              </div>
-            ) : (
-              <div className="max-h-[min(520px,58vh)] space-y-8 overflow-y-auto pr-1 custom-scrollbar">
-                {Object.entries(grouped).map(([category, items]) => (
-                  <div key={category} className="space-y-3">
-                    <h3 className="px-1 text-[11px] font-black uppercase tracking-[0.2em] text-gray-400">
-                      {category}
-                    </h3>
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      {items.map((biller) => (
-                        <button
-                          key={biller.profile_id}
-                          type="button"
-                          onClick={() => handleSelectBiller(biller)}
-                          className="group flex items-center justify-between rounded-2xl border border-gray-100 bg-gray-50/30 p-4 text-left transition-all duration-200 hover:border-primary-200 hover:bg-primary-50/30 active:scale-[0.99]"
-                        >
-                          <div className="flex min-w-0 items-center gap-3">
-                            <ProfileAvatar
-                              pictureUrl={biller.profile_picture_url}
-                              name={biller.service_name}
-                              className="h-12 w-12 shrink-0 rounded-xl text-lg ring-0"
-                              accentColor={ACCENT}
-                            />
-                            <div className="min-w-0">
-                              <p className="truncate text-[15px] font-bold text-gray-900">
-                                {biller.service_name}
-                              </p>
-                              <p className="mt-0.5 text-[13px] font-medium text-gray-400">
-                                {biller.biller_code}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="shrink-0 rounded-full bg-gray-50 p-2 text-gray-300 transition-all group-hover:bg-primary-100 group-hover:text-primary-600">
-                            <ChevronRightIcon className="h-4 w-4" strokeWidth={3} />
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        <div className="h-px w-full shrink-0 bg-slate-100 sm:hidden" aria-hidden />
+        <div className="hidden w-px shrink-0 self-stretch bg-slate-100 sm:block" aria-hidden />
 
-        {step === "form" && selectedBiller && (
-          <div className="animate-in space-y-8 duration-300 slide-in-from-bottom-2">
-            <div className="flex items-center justify-between gap-3 rounded-2xl border border-primary-100/50 bg-primary-50/50 p-4 sm:p-5">
-              <div className="flex min-w-0 items-center gap-3">
+        <div className="min-w-0 flex-1 sm:pl-3">
+          <h3 className="mb-3 px-1 text-[12px] font-bold uppercase tracking-[0.15em] text-gray-400">
+            All organizations
+          </h3>
+          <div className="custom-scrollbar max-h-[400px] space-y-1 overflow-y-auto pr-1">
+            {filteredBillers.map((b) => (
+              <button
+                key={b.profile_id}
+                type="button"
+                onClick={() => handleSelectBiller(b)}
+                className="flex w-full items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-gray-50"
+              >
                 <ProfileAvatar
-                  pictureUrl={selectedBiller.profile_picture_url}
-                  name={selectedBiller.service_name}
-                  className="h-12 w-12 shrink-0 text-lg"
+                  pictureUrl={b.profile_picture_url}
+                  name={b.service_name}
+                  className="h-8 w-8 text-sm"
                   accentColor={ACCENT}
                 />
-                <div className="min-w-0">
-                  <p className="text-[15px] font-black text-gray-900">
-                    {selectedBiller.service_name}
-                  </p>
-                  <p className="text-[13px] font-bold text-primary-600">
-                    {selectedBiller.biller_code}
-                  </p>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[14px] font-bold text-gray-900">{b.service_name}</p>
                 </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setStep("select");
-                  setSelectedBiller(null);
-                }}
-                className="shrink-0 rounded-lg px-3 py-1.5 text-[13px] font-bold text-gray-400 underline decoration-gray-200 underline-offset-4 transition-all hover:bg-white hover:text-primary-600"
-              >
-                Change
               </button>
-            </div>
-
-            <div className="space-y-3">
-              <label className="block px-1 text-[11px] font-bold uppercase tracking-[0.15em] text-gray-400">
-                Bill Amount
-              </label>
-              <div className="group relative">
-                <span className="absolute left-5 top-1/2 -translate-y-1/2 text-2xl font-black text-gray-400 transition-colors group-focus-within:text-primary-600">
-                  ৳
-                </span>
-                <input
-                  type="number"
-                  value={form.amount}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, amount: e.target.value }))
-                  }
-                  placeholder="0.00"
-                  className="w-full rounded-2xl border-2 border-gray-100 py-5 pl-12 pr-4 text-2xl font-black transition-all focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-50"
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <label className="block px-1 text-[11px] font-bold uppercase tracking-[0.15em] text-gray-400">
-                Reference / Account Number (Optional)
-              </label>
-              <input
-                type="text"
-                value={form.note}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, note: e.target.value }))
-                }
-                placeholder="e.g., DSL12345678"
-                className="w-full rounded-2xl border-2 border-gray-100 px-5 py-4 text-[15px] font-bold transition-all focus:border-primary-500 focus:outline-none focus:ring-4 focus:ring-primary-50"
-                maxLength={255}
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={handleReview}
-              disabled={submitting || !form.amount}
-              className="flex w-full items-center justify-center rounded-2xl bg-primary-600 py-5 text-base font-black text-white shadow-xl shadow-primary-200 transition-all hover:bg-primary-700 active:scale-[0.99] disabled:opacity-50"
-            >
-              {submitting ? (
-                <LoadingSpinner size="sm" />
-              ) : (
-                "Review Bill Payment"
-              )}
-            </button>
+            ))}
+            {filteredBillers.length === 0 && (
+              <p className="px-2 py-6 text-center text-sm font-medium text-gray-400">
+                No organizations found. Try another type or search.
+              </p>
+            )}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <TransactionFlowLayout
+      icon={ReceiptPercentIcon}
+      title="Pay Bill"
+      subtitle="Pay utilities, insurance, and more. Pick a biller, enter the amount, then confirm with your PIN."
+      steps={flowSteps}
+      currentStepKey={step}
+      renderAside={step === "select" ? renderOrganizationGrid : null}
+    >
+      <div className="mb-8 flex items-center gap-4">
+        {step !== "select" && (
+          <button
+            type="button"
+            onClick={goBack}
+            className="-ml-2 rounded-full p-2 text-gray-900 transition-colors hover:bg-gray-50"
+          >
+            <ArrowLeftIcon className="h-6 w-6" strokeWidth={2.5} />
+          </button>
         )}
+        <h2 className="flex-1 text-xl font-bold tracking-tight text-gray-900">Pay Bill</h2>
+        <div className="ml-auto flex h-8 w-8 items-center justify-center rounded-full bg-primary-50 text-primary-600">
+          <ReceiptPercentIcon className="h-4 w-4" strokeWidth={2} />
+        </div>
+      </div>
 
-        {step === "review" && preview && selectedBiller && (
-          <div className="animate-in space-y-10 duration-300 zoom-in-95">
-            <div className="text-center">
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400">
-                Total Bill Payment
-              </p>
-              <p className="text-5xl font-black tracking-tight text-gray-900">
-                {formatBDT(preview.amount)}
-              </p>
-            </div>
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-24">
+          <LoadingSpinner size="lg" />
+          <p className="mt-4 text-[13px] font-bold uppercase tracking-widest text-gray-400">
+            Loading billers…
+          </p>
+        </div>
+      ) : (
+        <>
+          {step === "select" && renderSelectStep()}
 
-            <div className="space-y-4 rounded-3xl bg-gray-50/50 p-8">
-              <div className="flex items-center justify-between gap-3 text-[15px]">
-                <span className="font-bold text-gray-400">Biller</span>
-                <span className="flex min-w-0 items-center gap-2">
+          {step === "bill_info" && selectedBiller && (
+            <div className="flex flex-1 flex-col animate-in duration-300 slide-in-from-right-4">
+              <div className="mb-10 space-y-3 text-center">
+                <p className="text-[12px] font-bold uppercase tracking-[0.15em] text-gray-400">Biller</p>
+                <div className="flex flex-col items-center justify-center gap-2">
                   <ProfileAvatar
                     pictureUrl={selectedBiller.profile_picture_url}
                     name={selectedBiller.service_name}
-                    className="h-9 w-9 text-sm"
+                    className="h-16 w-16 text-2xl"
                     accentColor={ACCENT}
                   />
-                  <span className="truncate font-black text-gray-900">
-                    {selectedBiller.service_name}
-                  </span>
-                </span>
+                  <div>
+                    <p className="text-lg font-black text-gray-900">{selectedBiller.service_name}</p>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center justify-between text-[15px]">
-                <span className="font-bold text-gray-400">Transaction Fee</span>
-                <span className="font-black text-gray-900">
-                  {formatBDT(preview.fee)}
-                </span>
-              </div>
-              <div className="h-px bg-gray-200" />
-              <div className="flex items-center justify-between text-lg">
-                <span className="font-black text-gray-400">Total Debit</span>
-                <span className="font-black text-primary-600">
-                  {formatBDT(preview.totalDebit)}
-                </span>
-              </div>
-            </div>
 
-            <div className="flex flex-col gap-4 sm:flex-row">
+              <div className="flex flex-1 flex-col space-y-6 px-1 sm:px-4">
+                <div className="space-y-2">
+                  <label className="block px-1 text-[12px] font-bold text-gray-500">Account number</label>
+                  <input
+                    type="text"
+                    value={form.accountNo}
+                    onChange={(e) => setForm((p) => ({ ...p, accountNo: e.target.value }))}
+                    placeholder="Enter account number"
+                    className="w-full rounded-2xl border-2 border-gray-100 bg-gray-50/30 px-5 py-4 text-[15px] font-bold transition-all focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-50"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="block px-1 text-[12px] font-bold text-gray-500">Contact number</label>
+                  <input
+                    type="tel"
+                    value={form.contactNo}
+                    maxLength={11}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, contactNo: e.target.value.replace(/\D/g, "").slice(0, 11) }))
+                    }
+                    placeholder="01XXXXXXXXX"
+                    className="w-full rounded-2xl border-2 border-gray-100 bg-gray-50/30 px-5 py-4 text-[15px] font-bold transition-all focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-50"
+                  />
+                </div>
+              </div>
+
               <button
                 type="button"
-                onClick={() => setStep("form")}
-                className="flex flex-1 items-center justify-center gap-2 rounded-2xl border-2 border-gray-100 py-4 text-[15px] font-bold text-gray-600 transition-all hover:bg-gray-50 active:scale-[0.98]"
+                onClick={handleBillInfoContinue}
+                className="mt-8 flex w-full items-center justify-center rounded-2xl bg-primary-600 py-4 text-[15px] font-black text-white shadow-xl shadow-primary-200 transition-all hover:bg-primary-700 active:scale-[0.99]"
               >
-                <ArrowLeftIcon className="h-5 w-5" strokeWidth={2} />
-                Edit Details
-              </button>
-              <button
-                type="button"
-                onClick={() => setPinOpen(true)}
-                className="flex-1 rounded-2xl bg-primary-600 py-4 text-[15px] font-black text-white shadow-lg shadow-primary-100 transition-all hover:bg-primary-700 active:scale-[0.98]"
-              >
-                Confirm Payment
+                <ArrowRightIcon className="h-6 w-6" strokeWidth={2.5} />
               </button>
             </div>
-          </div>
-        )}
-      </TransactionFlowLayout>
+          )}
 
-      <PinConfirmModal
-        isOpen={pinOpen}
-        onClose={() => setPinOpen(false)}
-        onConfirm={handleConfirmPin}
-        loading={submitting}
-      />
-    </>
+          {step === "amount" && selectedBiller && (
+            <div className="flex flex-1 flex-col animate-in duration-300 slide-in-from-right-4">
+              <div className="mb-10 space-y-3 text-center">
+                <p className="text-[12px] font-bold uppercase tracking-[0.15em] text-gray-400">Paying to</p>
+                <div className="flex flex-col items-center justify-center gap-2">
+                  <ProfileAvatar
+                    pictureUrl={selectedBiller.profile_picture_url}
+                    name={selectedBiller.service_name}
+                    className="h-16 w-16 text-2xl"
+                    accentColor={ACCENT}
+                  />
+                  <div>
+                    <p className="text-lg font-black text-gray-900">{selectedBiller.service_name}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-1 flex-col px-4">
+                <div className="flex flex-col items-center text-center">
+                  <p className="mb-6 text-[11px] font-bold uppercase tracking-[0.25em] text-gray-400">Amount</p>
+                  <div className="group relative flex items-center justify-center text-primary-600">
+                    <span className="mr-2 mt-2 text-5xl font-semibold text-gray-500">৳</span>
+                    <div className="relative inline-flex min-w-[40px]">
+                      <span className="invisible whitespace-pre text-6xl font-black">{form.amount || "0"}</span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={form.amount}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (/^\d*\.?\d*$/.test(val)) {
+                            setForm((p) => ({ ...p, amount: val }));
+                          }
+                        }}
+                        placeholder="0"
+                        className="absolute inset-0 w-full bg-transparent text-left text-6xl font-black text-primary-600 placeholder:text-gray-300 focus:outline-none"
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+                  <p className="mt-6 text-[14px] font-medium text-gray-500">
+                    Available balance:
+                    <span className="ml-1 font-semibold tabular-nums text-gray-900">{formatBDT(walletBalance)}</span>
+                  </p>
+                  {amountExceedsBalance && (
+                    <p className="mt-2 text-sm font-medium text-red-500">Insufficient balance</p>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleReview}
+                  disabled={!canProceedAmountStep}
+                  className={`mt-8 flex w-full items-center justify-center rounded-2xl py-4 text-[15px] font-black shadow-xl transition-all active:scale-[0.99] disabled:cursor-not-allowed disabled:active:scale-100 ${submitting || canProceedAmountStep
+                      ? "bg-primary-600 text-white shadow-primary-200 hover:bg-primary-700 disabled:hover:bg-primary-600"
+                      : "bg-gray-200 text-gray-400 shadow-none"
+                    }`}
+                >
+                  {submitting ? <LoadingSpinner size="sm" /> : <ArrowRightIcon className="h-6 w-6" strokeWidth={2.5} />}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {step === "review" && preview && selectedBiller && (
+            <div className="flex flex-1 flex-col animate-in duration-300 slide-in-from-right-4">
+              <div className="mb-6 flex flex-col items-center gap-3 text-center">
+                <p className="text-[12px] font-bold uppercase tracking-[0.15em] text-gray-400">Biller</p>
+                <ProfileAvatar
+                  pictureUrl={selectedBiller.profile_picture_url}
+                  name={selectedBiller.service_name}
+                  className="h-12 w-12 text-xl"
+                  accentColor={ACCENT}
+                />
+                <p className="text-[15px] font-bold text-gray-900">{selectedBiller.service_name}</p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/90 px-4 py-4">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                  Bill reference
+                </p>
+                <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-medium text-slate-500">Account number</p>
+                    <p className="mt-1 font-semibold tabular-nums text-slate-900">{form.accountNo}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-slate-500">Contact number</p>
+                    <p className="mt-1 font-semibold tabular-nums text-slate-900">{form.contactNo}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-slate-200/80 bg-white px-4 py-4 shadow-sm">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                  Payment summary
+                </p>
+                <div className="mt-3 space-y-3">
+                  <div className="flex items-center justify-between text-[15px]">
+                    <span className="font-bold text-gray-500">Bill amount</span>
+                    <span className="font-black tabular-nums text-gray-900">{formatBDT(preview.amount)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[15px]">
+                    <span className="font-bold text-gray-500">Fee</span>
+                    <span className="font-black tabular-nums text-gray-900">{formatBDT(preview.fee)}</span>
+                  </div>
+                  <div className="h-px bg-slate-200" />
+                  <div className="flex items-center justify-between text-[16px]">
+                    <span className="font-bold text-gray-800">Total</span>
+                    <span className="font-black tabular-nums text-primary-600">{formatBDT(preview.totalDebit)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-auto flex flex-col items-center pt-6">
+                <div className="relative flex w-full items-center justify-center">
+                  <LockClosedIcon
+                    className="absolute left-4 h-5 w-5 text-primary-600 sm:left-12"
+                    strokeWidth={2.5}
+                  />
+                  <input
+                    type="password"
+                    ref={pinInputRef}
+                    value={form.pin}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, pin: e.target.value.replace(/\D/g, "").slice(0, 5) }))
+                    }
+                    placeholder="Enter PIN"
+                    className="w-[200px] border-b-2 border-primary-100 bg-transparent py-2 text-center text-lg font-black tracking-[0.5em] text-gray-900 placeholder:text-[15px] placeholder:font-medium placeholder:tracking-normal placeholder:text-gray-300 transition-colors focus:border-primary-600 focus:outline-none"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && form.pin.length === 5) handleConfirmPin();
+                    }}
+                  />
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleConfirmPin}
+                disabled={submitting || form.pin.length !== 5}
+                className={`mt-8 flex w-full items-center justify-center rounded-2xl py-4 text-[15px] font-black shadow-xl transition-all active:scale-[0.99] disabled:cursor-not-allowed disabled:active:scale-100 ${submitting || form.pin.length === 5
+                    ? "bg-primary-600 text-white shadow-primary-200 hover:bg-primary-700 disabled:hover:bg-primary-600"
+                    : "bg-gray-200 text-gray-400 shadow-none hover:bg-gray-200"
+                  }`}
+              >
+                {submitting ? <LoadingSpinner size="sm" /> : "Confirm payment"}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </TransactionFlowLayout>
   );
 }

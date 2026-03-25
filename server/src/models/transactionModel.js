@@ -33,6 +33,17 @@ const transactionModel = {
   },
 
   /**
+   * Insert bill payment details for a PAY_BILL transaction (within the same DB client/transaction)
+   */
+  async createBillDetails(client, { transactionId, billAccountNumber, billContactNumber }) {
+    await client.query(
+      `INSERT INTO tp.bill_payment_details (transaction_id, bill_account_number, bill_contact_number)
+       VALUES ($1, $2, $3)`,
+      [transactionId, billAccountNumber, billContactNumber]
+    );
+  },
+
+  /**
    * Find transaction by reference (public receipt lookup)
    */
   async findByRef(txRef) {
@@ -41,13 +52,15 @@ const transactionModel = {
               sp.full_name AS sender_name, sp.phone_number AS sender_phone,
               sp.profile_picture_url AS sender_profile_picture_url,
               rp.full_name AS receiver_name, rp.phone_number AS receiver_phone,
-              rp.profile_picture_url AS receiver_profile_picture_url
+              rp.profile_picture_url AS receiver_profile_picture_url,
+              bpd.bill_account_number, bpd.bill_contact_number
        FROM tp.transactions t
        JOIN tp.transaction_types tt ON t.type_id = tt.type_id
        JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
        JOIN tp.profiles sp ON sw.profile_id = sp.profile_id
        JOIN tp.wallets rw ON t.receiver_wallet_id = rw.wallet_id
        JOIN tp.profiles rp ON rw.profile_id = rp.profile_id
+       LEFT JOIN tp.bill_payment_details bpd ON t.transaction_id = bpd.transaction_id
        WHERE t.transaction_ref = $1`,
       [txRef]
     );
@@ -65,13 +78,15 @@ const transactionModel = {
               sp.profile_picture_url AS sender_profile_picture_url,
               rw.profile_id AS receiver_profile_id,
               rp.full_name AS receiver_name, rp.phone_number AS receiver_phone,
-              rp.profile_picture_url AS receiver_profile_picture_url
+              rp.profile_picture_url AS receiver_profile_picture_url,
+              bpd.bill_account_number, bpd.bill_contact_number
        FROM tp.transactions t
        JOIN tp.transaction_types tt ON t.type_id = tt.type_id
        JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
        JOIN tp.profiles sp ON sw.profile_id = sp.profile_id
        JOIN tp.wallets rw ON t.receiver_wallet_id = rw.wallet_id
        JOIN tp.profiles rp ON rw.profile_id = rp.profile_id
+       LEFT JOIN tp.bill_payment_details bpd ON t.transaction_id = bpd.transaction_id
        WHERE t.transaction_id = $1
          AND (sw.profile_id = $2 OR rw.profile_id = $2)`,
       [transactionId, profileId]

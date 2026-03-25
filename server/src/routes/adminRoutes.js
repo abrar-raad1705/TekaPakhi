@@ -6,6 +6,8 @@ import {
   updateStatusSchema,
   createProfileSchema,
   loadWalletSchema,
+  updateWalletLimitSchema,
+  pinResetGrantSchema,
   updateTxTypeSchema,
   upsertLimitSchema,
   upsertCommissionSchema,
@@ -24,6 +26,16 @@ router.get('/users', adminController.listUsers);
 router.post('/users', validate(createProfileSchema), adminController.createProfile);
 router.get('/users/:id', adminController.getUserDetail);
 router.patch('/users/:id/status', validate(updateStatusSchema), adminController.updateUserStatus);
+router.patch(
+  '/users/:id/wallet-limit',
+  validate(updateWalletLimitSchema),
+  adminController.updateWalletLimit,
+);
+router.patch(
+  '/users/:id/pin-reset-grant',
+  validate(pinResetGrantSchema),
+  adminController.setPinResetGrant,
+);
 router.post('/users/:id/load-wallet', validate(loadWalletSchema), adminController.loadWallet);
 
 // Transaction management

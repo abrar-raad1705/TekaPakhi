@@ -86,11 +86,12 @@ const profileController = {
     try {
       const result = await pool.query(
         `SELECT p.profile_id, p.full_name, p.phone_number, p.profile_picture_url,
-                b.biller_code, b.service_name, b.category, b.status
+                b.service_name, b.biller_type, b.sender_charge_flat,
+                b.sender_charge_percent, b.status
          FROM tp.biller_profiles b
          JOIN tp.profiles p ON b.profile_id = p.profile_id
          WHERE b.status = 'ACTIVE'
-         ORDER BY b.category, b.service_name`
+         ORDER BY b.biller_type, b.service_name`
       );
       res.json({ success: true, data: result.rows });
     } catch (error) {

@@ -6,7 +6,7 @@ import AppError from "../utils/AppError.js";
 import profileModel from "../models/profileModel.js";
 import otpService from "./otpService.js";
 import { generateAgentCode, generateMerchantCode } from "../utils/helpers.js";
-import { PROFILE_TYPES } from "../utils/constants.js";
+import { PROFILE_TYPES, PIN_RESET_RESTRICTED_TYPE_NAMES } from "../utils/constants.js";
 
 const SALT_ROUNDS = 12;
 
@@ -196,14 +196,18 @@ const authService = {
 
     let isPhoneVerified = profile.is_phone_verified;
     let requiresPinSetup = false;
-    if (profile.type_name === "DISTRIBUTOR") {
+    if (profile.type_name === "DISTRIBUTOR" || profile.type_name === "BILLER") {
       await pool.query(
         `UPDATE tp.profiles SET is_phone_verified = TRUE WHERE profile_id = $1`,
         [profile.profile_id],
       );
       isPhoneVerified = true;
+      const subtypeTable =
+        profile.type_name === "DISTRIBUTOR"
+          ? "distributor_profiles"
+          : "biller_profiles";
       const dp = await pool.query(
-        `SELECT pending_pin_setup FROM tp.distributor_profiles WHERE profile_id = $1`,
+        `SELECT pending_pin_setup FROM tp.${subtypeTable} WHERE profile_id = $1`,
         [profile.profile_id],
       );
       requiresPinSetup = dp.rows[0]?.pending_pin_setup === true;
@@ -227,15 +231,25 @@ const authService = {
   },
 
   /**
-   * Distributor first login: replace temporary PIN with a permanent PIN (mandatory once).
+   * Distributor/Biller first login: replace temporary PIN with a permanent PIN (mandatory once).
    */
-  async finalizeDistributorPin(profileId, newPin) {
+  async finalizeAccountPin(profileId, newPin) {
     const profile = await profileModel.findById(profileId);
-    if (!profile || profile.type_name !== "DISTRIBUTOR") {
-      throw new AppError("This action is only for distributor accounts.", 403);
+    if (
+      !profile ||
+      (profile.type_name !== "DISTRIBUTOR" && profile.type_name !== "BILLER")
+    ) {
+      throw new AppError(
+        "This action is only for distributor or biller accounts.",
+        403,
+      );
     }
+    const subtypeTable =
+      profile.type_name === "DISTRIBUTOR"
+        ? "distributor_profiles"
+        : "biller_profiles";
     const r = await pool.query(
-      `SELECT pending_pin_setup FROM tp.distributor_profiles WHERE profile_id = $1`,
+      `SELECT pending_pin_setup FROM tp.${subtypeTable} WHERE profile_id = $1`,
       [profileId],
     );
     if (!r.rows[0]?.pending_pin_setup) {
@@ -244,7 +258,7 @@ const authService = {
     const pinHash = await bcrypt.hash(newPin, SALT_ROUNDS);
     await profileModel.updatePin(profileId, pinHash);
     await pool.query(
-      `UPDATE tp.distributor_profiles SET pending_pin_setup = FALSE WHERE profile_id = $1`,
+      `UPDATE tp.${subtypeTable} SET pending_pin_setup = FALSE WHERE profile_id = $1`,
       [profileId],
     );
     return { message: "Your PIN has been set. You can now use the app." };
@@ -281,9 +295,13 @@ const authService = {
       if (!profile) {
         return { message: "OTP sent successfully." };
       }
-      if (purpose === "RESET_PIN" && profile.type_name === "DISTRIBUTOR") {
+      if (
+        purpose === "RESET_PIN" &&
+        PIN_RESET_RESTRICTED_TYPE_NAMES.includes(profile.type_name) &&
+        !profile.pin_reset_granted
+      ) {
         throw new AppError(
-          "Distributor numbers are not eligible for Forgot PIN. Please contact admin.",
+          "This number is not eligible for Forgot PIN. Please contact admin.",
           403,
         );
       }
@@ -307,12 +325,26 @@ const authService = {
       throw new AppError("Profile not found.", 404);
     }
 
+    if (
+      PIN_RESET_RESTRICTED_TYPE_NAMES.includes(profile.type_name) &&
+      !profile.pin_reset_granted
+    ) {
+      throw new AppError(
+        "PIN reset is not authorized. Please contact admin.",
+        403,
+      );
+    }
+
     // Hash new PIN and update
     const pinHash = await bcrypt.hash(newPin, SALT_ROUNDS);
     await profileModel.updatePin(profile.profile_id, pinHash);
 
     // Reset failed attempts and unlock
     await profileModel.resetFailedAttempts(profile.profile_id);
+
+    if (PIN_RESET_RESTRICTED_TYPE_NAMES.includes(profile.type_name)) {
+      await profileModel.setPinResetGranted(profile.profile_id, false);
+    }
 
     return { message: "PIN reset successful. Please login with your new PIN." };
   },

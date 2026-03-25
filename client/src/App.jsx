@@ -11,13 +11,13 @@ import VerifyPhonePage from './pages/auth/VerifyPhonePage';
 import ForgotPinPage from './pages/auth/ForgotPinPage';
 import ResetPinPage from './pages/auth/ResetPinPage';
 import ChangePinPage from './pages/auth/ChangePinPage';
+import AccountSetupPinPage from './pages/auth/AccountSetupPinPage';
 
 // Role-specific dashboards
 import DashboardPage from './pages/dashboard/DashboardPage';
 import AgentDashboardPage from './pages/agent/AgentDashboardPage';
 import MerchantDashboardPage from './pages/merchant/MerchantDashboardPage';
 import DistributorDashboardPage from './pages/distributor/DistributorDashboardPage';
-import DistributorSetupPinPage from './pages/distributor/DistributorSetupPinPage';
 import BillerDashboardPage from './pages/biller/BillerDashboardPage';
 
 // Shared pages
@@ -43,6 +43,7 @@ import UserDetailPage from './pages/admin/UserDetailPage';
 import TransactionMonitorPage from './pages/admin/TransactionMonitorPage';
 import ConfigPage from './pages/admin/ConfigPage';
 import ReportsPage from './pages/admin/ReportsPage';
+import DistributorLoadPage from './pages/admin/DistributorLoadPage';
 
 export default function App() {
   const { isAuthenticated, user, getHomeRoute } = useAuth();
@@ -69,10 +70,11 @@ export default function App() {
         <Route path="/merchant" element={<PrivateRoute allowedRoles={['MERCHANT']}><MerchantDashboardPage /></PrivateRoute>} />
 
         {/* Distributor: mandatory PIN setup after first login (temp PIN) */}
-        <Route path="/distributor/setup-pin" element={<PrivateRoute allowedRoles={['DISTRIBUTOR']}><DistributorSetupPinPage /></PrivateRoute>} />
+        <Route path="/distributor/setup-pin" element={<PrivateRoute allowedRoles={['DISTRIBUTOR']}><AccountSetupPinPage /></PrivateRoute>} />
         <Route path="/distributor" element={<PrivateRoute allowedRoles={['DISTRIBUTOR']}><DistributorDashboardPage /></PrivateRoute>} />
 
-        {/* Biller dashboard */}
+        {/* Biller: mandatory PIN setup after first login (temp PIN) */}
+        <Route path="/biller/setup-pin" element={<PrivateRoute allowedRoles={['BILLER']}><AccountSetupPinPage /></PrivateRoute>} />
         <Route path="/biller" element={<PrivateRoute allowedRoles={['BILLER']}><BillerDashboardPage /></PrivateRoute>} />
 
         {/* Shared protected routes (all roles) */}
@@ -96,6 +98,7 @@ export default function App() {
         <Route path="/admin/users" element={<AdminRoute><UserManagementPage /></AdminRoute>} />
         <Route path="/admin/users/:id" element={<AdminRoute><UserDetailPage /></AdminRoute>} />
         <Route path="/admin/transactions" element={<AdminRoute><TransactionMonitorPage /></AdminRoute>} />
+        <Route path="/admin/load-emoney" element={<AdminRoute><DistributorLoadPage /></AdminRoute>} />
         <Route path="/admin/config" element={<AdminRoute><ConfigPage /></AdminRoute>} />
         <Route path="/admin/reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
 

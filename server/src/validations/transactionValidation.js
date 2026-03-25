@@ -18,6 +18,8 @@ export const executeTransactionSchema = z.object({
     .max(255, 'Note must be at most 255 characters')
     .optional()
     .nullable(),
+  billAccountNumber: z.string().max(50).optional().nullable(),
+  billContactNumber: z.string().regex(/^01[3-9][0-9]{8}$/, 'Invalid contact number').optional().nullable(),
 });
 
 export const previewTransactionSchema = z.object({

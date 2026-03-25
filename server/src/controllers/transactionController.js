@@ -90,6 +90,8 @@ const transactionController = {
         typeCode: 'PAY_BILL',
         pin: req.validatedBody.pin,
         note: req.validatedBody.note,
+        billAccountNumber: req.validatedBody.billAccountNumber,
+        billContactNumber: req.validatedBody.billContactNumber,
       });
       res.status(200).json({ success: true, data: result });
     } catch (error) {

@@ -30,7 +30,10 @@ export default function ForgotPinPage() {
       });
     } catch (error) {
       const message = error.response?.data?.message || "Failed to send OTP";
-      if (message.toLowerCase().includes("distributor")) {
+      if (
+        message.toLowerCase().includes("eligible") ||
+        message.toLowerCase().includes("contact admin")
+      ) {
         setErrors({ phoneNumber: message });
       } else {
         setGlobalError({ message });

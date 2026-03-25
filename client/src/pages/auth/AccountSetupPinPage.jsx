@@ -7,14 +7,22 @@ import LoadingSpinner from "../../components/common/LoadingSpinner";
 import { FieldError, GlobalError } from "../../components/common/FormError";
 import AuthFooter from "../../components/auth/AuthFooter";
 
-export default function DistributorSetupPinPage() {
+const ROLE_CONFIG = {
+  DISTRIBUTOR: { subtitle: "Create a 5-digit PIN to secure your account and transactions." },
+  BILLER: { subtitle: "Create a 5-digit PIN to secure your biller account." },
+};
+
+export default function AccountSetupPinPage() {
   const navigate = useNavigate();
-  const { setUser } = useAuth();
+  const { user, setUser } = useAuth();
   const [securityPin, setSecurityPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [errors, setErrors] = useState({});
   const [globalError, setGlobalError] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  const config = ROLE_CONFIG[user?.typeName] ?? ROLE_CONFIG.DISTRIBUTOR;
+  const homeRoute = user?.typeName === "BILLER" ? "/biller" : "/distributor";
 
   const validate = () => {
     const next = {};
@@ -31,7 +39,7 @@ export default function DistributorSetupPinPage() {
     if (!validate()) return;
     setLoading(true);
     try {
-      await authApi.finalizeDistributorPin({ newPin: securityPin, confirmPin });
+      await authApi.finalizeAccountPin({ newPin: securityPin, confirmPin });
       const stored = localStorage.getItem("user");
       if (stored) {
         const u = JSON.parse(stored);
@@ -39,7 +47,7 @@ export default function DistributorSetupPinPage() {
         localStorage.setItem("user", JSON.stringify(next));
         setUser(next);
       }
-      navigate("/distributor", { replace: true });
+      navigate(homeRoute, { replace: true });
     } catch (err) {
       setGlobalError({
         message:
@@ -58,7 +66,7 @@ export default function DistributorSetupPinPage() {
             Setup your PIN
           </h1>
           <p className="mt-3 text-[15px] font-medium text-gray-500">
-            Create a 5-digit PIN to secure your account and transactions.
+            {config.subtitle}
           </p>
         </div>
 

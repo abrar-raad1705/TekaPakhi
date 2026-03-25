@@ -103,6 +103,20 @@ const walletModel = {
     );
     return result.rows[0] || null;
   },
+
+  /**
+   * Admin: set max_balance for a normal user wallet (role IS NULL).
+   */
+  async updateMaxBalanceByProfileId(profileId, maxBalance) {
+    const result = await pool.query(
+      `UPDATE tp.wallets
+       SET max_balance = $1
+       WHERE profile_id = $2 AND role IS NULL
+       RETURNING *`,
+      [maxBalance, profileId],
+    );
+    return result.rows[0] || null;
+  },
 };
 
 export default walletModel;

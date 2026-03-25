@@ -1,5 +1,10 @@
 import { z } from 'zod';
 
+const BILLER_TYPES = [
+  'Electricity', 'Gas', 'Water', 'Internet', 'Telephone',
+  'TV', 'Credit Card', 'Govt. Fees', 'Insurance', 'Tracker', 'Others',
+];
+
 export const userListQuerySchema = z.object({
   page: z.number({ coerce: true }).int().positive().optional().default(1),
   limit: z.number({ coerce: true }).int().positive().max(100).optional().default(20),
@@ -10,6 +15,10 @@ export const userListQuerySchema = z.object({
 
 export const updateStatusSchema = z.object({
   status: z.enum(['ACTIVE', 'SUSPENDED', 'BLOCKED']),
+});
+
+export const pinResetGrantSchema = z.object({
+  granted: z.boolean(),
 });
 
 export const transactionListQuerySchema = z.object({
@@ -63,23 +72,21 @@ export const createProfileSchema = z
     email: z.union([z.string().email().max(100), z.literal('')]).optional(),
     additionalInfo: z.string().max(2000).optional(),
     areas: z.array(areaPairSchema).optional(),
-    billerCode: z.string().min(1).max(20).optional(),
     serviceName: z.string().min(1).max(100).optional(),
-    category: z.string().max(50).optional(),
+    billerType: z.enum(BILLER_TYPES).optional(),
+    senderChargeFlat: z.number({ coerce: true }).min(0).optional().default(0),
+    senderChargePercent: z.number({ coerce: true }).min(0).max(100).optional().default(0),
   })
   .superRefine((data, ctx) => {
     if (data.accountType === 'BILLER') {
-      if (!data.fullName?.trim()) {
-        ctx.addIssue({ code: 'custom', path: ['fullName'], message: 'Full name is required' });
-      }
-      if (!data.securityPin) {
-        ctx.addIssue({ code: 'custom', path: ['securityPin'], message: 'PIN is required' });
-      }
-      if (!data.billerCode) {
-        ctx.addIssue({ code: 'custom', path: ['billerCode'], message: 'Biller code is required' });
+      if (!data.contactPersonName?.trim()) {
+        ctx.addIssue({ code: 'custom', path: ['contactPersonName'], message: 'Contact person name is required' });
       }
       if (!data.serviceName) {
         ctx.addIssue({ code: 'custom', path: ['serviceName'], message: 'Service name is required' });
+      }
+      if (!data.billerType) {
+        ctx.addIssue({ code: 'custom', path: ['billerType'], message: 'Biller type is required' });
       }
     }
     if (data.accountType === 'DISTRIBUTOR') {
@@ -97,6 +104,13 @@ export const createProfileSchema = z
 
 export const loadWalletSchema = z.object({
   amount: z.number({ coerce: true }).positive('Amount must be positive'),
+});
+
+export const updateWalletLimitSchema = z.object({
+  maxBalance: z
+    .number({ coerce: true })
+    .positive('Limit must be positive')
+    .max(999999999999.99, 'Limit too large'),
 });
 
 export const reportQuerySchema = z.object({

@@ -5,30 +5,46 @@ import { formatBDT } from '../../utils/formatCurrency';
 import { ChevronDownIcon, ClipboardDocumentIcon, ClipboardDocumentCheckIcon } from '@heroicons/react/24/outline';
 import AdminLayout from '../../components/admin/AdminLayout';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import ConfirmationModal from '../../components/common/ConfirmationModal';
 import { toast } from 'sonner';
 
-function CopyableRef({ value }) {
+function CopyableTrxId({ value, inline = false }) {
   const [copied, setCopied] = useState(false);
 
-  const handleCopy = () => {
+  const handleCopy = (e) => {
+    e.stopPropagation();
     navigator.clipboard.writeText(value);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-    toast.success('Reference copied to clipboard', { duration: 1500 });
+    toast.success('TrxID copied', { duration: 1500 });
   };
 
-  return (
-    <div
-      onClick={handleCopy}
-      className="group flex cursor-pointer items-center gap-1.5 font-mono text-[10px] text-gray-500 hover:text-primary-600"
-      title="Click to copy"
-    >
-      <span className="truncate">{value}</span>
+  const base =
+    'group cursor-pointer items-center font-mono text-xs font-medium text-gray-800 hover:text-primary-700 transition-colors';
+  const inner = (
+    <>
+      <span className={`truncate ${inline ? 'max-w-[160px]' : 'max-w-[140px]'}`}>{value}</span>
       {copied ? (
-        <ClipboardDocumentCheckIcon className="h-3.5 w-3.5 text-green-500" />
+        <ClipboardDocumentCheckIcon className={`text-green-600 shrink-0 ${inline ? 'h-3.5 w-3.5' : 'h-4 w-4'}`} />
       ) : (
-        <ClipboardDocumentIcon className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
+        <ClipboardDocumentIcon
+          className={`text-gray-400 opacity-70 group-hover:opacity-100 group-hover:text-primary-600 transition-opacity shrink-0 ${inline ? 'h-3.5 w-3.5' : 'h-4 w-4'}`}
+        />
       )}
+    </>
+  );
+
+  if (inline) {
+    return (
+      <span onClick={handleCopy} className={`${base} inline-flex gap-1 align-middle`} title="Click to copy TrxID">
+        {inner}
+      </span>
+    );
+  }
+
+  return (
+    <div onClick={handleCopy} className={`${base} flex gap-1.5 items-center`} title="Click to copy TrxID">
+      {inner}
     </div>
   );
 }
@@ -51,18 +67,27 @@ const txStatuses = [
   { id: 'REVERSED', label: 'Reversed' },
 ];
 
-const statusColor = {
-  COMPLETED: 'bg-green-100 text-green-700',
-  PENDING: 'bg-yellow-100 text-yellow-700',
-  FAILED: 'bg-red-100 text-red-700',
-  REVERSED: 'bg-purple-100 text-purple-700',
+const TX_STATUS_STYLE = {
+  COMPLETED: 'bg-green-50 text-green-700 border border-green-100',
+  PENDING:   'bg-amber-50 text-amber-700 border border-amber-100',
+  FAILED:    'bg-red-50 text-red-600 border border-red-100',
+  REVERSED:  'border border-[#E2136E]/15 bg-[#E2136E]/10 text-[#E2136E]',
 };
+
+const TX_STATUS_BADGE =
+  'inline-flex min-w-[4.75rem] items-center justify-center rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide';
+
+const REVERSAL_TYPE_CLASS = 'text-[#E2136E]';
 
 export default function TransactionMonitorPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [data, setData] = useState({ transactions: [], total: 0, page: 1, totalPages: 0 });
   const [loading, setLoading] = useState(true);
   const [reversing, setReversing] = useState(null);
+
+  // Reversal confirmation
+  const [modal, setModal] = useState({ isOpen: false, txId: null });
+  const closeModal = () => setModal({ isOpen: false, txId: null });
 
   const [search, setSearch] = useState(searchParams.get('search') || '');
 
@@ -101,8 +126,13 @@ export default function TransactionMonitorPage() {
     updateParams('search', search);
   };
 
-  const handleReverse = async (txId) => {
-    if (!confirm('Are you sure you want to reverse this transaction? This action cannot be undone.')) return;
+  const handleReverse = (txId) => {
+    setModal({ isOpen: true, txId });
+  };
+
+  const confirmReverse = async () => {
+    const txId = modal.txId;
+    closeModal();
     setReversing(txId);
     try {
       await adminApi.reverseTransaction(txId);
@@ -118,115 +148,146 @@ export default function TransactionMonitorPage() {
   return (
     <AdminLayout>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Transaction Monitor</h1>
-        <p className="text-sm text-gray-500">{data.total} total transactions</p>
+        <h1 className="text-2xl font-bold text-gray-900">Transaction monitor</h1>
+        <p className="text-sm text-gray-500 mt-0.5">{data.total.toLocaleString()} total · search by TrxID or phone</p>
       </div>
 
       {/* Filters */}
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row">
         <form onSubmit={handleSearch} className="flex flex-[2] gap-2">
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by ref or phone..."
-            className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            placeholder="Search by TrxID or phone..."
+            className="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/10 shadow-sm"
           />
           <button
             type="submit"
-            className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
+            className="rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 shadow-sm transition-colors"
           >
             Search
           </button>
         </form>
 
-        <div className="relative w-full sm:w-48">
+        <div className="relative w-full sm:w-44">
           <select
             value={typeId}
             onChange={(e) => updateParams('typeId', e.target.value)}
-            className="w-full appearance-none rounded-lg border border-gray-300 bg-white pl-3 pr-8 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            className="w-full appearance-none rounded-xl border border-gray-200 bg-white pl-4 pr-9 py-2.5 text-sm text-gray-700 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/10 shadow-sm"
           >
             {txTypes.map((t) => (
               <option key={t.id} value={t.id}>{t.label}</option>
             ))}
           </select>
-          <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
         </div>
 
-        <div className="relative w-full sm:w-48">
+        <div className="relative w-full sm:w-44">
           <select
             value={status}
             onChange={(e) => updateParams('status', e.target.value)}
-            className="w-full appearance-none rounded-lg border border-gray-300 bg-white pl-3 pr-8 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            className="w-full appearance-none rounded-xl border border-gray-200 bg-white pl-4 pr-9 py-2.5 text-sm text-gray-700 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/10 shadow-sm"
           >
             {txStatuses.map((s) => (
               <option key={s.id} value={s.id}>{s.label}</option>
             ))}
           </select>
-          <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
         </div>
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+      <div className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm">
         {loading ? (
-          <LoadingSpinner size="lg" className="py-12" />
+          <LoadingSpinner size="lg" className="py-16" />
         ) : data.transactions.length === 0 ? (
-          <p className="py-12 text-center text-sm text-gray-500">No transactions found.</p>
+          <p className="py-16 text-center text-sm text-gray-500">No transactions match your filters.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
-                <tr>
-                  <th className="px-4 py-3">Ref</th>
-                  <th className="px-4 py-3">Type</th>
-                  <th className="px-4 py-3">Sender</th>
-                  <th className="px-4 py-3">Receiver</th>
-                  <th className="px-4 py-3 text-right">Amount</th>
-                  <th className="px-4 py-3 text-right">Fee</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Time</th>
-                  <th className="px-4 py-3">Actions</th>
+          <div className="overflow-x-auto px-1">
+            <table className="w-full min-w-[900px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+                    TrxID
+                  </th>
+                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+                    Type
+                  </th>
+                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+                    Sender
+                  </th>
+                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+                    Receiver
+                  </th>
+                  <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+                    Amount
+                  </th>
+                  <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+                    Fee
+                  </th>
+                  <th className="px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+                    Time
+                  </th>
+                  <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {data.transactions.map((tx) => (
-                  <tr key={tx.transaction_id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <CopyableRef value={tx.transaction_ref} />
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">{tx.type_name}</td>
-                    <td className="px-4 py-3">
-                      <p className="text-xs font-medium text-gray-900">{tx.sender_name}</p>
-                      <p className="text-[10px] text-gray-400">{tx.sender_phone}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="text-xs font-medium text-gray-900">{tx.receiver_name}</p>
-                      <p className="text-[10px] text-gray-400">{tx.receiver_phone}</p>
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium text-gray-900">{formatBDT(tx.amount)}</td>
-                    <td className="px-4 py-3 text-right text-gray-500">{formatBDT(tx.fee_amount)}</td>
-                    <td className="px-4 py-3">
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${statusColor[tx.status] || 'bg-gray-100 text-gray-600'}`}>
-                        {tx.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-400">
-                      {new Date(tx.transaction_time).toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3">
-                      {tx.status === 'COMPLETED' && !tx.original_transaction_id && (
-                        <button
-                          disabled={reversing === tx.transaction_id}
-                          onClick={() => handleReverse(tx.transaction_id)}
-                          className="rounded-lg border border-red-200 px-2.5 py-1 text-[10px] font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
-                        >
-                          {reversing === tx.transaction_id ? '...' : 'Reverse'}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {data.transactions.map((tx) => {
+                  const isReversal = !!tx.original_transaction_id;
+                  const displayType = isReversal ? "Reversal" : tx.type_name.replace(/_/g, " ");
+                  return (
+                    <tr key={tx.transaction_id} className="bg-white odd:bg-gray-50/60 hover:bg-primary-50/40 transition-colors">
+                      <td className="px-4 py-3.5 align-top">
+                        <CopyableTrxId value={tx.transaction_ref} />
+                      </td>
+                      <td className="px-4 py-3.5 align-top">
+                        <span className={`text-sm font-semibold ${isReversal ? REVERSAL_TYPE_CLASS : "text-gray-900"}`}>
+                          {displayType}
+                        </span>
+                        {isReversal && tx.original_transaction_ref && (
+                          <p className="mt-0.5 text-xs text-gray-600 leading-snug">
+                            of: <CopyableTrxId value={tx.original_transaction_ref} inline />
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-4 py-3.5 align-top">
+                        <p className="text-sm font-semibold text-gray-900">{tx.sender_name}</p>
+                        <p className="text-xs text-gray-500">{tx.sender_phone}</p>
+                      </td>
+                      <td className="px-4 py-3.5 align-top">
+                        <p className="text-sm font-semibold text-gray-900">{tx.receiver_name}</p>
+                        <p className="text-xs text-gray-500">{tx.receiver_phone}</p>
+                      </td>
+                      <td className="px-4 py-3.5 text-right align-top font-semibold tabular-nums text-gray-900">{formatBDT(tx.amount)}</td>
+                      <td className="px-4 py-3.5 text-right align-top text-xs font-medium tabular-nums text-gray-600">{formatBDT(tx.fee_amount)}</td>
+                      <td className="px-4 py-3.5 text-center align-top">
+                        <span className={`${TX_STATUS_BADGE} ${TX_STATUS_STYLE[tx.status] || "bg-gray-100 text-gray-700 border border-gray-200"}`}>
+                          {tx.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 align-top text-xs font-medium text-gray-800 tabular-nums whitespace-nowrap">
+                        {new Date(tx.transaction_time).toLocaleString("en-BD", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </td>
+                      <td className="px-4 py-3.5 text-right align-top">
+                        {tx.status === "COMPLETED" && !tx.original_transaction_id && (
+                          <button
+                            disabled={reversing === tx.transaction_id}
+                            onClick={() => handleReverse(tx.transaction_id)}
+                            className="rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                          >
+                            {reversing === tx.transaction_id ? "…" : "Reverse"}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -234,22 +295,22 @@ export default function TransactionMonitorPage() {
 
         {/* Pagination */}
         {data.totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-gray-200 px-4 py-3">
-            <p className="text-xs text-gray-500">
-              Page {data.page} of {data.totalPages} ({data.total} results)
+          <div className="flex items-center justify-between border-t border-gray-100 bg-gray-50/80 px-5 py-3">
+            <p className="text-xs text-gray-500 font-medium">
+              Page <span className="text-gray-800 font-semibold">{data.page}</span> of {data.totalPages} · {data.total.toLocaleString()} results
             </p>
             <div className="flex gap-2">
               <button
                 disabled={data.page <= 1}
                 onClick={() => updateParams('page', String(data.page - 1))}
-                className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors shadow-sm"
               >
                 Previous
               </button>
               <button
                 disabled={data.page >= data.totalPages}
                 onClick={() => updateParams('page', String(data.page + 1))}
-                className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors shadow-sm"
               >
                 Next
               </button>
@@ -259,6 +320,17 @@ export default function TransactionMonitorPage() {
       </div>
 
 
+      <ConfirmationModal
+        isOpen={modal.isOpen}
+        title="Confirm Transaction Reversal"
+        message="Are you sure you want to reverse this transaction?
+        
+        This will create a NEW transaction moving money back and update the original status to REVERSED. This action cannot be undone."
+        confirmLabel="Reverse Now"
+        isDanger={true}
+        onConfirm={confirmReverse}
+        onCancel={closeModal}
+      />
     </AdminLayout>
   );
 }

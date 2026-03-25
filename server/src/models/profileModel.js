@@ -244,14 +244,26 @@ const profileModel = {
   },
 
   /**
-   * Create biller subtype profile (ACTIVE — admin-created)
+   * Create biller subtype profile (ACTIVE — admin-created, temp PIN)
    */
-  async createBillerSubtype(profileId, { billerCode, serviceName, category }) {
-    const result = await pool.query(
-      `INSERT INTO tp.biller_profiles (profile_id, biller_code, service_name, category, status)
-       VALUES ($1, $2, $3, $4, 'ACTIVE')
+  async createBillerSubtype(
+    profileId,
+    { serviceName, billerType, senderChargeFlat, senderChargePercent },
+    client = null,
+  ) {
+    const db = client || pool;
+    const result = await db.query(
+      `INSERT INTO tp.biller_profiles
+         (profile_id, service_name, biller_type, sender_charge_flat, sender_charge_percent, status, pending_pin_setup)
+       VALUES ($1, $2, $3::tp.biller_type, $4, $5, 'ACTIVE', TRUE)
        RETURNING *`,
-      [profileId, billerCode, serviceName, category || null],
+      [
+        profileId,
+        serviceName,
+        billerType || 'Others',
+        senderChargeFlat || 0,
+        senderChargePercent || 0,
+      ],
     );
     return result.rows[0];
   },
@@ -319,6 +331,18 @@ const profileModel = {
       `UPDATE tp.profiles SET security_pin_hash = $1 WHERE profile_id = $2`,
       [pinHash, profileId],
     );
+  },
+
+  /**
+   * Admin: allow/revoke one-time Forgot PIN for agent, distributor, biller.
+   */
+  async setPinResetGranted(profileId, granted) {
+    const result = await pool.query(
+      `UPDATE tp.profiles SET pin_reset_granted = $2 WHERE profile_id = $1
+       RETURNING profile_id, pin_reset_granted`,
+      [profileId, granted],
+    );
+    return result.rows[0] || null;
   },
 
   /**

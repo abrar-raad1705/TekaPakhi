@@ -90,7 +90,7 @@ async function assertSenderCanTransact(sender) {
 }
 
 const transactionService = {
-  async execute({ senderProfileId, receiverPhone, amount, typeCode, pin, note }) {
+  async execute({ senderProfileId, receiverPhone, amount, typeCode, pin, note, billAccountNumber = null, billContactNumber = null }) {
     // Resolve transaction type
     const txType = await transactionTypeModel.findByName(typeCode);
     if (!txType) {
@@ -139,6 +139,16 @@ const transactionService = {
       if (typeCode === 'SEND_MONEY') {
         const monthlyTotal = await transactionModel.getMonthlyTotalForUpdate(client, sender.profile_id, txType.type_id);
         fee = feeService.calculateSendMoneyFee(amount, monthlyTotal);
+      } else if (typeCode === 'PAY_BILL') {
+        // Use biller-specific charges instead of system-wide fee
+        const billerRes = await client.query(
+          `SELECT sender_charge_flat, sender_charge_percent FROM tp.biller_profiles WHERE profile_id = $1`,
+          [receiver.profile_id],
+        );
+        const biller = billerRes.rows[0];
+        const flat = parseFloat(biller?.sender_charge_flat) || 0;
+        const pct = parseFloat(biller?.sender_charge_percent) || 0;
+        fee = Math.round((flat + (amount * pct) / 100) * 100) / 100;
       } else {
         fee = feeService.calculate(txType, amount);
       }
@@ -234,6 +244,15 @@ const transactionService = {
         throw e;
       }
 
+      // If PAY_BILL, write account/contact to the dedicated details table
+      if (txType.type_name === 'PAY_BILL' && billAccountNumber && billContactNumber) {
+        await transactionModel.createBillDetails(client, {
+          transactionId: transaction.transaction_id,
+          billAccountNumber,
+          billContactNumber,
+        });
+      }
+
       await ledgerService.recordMainTransactionLedger(client, transaction.transaction_id, {
         senderWalletId: senderWallet.wallet_id,
         receiverWalletId: receiverWallet.wallet_id,
@@ -279,6 +298,8 @@ const transactionService = {
           phone: receiver.phone_number,
         },
         note: note || null,
+        billAccountNumber: billAccountNumber || null,
+        billContactNumber: billContactNumber || null,
         status: 'COMPLETED',
         timestamp: transaction.transaction_time,
       };
@@ -324,11 +345,21 @@ const transactionService = {
 
     await assertSenderCanTransact(sender);
 
-    // Tiered fee for SEND_MONEY, standard for others
+    // Tiered fee for SEND_MONEY, biller-specific for PAY_BILL, standard for others
     let fee;
     if (typeCode === 'SEND_MONEY') {
       const monthlyTotal = await transactionModel.getMonthlyTotal(sender.profile_id, txType.type_id);
       fee = feeService.calculateSendMoneyFee(amount, monthlyTotal);
+    } else if (typeCode === 'PAY_BILL') {
+      // Use biller-specific charges instead of system-wide fee
+      const billerRes = await pool.query(
+        `SELECT sender_charge_flat, sender_charge_percent FROM tp.biller_profiles WHERE profile_id = $1`,
+        [receiver.profile_id],
+      );
+      const biller = billerRes.rows[0];
+      const flat = parseFloat(biller?.sender_charge_flat) || 0;
+      const pct = parseFloat(biller?.sender_charge_percent) || 0;
+      fee = Math.round((flat + (amount * pct) / 100) * 100) / 100;
     } else {
       fee = feeService.calculate(txType, amount);
     }
@@ -381,6 +412,8 @@ const transactionService = {
       sender: { name: tx.sender_name, phone: tx.sender_phone },
       receiver: { name: tx.receiver_name, phone: tx.receiver_phone },
       note: tx.user_note || null,
+      billAccountNumber: tx.bill_account_number || null,
+      billContactNumber: tx.bill_contact_number || null,
       timestamp: tx.transaction_time,
       status: tx.status,
     };

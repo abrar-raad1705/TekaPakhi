@@ -47,6 +47,10 @@ export const adminApi = {
   getUserDetail: (id) => adminApiClient.get(`/admin/users/${id}`),
   updateUserStatus: (id, status) => adminApiClient.patch(`/admin/users/${id}/status`, { status }),
   loadWallet: (id, amount) => adminApiClient.post(`/admin/users/${id}/load-wallet`, { amount }),
+  updateWalletLimit: (id, maxBalance) =>
+    adminApiClient.patch(`/admin/users/${id}/wallet-limit`, { maxBalance }),
+  setPinResetGrant: (id, granted) =>
+    adminApiClient.patch(`/admin/users/${id}/pin-reset-grant`, { granted }),
 
   getTransactions: (params) => adminApiClient.get('/admin/transactions', { params }),
   reverseTransaction: (id) => adminApiClient.post(`/admin/transactions/${id}/reverse`),

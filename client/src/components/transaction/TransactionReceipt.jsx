@@ -77,6 +77,7 @@ export default function TransactionReceipt({ receipt, onDone }) {
 
   const { setSiteHeaderOverrides, resetSiteHeaderOverrides } = useSiteHeader();
   const label = typeLabels[receipt.type] || receipt.type;
+  const hideBillerPhoneOnReceipt = receipt.type === 'PAY_BILL';
 
   useEffect(() => {
     setSiteHeaderOverrides({
@@ -216,7 +217,9 @@ export default function TransactionReceipt({ receipt, onDone }) {
                 <div className="flex flex-col justify-center p-8 sm:p-10">
                   <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Recipient</p>
                   <p className="mt-2 text-xl font-bold text-slate-900">{receipt.receiver?.name}</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-500">{formatPhone(receipt.receiver?.phone)}</p>
+                  {!hideBillerPhoneOnReceipt && receipt.receiver?.phone ? (
+                    <p className="mt-1 text-sm font-semibold text-slate-500">{formatPhone(receipt.receiver?.phone)}</p>
+                  ) : null}
                   <div className="mt-6 space-y-2 border-t border-slate-100 pt-6 text-sm">
                     <div className="flex justify-between gap-4">
                       <span className="font-medium text-slate-500">Fee</span>
@@ -237,24 +240,40 @@ export default function TransactionReceipt({ receipt, onDone }) {
                     <p className="mt-1 font-bold text-slate-900">{receipt.sender?.name}</p>
                     <p className="text-sm text-slate-500">{formatPhone(receipt.sender?.phone)}</p>
                   </div>
-                  {receipt.note && (
-                    <div className="min-w-0 w-full sm:ml-auto sm:w-1/2 sm:max-w-[50%]">
-                      <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 text-right">
-                        Note
-                      </p>
-                      <p
-                        className="mt-1 text-right text-sm font-medium leading-relaxed text-slate-600 [overflow-wrap:anywhere] break-words"
-                        style={{ wordBreak: 'break-word' }}
-                      >
-                        <span className="text-slate-400">&ldquo;</span>
-                        {receipt.note}
-                        <span className="text-slate-400">&rdquo;</span>
-                      </p>
+                  {(receipt.note || receipt.billAccountNumber || receipt.billContactNumber) && (
+                    <div className="min-w-0 w-full sm:ml-auto sm:w-1/2 sm:max-w-[50%] flex flex-col items-end gap-3">
+                      {receipt.billAccountNumber && (
+                        <div className="text-right">
+                          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Account No.</p>
+                          <p className="mt-1 font-bold text-slate-900">{receipt.billAccountNumber}</p>
+                        </div>
+                      )}
+                      {receipt.billContactNumber && (
+                        <div className="text-right">
+                          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Bill Contact</p>
+                          <p className="mt-1 font-semibold text-slate-500">{formatPhone(receipt.billContactNumber)}</p>
+                        </div>
+                      )}
+                      {receipt.note && (
+                        <div className="text-right">
+                          <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
+                            Note
+                          </p>
+                          <p
+                            className="mt-1 text-right text-sm font-medium leading-relaxed text-slate-600 [overflow-wrap:anywhere] break-words"
+                            style={{ wordBreak: 'break-word' }}
+                          >
+                            <span className="text-slate-400">&ldquo;</span>
+                            {receipt.note}
+                            <span className="text-slate-400">&rdquo;</span>
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
 
-                {receipt.receiver?.phone && !contactSaved && receipt.type !== 'CASH_IN' && (
+                {receipt.receiver?.phone && !contactSaved && receipt.type !== 'CASH_IN' && receipt.type !== 'PAY_BILL' && (
                   <div className="mt-8 border-t border-slate-100 pt-8">
                     {!showSaveContact ? (
                       <button

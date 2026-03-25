@@ -139,6 +139,8 @@ function buildReceiptHtml(receipt, logoDataUri) {
     <p class="mb-4 m-0 text-[10px] font-bold break-all text-slate-900">${ref}</p>
     <p class="mb-1.5 m-0 text-[7px] font-bold uppercase tracking-[0.12em] text-slate-400">DATE &amp; TIME</p>
     <p class="mb-4 m-0 text-[10px] text-slate-600">${formatWhen(receipt.timestamp)}</p>
+    ${receipt.billAccountNumber ? `<p class="mb-1.5 m-0 text-[7px] font-bold uppercase tracking-[0.12em] text-slate-400">BILL ACCOUNT NO.</p><p class="mb-4 m-0 text-[10px] text-slate-900">${escapeHtml(receipt.billAccountNumber)}</p>` : ''}
+    ${receipt.billContactNumber ? `<p class="mb-1.5 m-0 text-[7px] font-bold uppercase tracking-[0.12em] text-slate-400">BILL CONTACT</p><p class="mb-4 m-0 text-[10px] text-slate-900">${formatPhone(receipt.billContactNumber)}</p>` : ''}
 
     <div class="mb-[22px] rounded-md bg-slate-50 px-5 pt-3.5 pb-4 text-center">
       <p class="mb-2 m-0 text-[8px] font-semibold uppercase tracking-[0.12em] text-slate-500">AMOUNT (BDT)</p>

@@ -115,11 +115,11 @@ const authController = {
   },
 
   /**
-   * POST /api/v1/auth/distributor/finalize-pin (authenticated distributor)
+   * POST /api/v1/auth/distributor/finalize-pin (authenticated distributor/biller)
    */
   async finalizeDistributorPin(req, res, next) {
     try {
-      const result = await authService.finalizeDistributorPin(
+      const result = await authService.finalizeAccountPin(
         req.user.profileId,
         req.validatedBody.newPin
       );

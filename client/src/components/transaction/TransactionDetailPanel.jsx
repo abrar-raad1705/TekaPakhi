@@ -46,6 +46,7 @@ export default function TransactionDetailPanel({ tx, user, onClose }) {
   const amountNum = parseFloat(tx.amount) || 0;
   const feeNum = parseFloat(tx.fee_amount) || 0;
 
+  const hideCounterpartyPhone = tx.type_name === "PAY_BILL";
   const counterparty = isSender
     ? { name: tx.receiver_name, phone: formatPhone(tx.receiver_phone) }
     : { name: tx.sender_name, phone: formatPhone(tx.sender_phone) };
@@ -162,9 +163,11 @@ export default function TransactionDetailPanel({ tx, user, onClose }) {
             <p className="mt-2 text-base font-bold text-slate-800">
               {counterparty.name}
             </p>
-            <p className="mt-1 text-[15px] font-medium text-slate-700">
-              {counterparty.phone}
-            </p>
+            {!hideCounterpartyPhone ? (
+              <p className="mt-1 text-[15px] font-medium text-slate-700">
+                {counterparty.phone}
+              </p>
+            ) : null}
           </GridCell>
           <GridCell borderBottom className="p-4 sm:p-5">
             <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
@@ -220,6 +223,27 @@ export default function TransactionDetailPanel({ tx, user, onClose }) {
               {tx.user_note?.trim() || "—"}
             </p>
           </GridCell>
+
+          {tx.bill_account_number && (
+            <GridCell borderRight className="border-t border-slate-200/80 p-4 sm:p-5">
+              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                Bill Account No.
+              </p>
+              <p className="mt-2 text-[15px] font-bold text-slate-800">
+                {tx.bill_account_number}
+              </p>
+            </GridCell>
+          )}
+          {tx.bill_contact_number && (
+            <GridCell className={`border-t border-slate-200/80 p-4 sm:p-5 ${!tx.bill_account_number ? "col-span-2" : ""}`}>
+              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                Bill Contact
+              </p>
+              <p className="mt-2 text-[15px] font-bold text-slate-800">
+                {formatPhone(tx.bill_contact_number)}
+              </p>
+            </GridCell>
+          )}
         </div>
 
         <div

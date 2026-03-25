@@ -60,6 +60,36 @@ const adminController = {
     }
   },
 
+  async updateWalletLimit(req, res, next) {
+    try {
+      const data = await adminService.updateWalletLimit(
+        req.params.id,
+        req.validatedBody.maxBalance,
+      );
+      res.json({ success: true, data, message: "Wallet limit updated." });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async setPinResetGrant(req, res, next) {
+    try {
+      const data = await adminService.setPinResetGrant(
+        req.params.id,
+        req.validatedBody.granted,
+      );
+      res.json({
+        success: true,
+        data,
+        message: data.pinResetGranted
+          ? "One-time Forgot PIN is allowed for this user."
+          : "Forgot PIN offer revoked.",
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   // Transaction Management
 
   async listTransactions(req, res, next) {

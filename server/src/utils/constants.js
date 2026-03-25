@@ -35,6 +35,9 @@ export const OTP_PURPOSE = {
   RESET_PIN: 'RESET_PIN',
 };
 
+/** Forgot PIN is blocked unless `profiles.pin_reset_granted` is true (one-time; cleared after reset). */
+export const PIN_RESET_RESTRICTED_TYPE_NAMES = ['AGENT', 'DISTRIBUTOR', 'BILLER'];
+
 /** System wallet roles (tp.wallets.role) */
 export const WALLET_ROLES = {
   TREASURY: 'TREASURY',

@@ -9,6 +9,7 @@ export const authApi = {
   resetPin: (data) => api.post('/auth/reset-pin', data),
   changePin: (data) => api.post('/auth/change-pin', data),
   finalizeDistributorPin: (data) => api.post('/auth/distributor/finalize-pin', data),
+  finalizeAccountPin: (data) => api.post('/auth/distributor/finalize-pin', data),
   logout: () => api.post('/auth/logout'),
   checkPhone: (data) => api.post('/auth/check-phone', data),
 };

@@ -26,7 +26,8 @@ CREATE TABLE profiles (
     failed_pin_attempts INTEGER DEFAULT 0,
     locked_until TIMESTAMP WITH TIME ZONE,
     profile_picture_url TEXT DEFAULT NULL,
-    
+    pin_reset_granted BOOLEAN NOT NULL DEFAULT FALSE,
+
     CONSTRAINT check_bd_phone CHECK (phone_number ~ '^01[3-9][0-9]{8}$')
 );
 
@@ -51,9 +52,7 @@ CREATE TABLE distributor_profiles (
 -- Biller Profile
 CREATE TABLE biller_profiles (
     profile_id BIGINT PRIMARY KEY REFERENCES profiles(profile_id) ON DELETE CASCADE,
-    biller_code VARCHAR(20) UNIQUE NOT NULL,
     service_name VARCHAR(100) NOT NULL,
-    category VARCHAR(50),
     status profile_status DEFAULT 'ACTIVE'
 );
 

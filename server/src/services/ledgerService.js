@@ -1,27 +1,6 @@
-import ledgerModel from '../models/ledgerModel.js';
-import walletModel from '../models/walletModel.js';
-import { PROFILE_TYPES, WALLET_ROLES } from '../utils/constants.js';
-
-const TX_LABELS = {
-  SEND_MONEY: 'Send Money',
-  CASH_IN: 'Cash In',
-  CASH_OUT: 'Cash Out',
-  PAYMENT: 'Merchant Payment',
-  PAY_BILL: 'Bill Payment',
-  B2B: 'B2B Transfer',
-  ADMIN_LOAD: 'Admin Load',
-};
-
-function ledgerTxLabel(typeLabel) {
-  return TX_LABELS[typeLabel] || String(typeLabel || 'Transaction').replace(/_/g, ' ');
-}
-
-function beneficiaryLabel(typeName) {
-  return String(typeName || 'Beneficiary')
-    .toLowerCase()
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (m) => m.toUpperCase());
-}
+import ledgerModel from "../models/ledgerModel.js";
+import walletModel from "../models/walletModel.js";
+import { PROFILE_TYPES, WALLET_ROLES } from "../utils/constants.js";
 
 /**
  * Double-entry ledger + fee distribution via Revenue wallet.
@@ -42,50 +21,51 @@ const ledgerService = {
       fee,
       amount,
       typeLabel,
-    }
+    },
   ) {
-    const txLabel = ledgerTxLabel(typeLabel);
-
     // 1. Sender debit
     await ledgerModel.createLedgerEntry(client, {
       transactionId,
       walletId: senderWalletId,
-      entryType: 'DEBIT',
+      entryType: "DEBIT",
       amount: senderDebit,
-      description: `${txLabel} - Debit`,
+      description: `${typeLabel}: sender`,
     });
     // 2. Receiver credit
     await ledgerModel.createLedgerEntry(client, {
       transactionId,
       walletId: receiverWalletId,
-      entryType: 'CREDIT',
+      entryType: "CREDIT",
       amount: receiverCredit,
-      description: `${txLabel} - Credit`,
+      description: `${typeLabel}: receiver`,
     });
     // 3. System Revenue credit (if any)
     if (fee > 0 && revenueWalletId) {
       await ledgerModel.createLedgerEntry(client, {
         transactionId,
         walletId: revenueWalletId,
-        entryType: 'CREDIT',
+        entryType: "CREDIT",
         amount: fee,
-        description: `${txLabel} - Fee Income`,
+        description: `${typeLabel}: fee to revenue`,
       });
     }
 
     // 4. Treasury tracking: Tracks the "real cash position"
     // - CASH_OUT: Real cash leaves system (Agent -> Customer) -> Debit Treasury (decreases obligation/cash backing)
     // - Other transactions (CASH_IN, SEND_MONEY, PAYMENT, etc.) are internal transfers or movements and do not affect system's net cash position.
-    if (typeLabel === 'CASH_OUT') {
-      const treasury = await walletModel.findByRoleForUpdate(client, WALLET_ROLES.TREASURY);
+    if (typeLabel === "CASH_OUT") {
+      const treasury = await walletModel.findByRoleForUpdate(
+        client,
+        WALLET_ROLES.TREASURY,
+      );
       if (treasury) {
         await walletModel.debit(client, treasury.wallet_id, amount);
         await ledgerModel.createLedgerEntry(client, {
           transactionId,
           walletId: treasury.wallet_id,
-          entryType: 'DEBIT',
+          entryType: "DEBIT",
           amount,
-          description: 'Cash Out - Treasury Settlement',
+          description: `${typeLabel}: treasury cash-out settlement`,
         });
       }
     }
@@ -101,13 +81,13 @@ const ledgerService = {
     txTypeId,
     transactionAmount,
     transactionId,
-    parties
+    parties,
   ) {
     if (transactionAmount <= 0) return [];
 
     const revenueWallet = await walletModel.findByRoleForUpdate(
       client,
-      WALLET_ROLES.REVENUE
+      WALLET_ROLES.REVENUE,
     );
     if (!revenueWallet) return [];
 
@@ -138,7 +118,7 @@ const ledgerService = {
         if (agentProfileId) {
           const agentRes = await client.query(
             `SELECT distributor_id FROM tp.agent_profiles WHERE profile_id = $1`,
-            [agentProfileId]
+            [agentProfileId],
           );
           beneficiaryProfileId = agentRes.rows[0]?.distributor_id;
         }
@@ -147,13 +127,13 @@ const ledgerService = {
       if (!beneficiaryProfileId) continue;
 
       const shareAmount = Number(
-        ((transactionAmount * policy.commission_share) / 100).toFixed(2)
+        ((transactionAmount * policy.commission_share) / 100).toFixed(2),
       );
       if (shareAmount <= 0) continue;
 
       const wallet = await walletModel.findByProfileIdForUpdate(
         client,
-        beneficiaryProfileId
+        beneficiaryProfileId,
       );
       if (!wallet) continue;
 
@@ -162,7 +142,7 @@ const ledgerService = {
 
       const treasury = await walletModel.findByRoleForUpdate(
         client,
-        WALLET_ROLES.TREASURY
+        WALLET_ROLES.TREASURY,
       );
 
       await walletModel.debit(client, revenueWallet.wallet_id, shareAmount);
@@ -176,14 +156,14 @@ const ledgerService = {
         walletId: revenueWallet.wallet_id,
         entryType: "DEBIT",
         amount: shareAmount,
-        description: `Commission Expense - ${beneficiaryLabel(policy.beneficiary_type_name)}`,
+        description: `Commission share (${policy.commission_share}% of volume to ${policy.beneficiary_type_name})`,
       });
       await ledgerModel.createLedgerEntry(client, {
         transactionId,
         walletId: wallet.wallet_id,
         entryType: "CREDIT",
         amount: shareAmount,
-        description: `Commission Earned - ${beneficiaryLabel(policy.beneficiary_type_name)}`,
+        description: `Commission share (${policy.commission_share}% of volume to ${policy.beneficiary_type_name})`,
       });
       if (treasury) {
         await ledgerModel.createLedgerEntry(client, {
@@ -191,7 +171,7 @@ const ledgerService = {
           walletId: treasury.wallet_id,
           entryType: "CREDIT",
           amount: shareAmount,
-          description: 'Commission Settlement - Treasury',
+          description: `Commission share record to treasury`,
         });
       }
 
@@ -208,20 +188,26 @@ const ledgerService = {
   /**
    * Admin load e-cash: Treasury debited, target credited (same transaction_id as tp.transactions row).
    */
-  async recordLoadEcashLedger(client, transactionId, treasuryWalletId, targetWalletId, amount) {
+  async recordLoadEcashLedger(
+    client,
+    transactionId,
+    treasuryWalletId,
+    targetWalletId,
+    amount,
+  ) {
     await ledgerModel.createLedgerEntry(client, {
       transactionId,
       walletId: treasuryWalletId,
-      entryType: 'CREDIT',
+      entryType: "CREDIT",
       amount,
-      description: 'Admin Load - Treasury Credit',
+      description: "ADMIN_LOAD: treasury",
     });
     await ledgerModel.createLedgerEntry(client, {
       transactionId,
       walletId: targetWalletId,
-      entryType: 'CREDIT',
+      entryType: "CREDIT",
       amount,
-      description: 'Admin Load - Wallet Credit',
+      description: "ADMIN_LOAD: recipient",
     });
   },
 };

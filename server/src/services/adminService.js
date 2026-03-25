@@ -3,7 +3,7 @@ import crypto from "crypto";
 import pool from "../config/db.js";
 import AppError from "../utils/AppError.js";
 import { allocateUniqueTxRef } from "../utils/txRef.js";
-import { PROFILE_TYPES, WALLET_ROLES } from "../utils/constants.js";
+import { PROFILE_TYPES, WALLET_ROLES, PIN_RESET_RESTRICTED_TYPE_NAMES } from "../utils/constants.js";
 import adminModel from "../models/adminModel.js";
 import profileModel from "../models/profileModel.js";
 import walletModel from "../models/walletModel.js";
@@ -84,6 +84,23 @@ const adminService = {
     const detail = await adminModel.getUserDetail(profileId);
     if (!detail) throw new AppError("User not found.", 404);
     return detail;
+  },
+
+  async setPinResetGrant(profileId, granted) {
+    const profile = await profileModel.findById(profileId);
+    if (!profile) throw new AppError("User not found.", 404);
+    if (!PIN_RESET_RESTRICTED_TYPE_NAMES.includes(profile.type_name)) {
+      throw new AppError(
+        "PIN reset grant applies only to agent, distributor, and biller accounts.",
+        400,
+      );
+    }
+    const row = await profileModel.setPinResetGranted(profileId, granted);
+    if (!row) throw new AppError("User not found.", 404);
+    return {
+      profileId: Number(profileId),
+      pinResetGranted: row.pin_reset_granted,
+    };
   },
 
   /**
@@ -195,6 +212,65 @@ const adminService = {
       }
     }
 
+    if (accountType === "BILLER") {
+      if (!subtypeFields.serviceName?.trim()) {
+        throw new AppError(
+          "Service name is required.",
+          400,
+        );
+      }
+      if (!contactPersonName?.trim()) {
+        throw new AppError("Contact person name is required.", 400);
+      }
+
+      const tempPin = generateTempPin();
+      const pinHash = await bcrypt.hash(tempPin, SALT_ROUNDS);
+      const emailNorm = email?.trim() || null;
+
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+
+        const profile = await profileModel.create(
+          {
+            phoneNumber,
+            fullName: contactPersonName.trim(),
+            pinHash,
+            typeId,
+            email: emailNorm,
+          },
+          client,
+        );
+
+        await profileModel.createBillerSubtype(
+          profile.profile_id,
+          {
+            serviceName: subtypeFields.serviceName.trim(),
+            billerType: subtypeFields.billerType || "Others",
+            senderChargeFlat: subtypeFields.senderChargeFlat || 0,
+            senderChargePercent: subtypeFields.senderChargePercent || 0,
+          },
+          client,
+        );
+
+        await client.query("COMMIT");
+
+        return {
+          profileId: profile.profile_id,
+          phoneNumber: profile.phone_number,
+          fullName: profile.full_name,
+          accountType,
+          accountStatus: "ACTIVE",
+          temporaryPin: tempPin,
+        };
+      } catch (e) {
+        await client.query("ROLLBACK");
+        throw e;
+      } finally {
+        client.release();
+      }
+    }
+
     const pinHash = await bcrypt.hash(securityPin, SALT_ROUNDS);
     const profile = await profileModel.create({
       phoneNumber,
@@ -202,10 +278,6 @@ const adminService = {
       pinHash,
       typeId,
     });
-
-    if (accountType === "BILLER") {
-      await profileModel.createBillerSubtype(profile.profile_id, subtypeFields);
-    }
 
     return {
       profileId: profile.profile_id,
@@ -309,6 +381,39 @@ const adminService = {
     } finally {
       client.release();
     }
+  },
+
+  async updateWalletLimit(profileId, maxBalance) {
+    const num = parseFloat(maxBalance);
+    if (!Number.isFinite(num) || num <= 0) {
+      throw new AppError("Invalid wallet limit.", 400);
+    }
+
+    const wallet = await walletModel.findByProfileId(profileId);
+    if (!wallet) throw new AppError("Wallet not found.", 404);
+    if (wallet.role != null) {
+      throw new AppError("Cannot change limit for this wallet.", 400);
+    }
+
+    const bal = parseFloat(wallet.balance);
+    if (num < bal) {
+      throw new AppError(
+        "Wallet limit cannot be less than current balance.",
+        400,
+      );
+    }
+
+    const updated = await walletModel.updateMaxBalanceByProfileId(
+      profileId,
+      num,
+    );
+    if (!updated) throw new AppError("Could not update wallet limit.", 500);
+
+    return {
+      profileId,
+      max_balance: parseFloat(updated.max_balance),
+      balance: parseFloat(updated.balance),
+    };
   },
 
   async updateUserStatus(profileId, newStatus) {

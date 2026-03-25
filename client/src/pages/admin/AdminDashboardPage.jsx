@@ -1,16 +1,23 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  UsersIcon, 
-  ArrowsRightLeftIcon, 
-  BanknotesIcon, 
-  CurrencyDollarIcon 
+import {
+  UsersIcon,
+  ArrowsRightLeftIcon,
+  BanknotesIcon,
+  CurrencyDollarIcon,
+  CircleStackIcon,
+  ShieldCheckIcon,
+  ArrowTrendingUpIcon,
+  ExclamationTriangleIcon,
+  BuildingLibraryIcon,
+  AdjustmentsHorizontalIcon,
 } from '@heroicons/react/24/outline';
 import { adminApi } from '../../api/adminApi';
 import { formatBDT } from '../../utils/formatCurrency';
 import AdminLayout from '../../components/admin/AdminLayout';
 import StatCard from '../../components/admin/StatCard';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import { getProfileTypeAdmin, ADMIN_TYPE_PILL_BOX } from '../../utils/roleTheme';
 
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
@@ -71,77 +78,203 @@ export default function AdminDashboardPage() {
 
   const { users, platform, transactions, recentRegistrations } = data;
 
+  const userBreakdownNonSystem = users.byType.filter(
+    (t) => String(t.type_name).toUpperCase() !== "SYSTEM",
+  );
+  const userTotalNonSystem = userBreakdownNonSystem.reduce(
+    (s, t) => s + Number(t.count),
+    0,
+  );
+
   return (
     <AdminLayout>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-sm text-gray-500">Overview of your MFS platform</p>
+        <p className="mt-0.5 text-sm text-gray-500">
+          Overview of TekaPakhi Payment System
+        </p>
       </div>
 
       {/* Platform Financial Overview */}
-      <div className="mb-6 rounded-xl border-2 border-indigo-100 bg-gradient-to-r from-indigo-50 to-blue-50 p-5">
-        <h2 className="mb-4 text-sm font-semibold text-indigo-700">Platform Financials</h2>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <div>
-            <p className="text-xs text-gray-500">Total Float Issued</p>
-            <p className="text-xl font-bold text-indigo-900">{formatBDT(platform?.totalFloatIssued || 0)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">Platform Cash Reserve</p>
-            <p className="text-xl font-bold text-green-700">{formatBDT(platform?.cashReserve || 0)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">Platform Revenue</p>
-            <p className="text-xl font-bold text-orange-600">{formatBDT(platform?.platformRevenue || 0)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">Platform Liability</p>
-            <p className="text-xl font-bold text-red-600">{formatBDT(platform?.platformLiability || 0)}</p>
-            <p className="mt-0.5 text-[10px] text-gray-400">Owed to non-system wallets</p>
-          </div>
+      <section
+        className="mb-6 rounded-xl border border-gray-200 bg-white px-4 py-4 shadow-sm"
+        aria-labelledby="platform-financials-heading"
+      >
+        <h2
+          id="platform-financials-heading"
+          className="mb-3 text-sm font-semibold tracking-tight text-gray-900"
+        >
+          Platform financials
+        </h2>
+
+        <div>
+          <dl className="grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
+            {[
+              {
+                key: "float",
+                title: "Total float issued",
+                value: formatBDT(platform?.totalFloatIssued || 0),
+                valueClass: "text-gray-900",
+                hint: "Digital balance in circulation",
+                icon: CircleStackIcon,
+                iconWrap: "bg-indigo-50 text-indigo-600",
+              },
+              {
+                key: "reserve",
+                title: "Cash reserve",
+                value: formatBDT(platform?.cashReserve || 0),
+                valueClass: "text-emerald-700",
+                hint: "Backed cash on hand",
+                icon: ShieldCheckIcon,
+                iconWrap: "bg-emerald-50 text-emerald-600",
+              },
+              {
+                key: "revenue",
+                title: "Platform revenue",
+                value: formatBDT(platform?.platformRevenue || 0),
+                valueClass: "text-amber-800",
+                hint: "Fees collected to date",
+                icon: ArrowTrendingUpIcon,
+                iconWrap: "bg-amber-50 text-amber-700",
+              },
+              {
+                key: "liability",
+                title: "Platform liability",
+                value: formatBDT(platform?.platformLiability || 0),
+                valueClass: "text-red-600",
+                hint: "Cash obligation (treasury)",
+                icon: ExclamationTriangleIcon,
+                iconWrap: "bg-red-50 text-red-600",
+              },
+            ].map((m) => {
+              const Icon = m.icon;
+              return (
+                <div
+                  key={m.key}
+                  className="flex gap-2.5 rounded-lg border border-gray-100 bg-gray-50/70 px-3 py-2.5 transition-colors hover:bg-gray-50"
+                >
+                  <div
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${m.iconWrap}`}
+                    aria-hidden
+                  >
+                    <Icon className="h-4.5 w-4.5" strokeWidth={1.75} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <dt className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                      {m.title}
+                    </dt>
+                    <dd
+                      className={`mt-0.5 text-lg font-bold tabular-nums tracking-tight ${m.valueClass}`}
+                    >
+                      {m.value}
+                    </dd>
+                  </div>
+                </div>
+              );
+            })}
+          </dl>
         </div>
-        <div className="mt-3 rounded-lg bg-white/60 px-3 py-2 text-[11px] text-gray-500">
-          Total E-Money in System: <span className="font-semibold text-gray-700">{formatBDT(platform?.totalEmoney || 0)}</span>
-          {platform?.treasuryBalance != null && (
-            <>
-              &nbsp;&middot;&nbsp; Treasury:{' '}
-              <span className="font-semibold text-gray-700">{formatBDT(platform.treasuryBalance)}</span>
-              &nbsp;&middot;&nbsp; Revenue:{' '}
-              <span className="font-semibold text-gray-700">{formatBDT(platform.revenueBalance)}</span>
-              &nbsp;&middot;&nbsp; Adjustment:{' '}
-              <span className="font-semibold text-gray-700">{formatBDT(platform.adjustmentBalance)}</span>
-            </>
-          )}
-        </div>
-      </div>
+
+        {platform?.treasuryBalance != null && (
+          <div className="mt-4 border-t border-gray-100 pt-4">
+            <h3 className="mb-2.5 text-sm font-semibold tracking-tight text-gray-900">
+              System wallet balances
+            </h3>
+            <ul className="grid grid-cols-3 gap-2 lg:gap-3">
+              {[
+                {
+                  label: "Treasury",
+                  value: formatBDT(platform.treasuryBalance),
+                  icon: BuildingLibraryIcon,
+                  iconWrap: "bg-indigo-50 text-indigo-600",
+                },
+                {
+                  label: "Revenue",
+                  value: formatBDT(platform.revenueBalance),
+                  icon: CurrencyDollarIcon,
+                  iconWrap: "bg-emerald-50 text-emerald-600",
+                },
+                {
+                  label: "Adjustment",
+                  value: formatBDT(platform.adjustmentBalance),
+                  icon: AdjustmentsHorizontalIcon,
+                  iconWrap: "bg-amber-50 text-amber-700",
+                },
+              ].map((w) => {
+                const WIcon = w.icon;
+                return (
+                  <li
+                    key={w.label}
+                    className="flex items-center gap-2.5 rounded-lg border border-gray-100 bg-gray-50/70 px-3 py-2.5 transition-colors hover:bg-gray-50"
+                  >
+                    <div
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${w.iconWrap}`}
+                      aria-hidden
+                    >
+                      <WIcon className="h-4.5 w-4.5" strokeWidth={1.75} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                        {w.label}
+                      </p>
+                      <p className="mt-0.5 text-lg font-bold tabular-nums tracking-tight text-gray-900">
+                        {w.value}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+      </section>
 
       {/* Stat cards */}
-      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
         <StatCard
-          label="Total Users"
-          value={users.total.toLocaleString()}
-          subValue={users.byType.map((t) => `${t.count} ${t.type_name}`).join(', ')}
+          label="Total users"
+          value={userTotalNonSystem.toLocaleString()}
+          breakdown={userBreakdownNonSystem}
           icon={UsersIcon}
           color="blue"
         />
         <StatCard
-          label="Today's Transactions"
-          value={transactions.today.count.toLocaleString()}
-          subValue={`Volume: ${formatBDT(transactions.today.volume)}`}
+          label="Transactions"
+          sections={[
+            {
+              period: "Today",
+              value: transactions.today.count.toLocaleString(),
+            },
+            {
+              period: "This month",
+              value: transactions.thisMonth.count.toLocaleString(),
+            },
+          ]}
           icon={ArrowsRightLeftIcon}
           color="green"
         />
         <StatCard
-          label="This Month's Volume"
-          value={formatBDT(transactions.thisMonth.volume)}
-          subValue={`${transactions.thisMonth.count.toLocaleString()} transactions`}
+          label="Volume"
+          sections={[
+            {
+              period: "Today",
+              value: formatBDT(transactions.today.volume),
+            },
+            {
+              period: "This month",
+              value: formatBDT(transactions.thisMonth.volume),
+            },
+          ]}
           icon={BanknotesIcon}
           color="purple"
         />
         <StatCard
-          label="Total Revenue"
+          label="Total revenue"
           value={formatBDT(transactions.allTime.revenue)}
-          subValue={`Today: ${formatBDT(transactions.today.revenue)}`}
+          equalFooter={{
+            label: "Today",
+            value: formatBDT(transactions.today.revenue),
+          }}
           icon={CurrencyDollarIcon}
           color="orange"
         />
@@ -200,15 +333,17 @@ export default function AdminDashboardPage() {
                   onClick={() => navigate(`/admin/users/${u.profile_id}`)}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-xs font-bold text-primary-600">
-                      {u.full_name[0]}
+                    <div
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ${getProfileTypeAdmin(u.type_name).avatar}`}
+                    >
+                      {(u.full_name || '?')[0].toUpperCase()}
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-900">{u.full_name}</p>
                       <p className="text-xs text-gray-400">{u.phone_number}</p>
                     </div>
                   </div>
-                  <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+                  <span className={`${ADMIN_TYPE_PILL_BOX} ${getProfileTypeAdmin(u.type_name).badge}`}>
                     {u.type_name}
                   </span>
                 </div>

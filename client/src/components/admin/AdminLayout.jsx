@@ -2,6 +2,7 @@ import logo from "../../assets/icons/logo.svg";
 import {
   ArrowRightStartOnRectangleIcon,
   ArrowsRightLeftIcon,
+  BanknotesIcon,
   ChartBarIcon,
   Cog6ToothIcon,
   Squares2X2Icon,
@@ -16,6 +17,11 @@ const navItems = [
     to: "/admin/transactions",
     label: "Transactions",
     icon: ArrowsRightLeftIcon,
+  },
+  {
+    to: "/admin/load-emoney",
+    label: "Load e-money",
+    icon: BanknotesIcon,
   },
   { to: "/admin/config", label: "Config", icon: Cog6ToothIcon },
   { to: "/admin/reports", label: "Reports", icon: ChartBarIcon },

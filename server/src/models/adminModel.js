@@ -1,4 +1,4 @@
-import pool from '../config/db.js';
+import pool from "../config/db.js";
 
 const adminModel = {
   // ── Dashboard Stats ──────────────────────────────────────────
@@ -9,7 +9,7 @@ const adminModel = {
        FROM tp.profiles p
        JOIN tp.profile_types pt ON p.type_id = pt.type_id
        GROUP BY pt.type_name, pt.type_id
-       ORDER BY pt.type_id`
+       ORDER BY pt.type_id`,
     );
     return result.rows;
   },
@@ -21,7 +21,7 @@ const adminModel = {
          COALESCE(SUM(amount), 0)::numeric AS total_volume,
          COALESCE(SUM(fee_amount), 0)::numeric AS total_revenue
        FROM tp.transactions
-       WHERE status = 'COMPLETED'`
+       WHERE status = 'COMPLETED'`,
     );
     return result.rows[0];
   },
@@ -33,7 +33,7 @@ const adminModel = {
          COALESCE(SUM(amount), 0)::numeric AS volume,
          COALESCE(SUM(fee_amount), 0)::numeric AS revenue
        FROM tp.transactions
-       WHERE status = 'COMPLETED' AND transaction_time >= CURRENT_DATE`
+       WHERE status = 'COMPLETED' AND transaction_time >= CURRENT_DATE`,
     );
     return result.rows[0];
   },
@@ -46,7 +46,7 @@ const adminModel = {
          COALESCE(SUM(fee_amount), 0)::numeric AS revenue
        FROM tp.transactions
        WHERE status = 'COMPLETED'
-         AND transaction_time >= date_trunc('month', CURRENT_DATE)`
+         AND transaction_time >= date_trunc('month', CURRENT_DATE)`,
     );
     return result.rows[0];
   },
@@ -63,7 +63,7 @@ const adminModel = {
          AND transaction_time >= date_trunc('month', CURRENT_DATE) - ($1 - 1) * INTERVAL '1 month'
        GROUP BY date_trunc('month', transaction_time)
        ORDER BY date_trunc('month', transaction_time)`,
-      [months]
+      [months],
     );
     return result.rows;
   },
@@ -75,7 +75,7 @@ const adminModel = {
        JOIN tp.profile_types pt ON p.type_id = pt.type_id
        ORDER BY p.registration_date DESC
        LIMIT $1`,
-      [count]
+      [count],
     );
     return result.rows;
   },
@@ -85,7 +85,7 @@ const adminModel = {
   async getUsers({ page = 1, limit = 20, search, typeId, status }) {
     const params = [];
     let paramIdx = 1;
-    let whereExtra = '';
+    let whereExtra = "";
 
     if (search) {
       whereExtra += ` AND (p.phone_number ILIKE $${paramIdx} OR p.full_name ILIKE $${paramIdx})`;
@@ -103,7 +103,7 @@ const adminModel = {
     // We use COALESCE across subtype tables to get the account status
     const dataQuery = `
       SELECT p.profile_id, p.phone_number, p.full_name, p.email,
-             p.is_phone_verified, p.registration_date, p.type_id,
+             p.profile_picture_url, p.is_phone_verified, p.registration_date, p.type_id,
              pt.type_name, w.balance,
              COALESCE(cp.status, ap.status, mp.status, dp.status, bp.status)::text AS account_status
       FROM tp.profiles p
@@ -115,7 +115,7 @@ const adminModel = {
       LEFT JOIN tp.distributor_profiles dp ON p.profile_id = dp.profile_id AND p.type_id = 4
       LEFT JOIN tp.biller_profiles bp ON p.profile_id = bp.profile_id AND p.type_id = 5
       WHERE 1=1 ${whereExtra}
-      ${status ? `AND COALESCE(cp.status, ap.status, mp.status, dp.status, bp.status)::text = $${paramIdx}` : ''}
+      ${status ? `AND COALESCE(cp.status, ap.status, mp.status, dp.status, bp.status)::text = $${paramIdx}` : ""}
       ORDER BY p.registration_date DESC
       LIMIT $${status ? paramIdx + 1 : paramIdx} OFFSET $${status ? paramIdx + 2 : paramIdx + 1}`;
 
@@ -133,7 +133,7 @@ const adminModel = {
       LEFT JOIN tp.distributor_profiles dp ON p.profile_id = dp.profile_id AND p.type_id = 4
       LEFT JOIN tp.biller_profiles bp ON p.profile_id = bp.profile_id AND p.type_id = 5
       WHERE 1=1 ${whereExtra}
-      ${status ? `AND COALESCE(cp.status, ap.status, mp.status, dp.status, bp.status)::text = $${paramIdx}` : ''}`;
+      ${status ? `AND COALESCE(cp.status, ap.status, mp.status, dp.status, bp.status)::text = $${paramIdx}` : ""}`;
 
     const countParams = [...params];
     if (status) countParams.push(status);
@@ -160,7 +160,7 @@ const adminModel = {
        JOIN tp.profile_types pt ON p.type_id = pt.type_id
        LEFT JOIN tp.wallets w ON p.profile_id = w.profile_id
        WHERE p.profile_id = $1`,
-      [profileId]
+      [profileId],
     );
     if (profileResult.rows.length === 0) return null;
 
@@ -168,23 +168,27 @@ const adminModel = {
 
     // Get subtype status
     const subtypeTableMap = {
-      CUSTOMER: 'customer_profiles',
-      AGENT: 'agent_profiles',
-      MERCHANT: 'merchant_profiles',
-      DISTRIBUTOR: 'distributor_profiles',
-      BILLER: 'biller_profiles',
+      CUSTOMER: "customer_profiles",
+      AGENT: "agent_profiles",
+      MERCHANT: "merchant_profiles",
+      DISTRIBUTOR: "distributor_profiles",
+      BILLER: "biller_profiles",
     };
     const table = subtypeTableMap[profile.type_name];
     let subtypeData = null;
     if (table) {
-      const subResult = await pool.query(`SELECT * FROM tp.${table} WHERE profile_id = $1`, [profileId]);
+      const subResult = await pool.query(
+        `SELECT * FROM tp.${table} WHERE profile_id = $1`,
+        [profileId],
+      );
       subtypeData = subResult.rows[0] || null;
     }
 
     // Recent transactions (last 10)
     const txResult = await pool.query(
       `SELECT t.transaction_id, t.transaction_ref, t.amount, t.fee_amount, t.status,
-              t.transaction_time, tt.type_name,
+              t.transaction_time, t.original_transaction_id, tt.type_name,
+              orig_t.transaction_ref AS original_transaction_ref,
               sp.full_name AS sender_name, sp.phone_number AS sender_phone,
               rp.full_name AS receiver_name, rp.phone_number AS receiver_phone
        FROM tp.transactions t
@@ -193,49 +197,99 @@ const adminModel = {
        JOIN tp.profiles sp ON sw.profile_id = sp.profile_id
        JOIN tp.wallets rw ON t.receiver_wallet_id = rw.wallet_id
        JOIN tp.profiles rp ON rw.profile_id = rp.profile_id
+       LEFT JOIN tp.transactions orig_t ON t.original_transaction_id = orig_t.transaction_id
        WHERE sw.profile_id = $1 OR rw.profile_id = $1
        ORDER BY t.transaction_time DESC
        LIMIT 10`,
-      [profileId]
+      [profileId],
     );
+
+    // Get subtype details (specifically for AGENT-DISTRIBUTOR relations)
+    let linkedData = {};
+    if (profile.type_name === "AGENT" && subtypeData?.distributor_id) {
+      const distResult = await pool.query(
+        `SELECT p.profile_id, p.full_name, p.phone_number, p.profile_picture_url, dp.business_name 
+         FROM tp.profiles p 
+         JOIN tp.distributor_profiles dp ON p.profile_id = dp.profile_id 
+         WHERE p.profile_id = $1`,
+        [subtypeData.distributor_id],
+      );
+      const areasResult = await pool.query(
+        "SELECT district, area FROM tp.distributor_areas WHERE profile_id = $1",
+        [subtypeData.distributor_id],
+      );
+      linkedData.distributor = {
+        ...distResult.rows[0],
+        areas: areasResult.rows,
+      };
+    }
+
+    if (profile.type_name === "DISTRIBUTOR") {
+      const areasResult = await pool.query(
+        "SELECT district, area FROM tp.distributor_areas WHERE profile_id = $1",
+        [profileId],
+      );
+      linkedData.areas = areasResult.rows;
+
+      const agentsResult = await pool.query(
+        `SELECT p.profile_id, p.full_name, p.phone_number, p.profile_picture_url, ap.agent_code, ap.shop_name, ap.status
+         FROM tp.agent_profiles ap
+         JOIN tp.profiles p ON ap.profile_id = p.profile_id
+         WHERE ap.distributor_id = $1`,
+        [profileId],
+      );
+      linkedData.agents = agentsResult.rows;
+    }
 
     return {
       ...profile,
       subtypeData,
       recentTransactions: txResult.rows,
+      ...linkedData,
     };
   },
 
   async updateUserStatus(profileId, typeName, newStatus) {
     const tableMap = {
-      CUSTOMER: 'customer_profiles',
-      AGENT: 'agent_profiles',
-      MERCHANT: 'merchant_profiles',
-      DISTRIBUTOR: 'distributor_profiles',
-      BILLER: 'biller_profiles',
+      CUSTOMER: "customer_profiles",
+      AGENT: "agent_profiles",
+      MERCHANT: "merchant_profiles",
+      DISTRIBUTOR: "distributor_profiles",
+      BILLER: "biller_profiles",
     };
     const table = tableMap[typeName];
     if (!table) return null;
 
     // biller_profiles has no approved_date column
-    const hasApprovedDate = typeName !== 'BILLER';
-    const approvedClause = (newStatus === 'ACTIVE' && hasApprovedDate) ? ', approved_date = CURRENT_TIMESTAMP' : '';
+    const hasApprovedDate = typeName !== "BILLER";
+    const approvedClause =
+      newStatus === "ACTIVE" && hasApprovedDate
+        ? ", approved_date = CURRENT_TIMESTAMP"
+        : "";
     const result = await pool.query(
       `UPDATE tp.${table}
        SET status = $1 ${approvedClause}
        WHERE profile_id = $2
        RETURNING *`,
-      [newStatus, profileId]
+      [newStatus, profileId],
     );
     return result.rows[0] || null;
   },
 
   // ── Transaction Management (Admin) ───────────────────────────
 
-  async getAllTransactions({ page = 1, limit = 20, search, typeId, status, fromDate, toDate }) {
+  async getAllTransactions({
+    page = 1,
+    limit = 20,
+    search,
+    typeId,
+    status,
+    fromDate,
+    toDate,
+  }) {
     const params = [];
     let paramIdx = 1;
-    let whereExtra = '';
+    let whereExtra = "";
 
     if (typeId) {
       whereExtra += ` AND t.type_id = $${paramIdx}`;
@@ -268,6 +322,7 @@ const adminModel = {
     const dataQuery = `
       SELECT t.transaction_id, t.transaction_ref, t.amount, t.fee_amount, t.status,
              t.transaction_time, t.user_note, t.original_transaction_id, tt.type_name,
+             orig_t.transaction_ref AS original_transaction_ref,
              sp.profile_id AS sender_profile_id, sp.full_name AS sender_name, sp.phone_number AS sender_phone,
              rp.profile_id AS receiver_profile_id, rp.full_name AS receiver_name, rp.phone_number AS receiver_phone
       FROM tp.transactions t
@@ -276,6 +331,7 @@ const adminModel = {
       JOIN tp.profiles sp ON sw.profile_id = sp.profile_id
       JOIN tp.wallets rw ON t.receiver_wallet_id = rw.wallet_id
       JOIN tp.profiles rp ON rw.profile_id = rp.profile_id
+      LEFT JOIN tp.transactions orig_t ON t.original_transaction_id = orig_t.transaction_id
       WHERE 1=1 ${whereExtra}
       ORDER BY t.transaction_time DESC
       LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`;
@@ -317,7 +373,7 @@ const adminModel = {
        JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
        JOIN tp.wallets rw ON t.receiver_wallet_id = rw.wallet_id
        WHERE t.transaction_id = $1`,
-      [transactionId]
+      [transactionId],
     );
     return result.rows[0] || null;
   },
@@ -325,7 +381,9 @@ const adminModel = {
   // ── Config Management ────────────────────────────────────────
 
   async getTransactionTypes() {
-    const result = await pool.query(`SELECT * FROM tp.transaction_types ORDER BY type_id`);
+    const result = await pool.query(
+      `SELECT * FROM tp.transaction_types ORDER BY type_id`,
+    );
     return result.rows;
   },
 
@@ -343,8 +401,8 @@ const adminModel = {
 
     values.push(typeId);
     const result = await pool.query(
-      `UPDATE tp.transaction_types SET ${setClauses.join(', ')} WHERE type_id = $${idx} RETURNING *`,
-      values
+      `UPDATE tp.transaction_types SET ${setClauses.join(", ")} WHERE type_id = $${idx} RETURNING *`,
+      values,
     );
     return result.rows[0] || null;
   },
@@ -355,7 +413,7 @@ const adminModel = {
        FROM tp.transaction_limits tl
        JOIN tp.profile_types pt ON tl.profile_type_id = pt.type_id
        JOIN tp.transaction_types tt ON tl.transaction_type_id = tt.type_id
-       ORDER BY tl.profile_type_id, tl.transaction_type_id`
+       ORDER BY tl.profile_type_id, tl.transaction_type_id`,
     );
     return result.rows;
   },
@@ -375,11 +433,15 @@ const adminModel = {
          max_per_transaction = EXCLUDED.max_per_transaction
        RETURNING *`,
       [
-        data.profileTypeId, data.transactionTypeId,
-        data.dailyLimit || null, data.monthlyLimit || null,
-        data.maxCountDaily || null, data.maxCountMonthly || null,
-        data.minPerTransaction || null, data.maxPerTransaction || null,
-      ]
+        data.profileTypeId,
+        data.transactionTypeId,
+        data.dailyLimit || null,
+        data.monthlyLimit || null,
+        data.maxCountDaily || null,
+        data.maxCountMonthly || null,
+        data.minPerTransaction || null,
+        data.maxPerTransaction || null,
+      ],
     );
     return result.rows[0];
   },
@@ -389,7 +451,7 @@ const adminModel = {
       `DELETE FROM tp.transaction_limits
        WHERE profile_type_id = $1 AND transaction_type_id = $2
        RETURNING *`,
-      [profileTypeId, transactionTypeId]
+      [profileTypeId, transactionTypeId],
     );
     return result.rows[0] || null;
   },
@@ -400,7 +462,7 @@ const adminModel = {
        FROM tp.commission_policies cp
        JOIN tp.profile_types pt ON cp.profile_type_id = pt.type_id
        JOIN tp.transaction_types tt ON cp.transaction_type_id = tt.type_id
-       ORDER BY cp.transaction_type_id, cp.profile_type_id`
+       ORDER BY cp.transaction_type_id, cp.profile_type_id`,
     );
     return result.rows;
   },
@@ -412,7 +474,7 @@ const adminModel = {
        ON CONFLICT (profile_type_id, transaction_type_id) DO UPDATE SET
          commission_share = EXCLUDED.commission_share
        RETURNING *`,
-      [data.profileTypeId, data.transactionTypeId, data.commissionShare]
+      [data.profileTypeId, data.transactionTypeId, data.commissionShare],
     );
     return result.rows[0];
   },
@@ -422,20 +484,23 @@ const adminModel = {
       `DELETE FROM tp.commission_policies
        WHERE profile_type_id = $1 AND transaction_type_id = $2
        RETURNING *`,
-      [profileTypeId, transactionTypeId]
+      [profileTypeId, transactionTypeId],
     );
     return result.rows[0] || null;
   },
 
   async getProfileTypes() {
-    const result = await pool.query('SELECT * FROM tp.profile_types ORDER BY type_id');
+    const result = await pool.query(
+      "SELECT * FROM tp.profile_types ORDER BY type_id",
+    );
     return result.rows;
   },
 
   // ── Reports ──────────────────────────────────────────────────
 
-  async getTransactionReport({ fromDate, toDate, groupBy = 'day' }) {
-    const truncFn = groupBy === 'month' ? "'month'" : groupBy === 'week' ? "'week'" : "'day'";
+  async getTransactionReport({ fromDate, toDate, groupBy = "day" }) {
+    const truncFn =
+      groupBy === "month" ? "'month'" : groupBy === "week" ? "'week'" : "'day'";
     const result = await pool.query(
       `SELECT
          to_char(date_trunc(${truncFn}, t.transaction_time), 'YYYY-MM-DD') AS period,
@@ -450,7 +515,7 @@ const adminModel = {
          AND t.transaction_time <= $2
        GROUP BY date_trunc(${truncFn}, t.transaction_time), tt.type_name
        ORDER BY period, tt.type_name`,
-      [fromDate, toDate]
+      [fromDate, toDate],
     );
     return result.rows;
   },
@@ -459,13 +524,13 @@ const adminModel = {
 
   async getPlatformFinancials() {
     const emoneyResult = await pool.query(
-      `SELECT COALESCE(SUM(balance), 0)::numeric AS total_emoney FROM tp.wallets`
+      `SELECT COALESCE(SUM(balance), 0)::numeric AS total_emoney FROM tp.wallets`,
     );
 
     const systemWallets = await pool.query(
       `SELECT role::text AS role, COALESCE(balance, 0)::numeric AS balance
        FROM tp.wallets
-       WHERE role IS NOT NULL`
+       WHERE role IS NOT NULL`,
     );
 
     const byRole = {};
@@ -476,7 +541,7 @@ const adminModel = {
     const floatResult = await pool.query(
       `SELECT COALESCE(SUM(amount), 0)::numeric AS total_loaded
        FROM tp.transactions
-       WHERE user_note LIKE 'ADMIN_LOAD:%' AND status = 'COMPLETED'`
+       WHERE user_note LIKE 'ADMIN_LOAD:%' AND status = 'COMPLETED'`,
     );
 
     const totalEmoney = parseFloat(emoneyResult.rows[0].total_emoney);
@@ -487,18 +552,19 @@ const adminModel = {
 
     return {
       totalFloatIssued: totalFloatLoaded,
-      cashReserve: totalFloatLoaded,
+      cashReserve: treasuryBalance + revenueBalance,
       totalEmoney,
       treasuryBalance,
       revenueBalance,
       adjustmentBalance,
       platformRevenue: revenueBalance,
-      platformLiability: totalEmoney - treasuryBalance - revenueBalance - adjustmentBalance,
+      platformLiability: treasuryBalance,
     };
   },
 
-  async getUserGrowthReport({ fromDate, toDate, groupBy = 'day' }) {
-    const truncFn = groupBy === 'month' ? "'month'" : groupBy === 'week' ? "'week'" : "'day'";
+  async getUserGrowthReport({ fromDate, toDate, groupBy = "day" }) {
+    const truncFn =
+      groupBy === "month" ? "'month'" : groupBy === "week" ? "'week'" : "'day'";
     const result = await pool.query(
       `SELECT
          to_char(date_trunc(${truncFn}, p.registration_date), 'YYYY-MM-DD') AS period,
@@ -510,7 +576,7 @@ const adminModel = {
          AND p.registration_date <= $2
        GROUP BY date_trunc(${truncFn}, p.registration_date), pt.type_name
        ORDER BY period, pt.type_name`,
-      [fromDate, toDate]
+      [fromDate, toDate],
     );
     return result.rows;
   },

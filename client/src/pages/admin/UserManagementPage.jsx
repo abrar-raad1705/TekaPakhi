@@ -8,6 +8,8 @@ import LoadingSpinner from "../../components/common/LoadingSpinner";
 import PinInput from "../../components/common/PinInput";
 import { ChevronDownIcon } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
+import ProfileAvatar from "../../components/common/ProfileAvatar";
+import { getProfileTypeAdmin, ADMIN_TYPE_PILL_BOX } from "../../utils/roleTheme";
 
 const profileTypes = [
   { id: "", label: "All Types" },
@@ -27,11 +29,11 @@ const statusOptions = [
   { id: "BLOCKED", label: "Blocked" },
 ];
 
-const statusBadge = {
-  ACTIVE: "bg-green-100 text-green-700",
-  PENDING_KYC: "bg-yellow-100 text-yellow-700",
-  SUSPENDED: "bg-orange-100 text-orange-700",
-  BLOCKED: "bg-red-100 text-red-700",
+const ACCOUNT_STATUS_STYLE = {
+  ACTIVE: "bg-green-50 text-green-700 border border-green-100",
+  PENDING_KYC: "bg-amber-50 text-amber-800 border border-amber-100",
+  SUSPENDED: "bg-orange-50 text-orange-800 border border-orange-100",
+  BLOCKED: "bg-red-50 text-red-700 border border-red-100",
 };
 
 export default function UserManagementPage() {
@@ -87,19 +89,21 @@ export default function UserManagementPage() {
   return (
     <AdminLayout>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-        <p className="text-sm text-gray-500">{data.total} total users</p>
+        <h1 className="text-2xl font-bold text-gray-900">User management</h1>
+        <p className="text-sm text-gray-500 mt-0.5">
+          {data.total.toLocaleString()} total · search by name or phone
+        </p>
       </div>
 
       {/* Action bar */}
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-5 flex items-center justify-between">
         <div />
         <button
           onClick={() => setShowCreate(!showCreate)}
-          className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors
+          className={`rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors
             ${showCreate ? "bg-gray-500 hover:bg-gray-600" : "bg-primary-600 hover:bg-primary-700"}`}
         >
-          {showCreate ? "Cancel" : "+ Create Distributor / Biller"}
+          {showCreate ? "Cancel" : "+ Create distributor / biller"}
         </button>
       </div>
 
@@ -114,28 +118,28 @@ export default function UserManagementPage() {
       )}
 
       {/* Filters */}
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row">
         <form onSubmit={handleSearch} className="flex flex-[2] gap-2">
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name or phone..."
-            className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            className="flex-1 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/10 shadow-sm"
           />
           <button
             type="submit"
-            className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
+            className="rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 shadow-sm transition-colors"
           >
             Search
           </button>
         </form>
 
-        <div className="relative w-full sm:w-48">
+        <div className="relative w-full sm:w-44">
           <select
             value={typeId}
             onChange={(e) => updateParams("typeId", e.target.value)}
-            className="w-full appearance-none rounded-lg border border-gray-300 bg-white pl-3 pr-8 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            className="w-full appearance-none rounded-xl border border-gray-200 bg-white pl-4 pr-9 py-2.5 text-sm text-gray-700 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/10 shadow-sm"
           >
             {profileTypes.map((t) => (
               <option key={t.id} value={t.id}>
@@ -143,14 +147,14 @@ export default function UserManagementPage() {
               </option>
             ))}
           </select>
-          <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
         </div>
 
-        <div className="relative w-full sm:w-48">
+        <div className="relative w-full sm:w-44">
           <select
             value={status}
             onChange={(e) => updateParams("status", e.target.value)}
-            className="w-full appearance-none rounded-lg border border-gray-300 bg-white pl-3 pr-8 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+            className="w-full appearance-none rounded-xl border border-gray-200 bg-white pl-4 pr-9 py-2.5 text-sm text-gray-700 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/10 shadow-sm"
           >
             {statusOptions.map((s) => (
               <option key={s.id} value={s.id}>
@@ -158,68 +162,90 @@ export default function UserManagementPage() {
               </option>
             ))}
           </select>
-          <ChevronDownIcon className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
         </div>
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+      <div className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-sm">
         {loading ? (
-          <LoadingSpinner size="lg" className="py-12" />
+          <LoadingSpinner size="lg" className="py-16" />
         ) : data.users.length === 0 ? (
-          <p className="py-12 text-center text-sm text-gray-500">
-            No users found.
+          <p className="py-16 text-center text-sm text-gray-500">
+            No users match your filters.
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
-                <tr>
-                  <th className="px-4 py-3">User</th>
-                  <th className="px-4 py-3">Phone</th>
-                  <th className="px-4 py-3">Type</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-right">Balance</th>
-                  <th className="px-4 py-3">Registered</th>
+          <div className="overflow-x-auto px-1">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+                    User
+                  </th>
+                  <th className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+                    Phone
+                  </th>
+                  <th className="px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+                    Type
+                  </th>
+                  <th className="px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+                    Balance
+                  </th>
+                  <th className="px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+                    Registered
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {data.users.map((u) => (
                   <tr
                     key={u.profile_id}
-                    className="cursor-pointer hover:bg-gray-50"
+                    className="cursor-pointer bg-white odd:bg-gray-50/60 hover:bg-primary-50/40 transition-colors"
                     onClick={() => navigate(`/admin/users/${u.profile_id}`)}
                   >
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary-100 text-xs font-bold text-primary-600">
-                          {(u.full_name || "?")[0]}
-                        </div>
-                        <span className="font-medium text-gray-900">
-                          {u.full_name}
+                    <td className="px-4 py-3.5 align-middle">
+                      <div className="flex items-center justify-start gap-3">
+                        <ProfileAvatar
+                          pictureUrl={u.profile_picture_url}
+                          name={u.full_name}
+                          className="h-10 w-10 text-sm"
+                        />
+                        <span className="font-semibold text-gray-900">{u.full_name}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5 text-left align-middle text-sm font-medium text-gray-700 tabular-nums">
+                      {u.phone_number}
+                    </td>
+                    <td className="px-4 py-3.5 align-middle">
+                      <div className="flex justify-center">
+                        <span
+                          className={`${ADMIN_TYPE_PILL_BOX} ${getProfileTypeAdmin(u.type_name).badge}`}
+                        >
+                          {u.type_name}
                         </span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-gray-600">
-                      {u.phone_number}
+                    <td className="px-4 py-3.5 align-middle">
+                      <div className="flex justify-center">
+                        <span
+                          className={`inline-block rounded-md px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${ACCOUNT_STATUS_STYLE[u.account_status] || "bg-gray-100 text-gray-700 border border-gray-200"}`}
+                        >
+                          {u.account_status || "N/A"}
+                        </span>
+                      </div>
                     </td>
-                    <td className="px-4 py-3">
-                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                        {u.type_name}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge[u.account_status] || "bg-gray-100 text-gray-600"}`}
-                      >
-                        {u.account_status || "N/A"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium text-gray-900">
+                    <td className="px-4 py-3.5 text-right align-middle font-semibold tabular-nums text-gray-900">
                       {u.balance != null ? formatBDT(u.balance) : "—"}
                     </td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {new Date(u.registration_date).toLocaleDateString()}
+                    <td className="px-4 py-3.5 text-right align-middle text-xs font-medium text-gray-800 whitespace-nowrap">
+                      {new Date(u.registration_date).toLocaleString("en-BD", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
                     </td>
                   </tr>
                 ))}
@@ -230,22 +256,28 @@ export default function UserManagementPage() {
 
         {/* Pagination */}
         {data.totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-gray-200 px-4 py-3">
-            <p className="text-xs text-gray-500">
-              Page {data.page} of {data.totalPages} ({data.total} results)
+          <div className="flex items-center justify-between border-t border-gray-100 bg-gray-50/80 px-5 py-3">
+            <p className="text-xs text-gray-500 font-medium">
+              Page <span className="text-gray-800 font-semibold">{data.page}</span> of {data.totalPages} · {data.total.toLocaleString()} results
             </p>
             <div className="flex gap-2">
               <button
                 disabled={data.page <= 1}
-                onClick={() => updateParams("page", String(data.page - 1))}
-                className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateParams("page", String(data.page - 1));
+                }}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors shadow-sm"
               >
                 Previous
               </button>
               <button
                 disabled={data.page >= data.totalPages}
-                onClick={() => updateParams("page", String(data.page + 1))}
-                className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateParams("page", String(data.page + 1));
+                }}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors shadow-sm"
               >
                 Next
               </button>
@@ -266,6 +298,11 @@ const req = (label) => (
 );
 
 function CreateProfileForm({ onCreated }) {
+  const BILLER_TYPES = [
+    "Electricity", "Gas", "Water", "Internet", "Telephone",
+    "TV", "Credit Card", "Govt. Fees", "Insurance", "Tracker", "Others",
+  ];
+
   const [form, setForm] = useState({
     phoneNumber: "",
     fullName: "",
@@ -277,9 +314,10 @@ function CreateProfileForm({ onCreated }) {
     additionalInfo: "",
     district: "",
     selectedAreas: [],
-    billerCode: "",
     serviceName: "",
-    category: "",
+    billerType: "Others",
+    senderChargeFlat: "",
+    senderChargePercent: "",
   });
   const [districts, setDistricts] = useState([]);
   const [areasList, setAreasList] = useState([]);
@@ -369,16 +407,27 @@ function CreateProfileForm({ onCreated }) {
           toast.success("Distributor profile created.");
         }
       } else {
-        await adminApi.createProfile({
+        const res = await adminApi.createProfile({
           phoneNumber: form.phoneNumber,
-          fullName: form.fullName,
-          securityPin: form.securityPin,
           accountType: "BILLER",
-          billerCode: form.billerCode,
+          contactPersonName: form.contactPersonName.trim(),
+          email: form.email.trim() || undefined,
           serviceName: form.serviceName,
-          category: form.category || undefined,
+          billerType: form.billerType,
+          senderChargeFlat: parseFloat(form.senderChargeFlat) || 0,
+          senderChargePercent: parseFloat(form.senderChargePercent) || 0,
         });
-        toast.success("BILLER profile created successfully.");
+        const temporaryPin = res.data.data?.temporaryPin;
+        if (temporaryPin) {
+          toast.success(`Temporary PIN: ${temporaryPin}`, {
+            duration: Infinity,
+            closeButton: true,
+            description:
+              "Share this PIN with the biller once. It will not be shown again.",
+          });
+        } else {
+          toast.success("BILLER profile created successfully.");
+        }
       }
       onCreated();
     } catch (err) {
@@ -611,10 +660,26 @@ function CreateProfileForm({ onCreated }) {
           </div>
         </div>
       ) : (
-        <>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-700">
+              {req("Contact person name")}
+            </label>
+            <input
+              type="text"
+              required
+              value={form.contactPersonName}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, contactPersonName: e.target.value }))
+              }
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              placeholder="Enter name"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs text-gray-500">
+              <label className="mb-1 block text-xs font-medium text-gray-700">
                 {req("Phone number")}
               </label>
               <input
@@ -633,47 +698,25 @@ function CreateProfileForm({ onCreated }) {
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-gray-500">
-                {req("Full name")}
+              <label className="mb-1 block text-xs font-medium text-gray-700">
+                Email address
               </label>
               <input
-                type="text"
-                required
-                value={form.fullName}
+                type="email"
+                value={form.email}
                 onChange={(e) =>
-                  setForm((p) => ({ ...p, fullName: e.target.value }))
+                  setForm((p) => ({ ...p, email: e.target.value }))
                 }
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <PinInput
-                length={5}
-                onChange={(pin) => setForm((p) => ({ ...p, securityPin: pin }))}
-                label="PIN (5 digits)"
+                placeholder="Enter email address"
               />
             </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs text-gray-500">
-                {req("Biller code")}
-              </label>
-              <input
-                type="text"
-                required
-                value={form.billerCode}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, billerCode: e.target.value }))
-                }
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                placeholder="e.g., DESCO"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-gray-500">
-                {req("Service name")}
+              <label className="mb-1 block text-xs font-medium text-gray-700">
+                {req("Biller name")}
               </label>
               <input
                 type="text"
@@ -683,25 +726,67 @@ function CreateProfileForm({ onCreated }) {
                   setForm((p) => ({ ...p, serviceName: e.target.value }))
                 }
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                placeholder="e.g., Electricity"
+                placeholder="e.g., DESCO"
+              />
+            </div>
+            <div className="relative">
+              <label className="mb-1 block text-xs font-medium text-gray-700">
+                {req("Biller type")}
+              </label>
+              <select
+                required
+                value={form.billerType}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, billerType: e.target.value }))
+                }
+                className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-9 text-sm"
+              >
+                {BILLER_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+              <ChevronDownIcon className="pointer-events-none absolute right-3 top-9 h-4 w-4 text-gray-500" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-700">
+                Sender charge (Flat BDT)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={form.senderChargeFlat}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, senderChargeFlat: e.target.value }))
+                }
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                placeholder="0.00"
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-gray-500">
-                Category (optional)
+              <label className="mb-1 block text-xs font-medium text-gray-700">
+                Sender charge (Percent %)
               </label>
               <input
-                type="text"
-                value={form.category}
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                value={form.senderChargePercent}
                 onChange={(e) =>
-                  setForm((p) => ({ ...p, category: e.target.value }))
+                  setForm((p) => ({ ...p, senderChargePercent: e.target.value }))
                 }
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                placeholder="e.g., Utility"
+                placeholder="0.00"
               />
             </div>
           </div>
-        </>
+        </div>
       )}
 
       <div className="mt-4">

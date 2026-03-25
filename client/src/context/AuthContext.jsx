@@ -25,7 +25,7 @@ function normalizeSessionUser(profile) {
     typeName: profile.type_name,
     isPhoneVerified: Boolean(profile.is_phone_verified),
     requiresPinSetup:
-      profile.type_name === 'DISTRIBUTOR' &&
+      (profile.type_name === 'DISTRIBUTOR' || profile.type_name === 'BILLER') &&
       subtypeData?.pending_pin_setup === true,
     accountStatus: subtypeData?.status || ACTIVE_ACCOUNT_STATUS,
     profilePictureUrl: profile.profile_picture_url ?? null,
@@ -147,7 +147,9 @@ export function AuthProvider({ children }) {
       case 'DISTRIBUTOR':
         if (user.requiresPinSetup) return '/distributor/setup-pin';
         return '/distributor';
-      case 'BILLER': return '/biller';
+      case 'BILLER':
+        if (user.requiresPinSetup) return '/biller/setup-pin';
+        return '/biller';
       default: return '/dashboard';
     }
   }, [user]);

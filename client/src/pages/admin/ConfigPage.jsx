@@ -3,6 +3,7 @@ import { adminApi } from '../../api/adminApi';
 import { formatBDT } from '../../utils/formatCurrency';
 import AdminLayout from '../../components/admin/AdminLayout';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import ConfirmationModal from '../../components/common/ConfirmationModal';
 import { toast } from 'sonner';
 import { ChevronDownIcon, PlusIcon, XMarkIcon, ListBulletIcon, ScaleIcon, BanknotesIcon } from '@heroicons/react/24/outline';
 
@@ -30,7 +31,9 @@ const tabs = [
 export default function ConfigPage() {
   const [activeTab, setActiveTab] = useState('types');
 
-
+  // Deletion confirmation
+  const [modal, setModal] = useState({ isOpen: false, type: null, payload: null });
+  const closeModal = () => setModal({ isOpen: false, type: null, payload: null });
   return (
     <AdminLayout>
       <div className="mb-6">
@@ -63,8 +66,21 @@ export default function ConfigPage() {
       </div>
 
       {activeTab === 'types' && <TransactionTypesTab />}
-      {activeTab === 'limits' && <LimitsTab />}
-      {activeTab === 'commissions' && <CommissionsTab />}
+      {activeTab === 'limits' && <LimitsTab modal={modal} setModal={setModal} closeModal={closeModal} />}
+      {activeTab === 'commissions' && <CommissionsTab modal={modal} setModal={setModal} closeModal={closeModal} />}
+
+      <ConfirmationModal
+        isOpen={modal.isOpen}
+        title={modal.type === 'LIMIT' ? 'Remove Transaction Limit' : 'Remove Commission Policy'}
+        message={modal.type === 'LIMIT' 
+          ? `Are you sure you want to remove the limit for ${modal.payload?.profile_type_name} on ${modal.payload?.transaction_type_name}?` 
+          : `Are you sure you want to remove the commission policy for ${modal.payload?.beneficiary_type_name} on ${modal.payload?.transaction_type_name}?`
+        }
+        confirmLabel="Confirm Delete"
+        isDanger={true}
+        onConfirm={modal.type === 'LIMIT' ? modal.confirmDelete : modal.confirmDelete} 
+        onCancel={closeModal}
+      />
     </AdminLayout>
   );
 }
@@ -197,7 +213,7 @@ function TransactionTypesTab() {
 
 // ── Limits Tab ─────────────────────────────────────────────────
 
-function LimitsTab() {
+function LimitsTab({ setModal, closeModal }) {
   const [limits, setLimits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -239,15 +255,22 @@ function LimitsTab() {
     }
   };
 
-  const handleDelete = async (l) => {
-    if (!confirm('Delete this limit?')) return;
-    try {
-      await adminApi.deleteTransactionLimit(l.profile_type_id, l.transaction_type_id);
-      toast.success('Limit removed.');
-      fetchData();
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to delete.');
-    }
+  const handleDelete = (l) => {
+    setModal({
+      isOpen: true,
+      type: 'LIMIT',
+      payload: l,
+      confirmDelete: async () => {
+        closeModal();
+        try {
+          await adminApi.deleteTransactionLimit(l.profile_type_id, l.transaction_type_id);
+          toast.success('Limit removed.');
+          fetchData();
+        } catch (err) {
+          toast.error(err.response?.data?.message || 'Failed to delete.');
+        }
+      }
+    });
   };
 
   if (loading) return <LoadingSpinner size="lg" className="py-12" />;
@@ -363,7 +386,7 @@ function LimitsTab() {
 
 // ── Commissions Tab ────────────────────────────────────────────
 
-function CommissionsTab() {
+function CommissionsTab({ setModal, closeModal }) {
   const [policies, setPolicies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -401,15 +424,22 @@ function CommissionsTab() {
     }
   };
 
-  const handleDelete = async (p) => {
-    if (!confirm('Delete this policy?')) return;
-    try {
-      await adminApi.deleteCommissionPolicy(p.profile_type_id, p.transaction_type_id);
-      toast.success('Policy removed.');
-      fetchData();
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to delete.');
-    }
+  const handleDelete = (p) => {
+    setModal({
+      isOpen: true,
+      type: 'POLICY',
+      payload: p,
+      confirmDelete: async () => {
+        closeModal();
+        try {
+          await adminApi.deleteCommissionPolicy(p.profile_type_id, p.transaction_type_id);
+          toast.success('Policy removed.');
+          fetchData();
+        } catch (err) {
+          toast.error(err.response?.data?.message || 'Failed to delete.');
+        }
+      }
+    });
   };
 
   if (loading) return <LoadingSpinner size="lg" className="py-12" />;
