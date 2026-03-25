@@ -62,5 +62,11 @@ router.get('/config/profile-types', adminController.getProfileTypes);
 // Reports
 router.get('/reports/transactions', adminController.transactionReport);
 router.get('/reports/user-growth', adminController.userGrowthReport);
+router.get('/reports/mfs-overview', adminController.mfsOverviewReport);
+
+// Logs
+router.get('/logs/security', adminController.getSecurityLogs);
+router.get('/logs/actions', adminController.getActionLogs);
+router.get('/logs/audit', adminController.getAuditLogs);
 
 export default router;

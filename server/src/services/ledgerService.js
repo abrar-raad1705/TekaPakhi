@@ -4,10 +4,17 @@ import { PROFILE_TYPES, WALLET_ROLES } from "../utils/constants.js";
 
 /**
  * Double-entry ledger + fee distribution via Revenue wallet.
+ *
+ * Balance snapshots (before_balance / after_balance) are recorded on every
+ * ledger entry.  Callers pass a `balances` map keyed by wallet_id whose
+ * values are `{ before_balance, after_balance }`.  For wallet movements that
+ * happen *inside* this service (commissions, treasury CASH_OUT) the snapshots
+ * are captured from the walletModel return value.
  */
 const ledgerService = {
   /**
    * Book the main legs: sender debited, receiver credited, fee credited to Revenue (if any).
+   * `balances` = Map<walletId, { before_balance, after_balance }> from caller's debit/credit calls.
    */
   async recordMainTransactionLedger(
     client,
@@ -21,25 +28,31 @@ const ledgerService = {
       fee,
       amount,
       typeLabel,
+      balances,
     },
   ) {
-    // 1. Sender debit
+    const bal = (wid) => balances?.get(wid) || {};
+
     await ledgerModel.createLedgerEntry(client, {
       transactionId,
       walletId: senderWalletId,
       entryType: "DEBIT",
       amount: senderDebit,
       description: `${typeLabel}: sender`,
+      beforeBalance: bal(senderWalletId).before_balance,
+      afterBalance: bal(senderWalletId).after_balance,
     });
-    // 2. Receiver credit
+
     await ledgerModel.createLedgerEntry(client, {
       transactionId,
       walletId: receiverWalletId,
       entryType: "CREDIT",
       amount: receiverCredit,
       description: `${typeLabel}: receiver`,
+      beforeBalance: bal(receiverWalletId).before_balance,
+      afterBalance: bal(receiverWalletId).after_balance,
     });
-    // 3. System Revenue credit (if any)
+
     if (fee > 0 && revenueWalletId) {
       await ledgerModel.createLedgerEntry(client, {
         transactionId,
@@ -47,25 +60,26 @@ const ledgerService = {
         entryType: "CREDIT",
         amount: fee,
         description: `${typeLabel}: fee to revenue`,
+        beforeBalance: bal(revenueWalletId).before_balance,
+        afterBalance: bal(revenueWalletId).after_balance,
       });
     }
 
-    // 4. Treasury tracking: Tracks the "real cash position"
-    // - CASH_OUT: Real cash leaves system (Agent -> Customer) -> Debit Treasury (decreases obligation/cash backing)
-    // - Other transactions (CASH_IN, SEND_MONEY, PAYMENT, etc.) are internal transfers or movements and do not affect system's net cash position.
     if (typeLabel === "CASH_OUT") {
       const treasury = await walletModel.findByRoleForUpdate(
         client,
         WALLET_ROLES.TREASURY,
       );
       if (treasury) {
-        await walletModel.debit(client, treasury.wallet_id, amount);
+        const tResult = await walletModel.debit(client, treasury.wallet_id, amount);
         await ledgerModel.createLedgerEntry(client, {
           transactionId,
           walletId: treasury.wallet_id,
           entryType: "DEBIT",
           amount,
           description: `${typeLabel}: treasury cash-out settlement`,
+          beforeBalance: tResult.before_balance,
+          afterBalance: tResult.after_balance,
         });
       }
     }
@@ -73,8 +87,6 @@ const ledgerService = {
 
   /**
    * Split share based on transaction amount from Revenue to beneficiaries per commission_policies.
-   * SYSTEM share stays in Revenue (no transfer).
-   * Unmatched policy types (e.g. distributor with no linked profile) are skipped — share remains in Revenue.
    */
   async distributeCommissions(
     client,
@@ -107,7 +119,6 @@ const ledgerService = {
       } else if (policy.profile_type_id === parties.receiverTypeId) {
         beneficiaryProfileId = parties.receiverProfileId;
       } else if (policy.profile_type_id === PROFILE_TYPES.DISTRIBUTOR) {
-        // Find distributor linked to the agent involved in this transaction
         let agentProfileId = null;
         if (parties.senderTypeId === PROFILE_TYPES.AGENT) {
           agentProfileId = parties.senderProfileId;
@@ -137,18 +148,17 @@ const ledgerService = {
       );
       if (!wallet) continue;
 
-      // Note: We don't cap by remainingFee anymore as some transactions (like CASH_IN)
-      // don't charge the customer but still pay out commissions from the Revenue wallet.
-
       const treasury = await walletModel.findByRoleForUpdate(
         client,
         WALLET_ROLES.TREASURY,
       );
 
-      await walletModel.debit(client, revenueWallet.wallet_id, shareAmount);
-      await walletModel.credit(client, wallet.wallet_id, shareAmount);
+      const revResult = await walletModel.debit(client, revenueWallet.wallet_id, shareAmount);
+      const benResult = await walletModel.credit(client, wallet.wallet_id, shareAmount);
+
+      let tresResult;
       if (treasury) {
-        await walletModel.credit(client, treasury.wallet_id, shareAmount);
+        tresResult = await walletModel.credit(client, treasury.wallet_id, shareAmount);
       }
 
       await ledgerModel.createLedgerEntry(client, {
@@ -157,6 +167,8 @@ const ledgerService = {
         entryType: "DEBIT",
         amount: shareAmount,
         description: `Commission share (${policy.commission_share}% of volume to ${policy.beneficiary_type_name})`,
+        beforeBalance: revResult.before_balance,
+        afterBalance: revResult.after_balance,
       });
       await ledgerModel.createLedgerEntry(client, {
         transactionId,
@@ -164,14 +176,18 @@ const ledgerService = {
         entryType: "CREDIT",
         amount: shareAmount,
         description: `Commission share (${policy.commission_share}% of volume to ${policy.beneficiary_type_name})`,
+        beforeBalance: benResult.before_balance,
+        afterBalance: benResult.after_balance,
       });
-      if (treasury) {
+      if (treasury && tresResult) {
         await ledgerModel.createLedgerEntry(client, {
           transactionId,
           walletId: treasury.wallet_id,
           entryType: "CREDIT",
           amount: shareAmount,
           description: `Commission share record to treasury`,
+          beforeBalance: tresResult.before_balance,
+          afterBalance: tresResult.after_balance,
         });
       }
 
@@ -186,7 +202,8 @@ const ledgerService = {
   },
 
   /**
-   * Admin load e-cash: Treasury debited, target credited (same transaction_id as tp.transactions row).
+   * Admin load e-cash: Treasury credited, target credited.
+   * Accepts pre-computed balance snapshots from adminService.
    */
   async recordLoadEcashLedger(
     client,
@@ -194,13 +211,18 @@ const ledgerService = {
     treasuryWalletId,
     targetWalletId,
     amount,
+    balances,
   ) {
+    const bal = (wid) => balances?.get(wid) || {};
+
     await ledgerModel.createLedgerEntry(client, {
       transactionId,
       walletId: treasuryWalletId,
       entryType: "CREDIT",
       amount,
       description: "ADMIN_LOAD: treasury",
+      beforeBalance: bal(treasuryWalletId).before_balance,
+      afterBalance: bal(treasuryWalletId).after_balance,
     });
     await ledgerModel.createLedgerEntry(client, {
       transactionId,
@@ -208,6 +230,8 @@ const ledgerService = {
       entryType: "CREDIT",
       amount,
       description: "ADMIN_LOAD: recipient",
+      beforeBalance: bal(targetWalletId).before_balance,
+      afterBalance: bal(targetWalletId).after_balance,
     });
   },
 };

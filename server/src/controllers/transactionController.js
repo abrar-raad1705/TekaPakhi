@@ -14,6 +14,7 @@ const transactionController = {
         typeCode: 'SEND_MONEY',
         pin: req.validatedBody.pin,
         note: req.validatedBody.note,
+        meta: req.meta,
       });
       res.status(200).json({ success: true, data: result });
     } catch (error) {
@@ -33,6 +34,7 @@ const transactionController = {
         typeCode: 'CASH_IN',
         pin: req.validatedBody.pin,
         note: req.validatedBody.note,
+        meta: req.meta,
       });
       res.status(200).json({ success: true, data: result });
     } catch (error) {
@@ -52,6 +54,7 @@ const transactionController = {
         typeCode: 'CASH_OUT',
         pin: req.validatedBody.pin,
         note: req.validatedBody.note,
+        meta: req.meta,
       });
       res.status(200).json({ success: true, data: result });
     } catch (error) {
@@ -71,6 +74,7 @@ const transactionController = {
         typeCode: 'PAYMENT',
         pin: req.validatedBody.pin,
         note: req.validatedBody.note,
+        meta: req.meta,
       });
       res.status(200).json({ success: true, data: result });
     } catch (error) {
@@ -92,6 +96,7 @@ const transactionController = {
         note: req.validatedBody.note,
         billAccountNumber: req.validatedBody.billAccountNumber,
         billContactNumber: req.validatedBody.billContactNumber,
+        meta: req.meta,
       });
       res.status(200).json({ success: true, data: result });
     } catch (error) {
@@ -111,6 +116,7 @@ const transactionController = {
         typeCode: 'B2B',
         pin: req.validatedBody.pin,
         note: req.validatedBody.note,
+        meta: req.meta,
       });
       res.status(200).json({ success: true, data: result });
     } catch (error) {

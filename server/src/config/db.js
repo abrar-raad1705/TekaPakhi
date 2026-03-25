@@ -1,6 +1,7 @@
 import pkg from 'pg';
 const { Pool } = pkg;
 import env from './env.js';
+import logger from './logger.js';
 
 const pool = new Pool({
   host: env.DB_HOST,
@@ -11,13 +12,11 @@ const pool = new Pool({
 });
 
 pool.on('connect', () => {
-  if (env.NODE_ENV === 'development') {
-    console.log('[DB] Client connected to PostgreSQL');
-  }
+  logger.debug('DB client connected to PostgreSQL');
 });
 
 pool.on('error', (err) => {
-  console.error('[DB] Unexpected error on idle client:', err.message);
+  logger.fatal({ err }, 'Unexpected error on idle DB client');
   process.exit(1);
 });
 

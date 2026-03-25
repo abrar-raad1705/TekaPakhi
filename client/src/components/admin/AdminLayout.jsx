@@ -4,9 +4,12 @@ import {
   ArrowsRightLeftIcon,
   BanknotesIcon,
   ChartBarIcon,
+  ClipboardDocumentListIcon,
   Cog6ToothIcon,
+  ShieldCheckIcon,
   Squares2X2Icon,
   UsersIcon,
+  WrenchScrewdriverIcon,
 } from "@heroicons/react/24/outline";
 import { NavLink, useNavigate } from "react-router-dom";
 
@@ -25,6 +28,10 @@ const navItems = [
   },
   { to: "/admin/config", label: "Config", icon: Cog6ToothIcon },
   { to: "/admin/reports", label: "Reports", icon: ChartBarIcon },
+  { type: "divider" },
+  { to: "/admin/logs/security", label: "Security Logs", icon: ShieldCheckIcon },
+  { to: "/admin/logs/actions", label: "Admin Actions", icon: WrenchScrewdriverIcon },
+  { to: "/admin/logs/audit", label: "Audit Trail", icon: ClipboardDocumentListIcon },
 ];
 
 export default function AdminLayout({ children }) {
@@ -49,7 +56,11 @@ export default function AdminLayout({ children }) {
 
         {/* Nav */}
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-          {navItems.map((item) => {
+          {navItems.map((item, idx) => {
+            if (item.type === "divider") {
+              return <hr key={`div-${idx}`} className="my-3 border-gray-200" />;
+            }
+
             const Icon = item.icon;
 
             return (

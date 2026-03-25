@@ -65,7 +65,7 @@ const walletModel = {
       `UPDATE tp.wallets
        SET balance = balance - $1, last_activity_date = NOW()
        WHERE wallet_id = $2 AND balance >= $1
-       RETURNING *`,
+       RETURNING *, (balance + $1) AS before_balance, balance AS after_balance`,
       [amount, walletId]
     );
     if (result.rows.length === 0) {
@@ -82,7 +82,7 @@ const walletModel = {
       `UPDATE tp.wallets
        SET balance = balance + $1, last_activity_date = NOW()
        WHERE wallet_id = $2
-       RETURNING *`,
+       RETURNING *, (balance - $1) AS before_balance, balance AS after_balance`,
       [amount, walletId]
     );
     return result.rows[0];

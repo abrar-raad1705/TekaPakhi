@@ -10,6 +10,13 @@ import walletModel from "../models/walletModel.js";
 import ledgerModel from "../models/ledgerModel.js";
 import ledgerService from "./ledgerService.js";
 import locationModel from "../models/locationModel.js";
+import adminActionLogService from "./adminActionLogService.js";
+import auditLogService from "./auditLogService.js";
+
+function maskPhone(phone) {
+  if (!phone || phone.length < 6) return phone;
+  return phone.slice(0, 3) + '****' + phone.slice(-3);
+}
 
 const SALT_ROUNDS = 12;
 
@@ -86,7 +93,7 @@ const adminService = {
     return detail;
   },
 
-  async setPinResetGrant(profileId, granted) {
+  async setPinResetGrant(profileId, granted, ctx) {
     const profile = await profileModel.findById(profileId);
     if (!profile) throw new AppError("User not found.", 404);
     if (!PIN_RESET_RESTRICTED_TYPE_NAMES.includes(profile.type_name)) {
@@ -97,6 +104,12 @@ const adminService = {
     }
     const row = await profileModel.setPinResetGranted(profileId, granted);
     if (!row) throw new AppError("User not found.", 404);
+
+    const action = granted ? 'GRANT_PIN_RESET' : 'REVOKE_PIN_RESET';
+    adminActionLogService.logAction({ adminId: ctx?.adminId, action, targetProfileId: profileId, ip: ctx?.ip });
+    const verb = granted ? 'granted one-time PIN reset to' : 'revoked PIN reset grant for';
+    auditLogService.logAudit({ eventType: action, actorId: null, actorType: 'ADMIN', summary: `Admin ${verb} ${profile.type_name} ${maskPhone(profile.phone_number)}` });
+
     return {
       profileId: Number(profileId),
       pinResetGranted: row.pin_reset_granted,
@@ -107,7 +120,7 @@ const adminService = {
    * Create a Distributor or Biller profile (admin-only).
    * Distributor: random temporary PIN (returned once), areas from locations, contact person → full_name.
    */
-  async createProfile(body) {
+  async createProfile(body, ctx) {
     const {
       phoneNumber,
       fullName,
@@ -190,6 +203,9 @@ const adminService = {
 
         await client.query("COMMIT");
 
+        adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'CREATE_PROFILE', targetProfileId: profile.profile_id, ip: ctx?.ip, metadata: { accountType } });
+        auditLogService.logAudit({ eventType: 'CREATE_PROFILE', actorId: null, actorType: 'ADMIN', summary: `Admin created ${accountType} profile ${maskPhone(profile.phone_number)}` });
+
         return {
           profileId: profile.profile_id,
           phoneNumber: profile.phone_number,
@@ -255,6 +271,9 @@ const adminService = {
 
         await client.query("COMMIT");
 
+        adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'CREATE_PROFILE', targetProfileId: profile.profile_id, ip: ctx?.ip, metadata: { accountType } });
+        auditLogService.logAudit({ eventType: 'CREATE_PROFILE', actorId: null, actorType: 'ADMIN', summary: `Admin created ${accountType} profile ${maskPhone(profile.phone_number)}` });
+
         return {
           profileId: profile.profile_id,
           phoneNumber: profile.phone_number,
@@ -279,6 +298,9 @@ const adminService = {
       typeId,
     });
 
+    adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'CREATE_PROFILE', targetProfileId: profile.profile_id, ip: ctx?.ip, metadata: { accountType } });
+    auditLogService.logAudit({ eventType: 'CREATE_PROFILE', actorId: null, actorType: 'ADMIN', summary: `Admin created ${accountType} profile ${maskPhone(profile.phone_number)}` });
+
     return {
       profileId: profile.profile_id,
       phoneNumber: profile.phone_number,
@@ -291,7 +313,7 @@ const adminService = {
   /**
    * Load e-cash to a profile's wallet: Treasury debited, target credited (double-entry).
    */
-  async loadWallet(targetProfileId, amount) {
+  async loadWallet(targetProfileId, amount, ctx) {
     if (amount <= 0) throw new AppError("Amount must be positive.", 400);
 
     const target = await profileModel.findById(targetProfileId);
@@ -322,8 +344,11 @@ const adminService = {
       if (!treasuryWallet || !targetWallet)
         throw new AppError("Wallet lock failed.", 500);
 
-      await walletModel.credit(client, treasuryWallet.wallet_id, amount);
-      await walletModel.credit(client, targetWallet.wallet_id, amount);
+      const balances = new Map();
+      const tresResult = await walletModel.credit(client, treasuryWallet.wallet_id, amount);
+      balances.set(treasuryWallet.wallet_id, { before_balance: tresResult.before_balance, after_balance: tresResult.after_balance });
+      const tgtResult = await walletModel.credit(client, targetWallet.wallet_id, amount);
+      balances.set(targetWallet.wallet_id, { before_balance: tgtResult.before_balance, after_balance: tgtResult.after_balance });
 
       let txRef;
       let transactionId;
@@ -364,9 +389,13 @@ const adminService = {
         treasury.wallet_id,
         targetWallet.wallet_id,
         amount,
+        balances,
       );
 
       await client.query("COMMIT");
+
+      adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'LOAD_WALLET', targetProfileId, amount, ip: ctx?.ip, metadata: { transactionRef: txRef } });
+      auditLogService.logAudit({ eventType: 'LOAD_WALLET', actorId: null, actorType: 'ADMIN', summary: `Admin loaded ৳${amount} to ${target.type_name ?? 'user'} ${maskPhone(target.phone_number)}`, relatedTransactionId: transactionId });
 
       return {
         transactionRef: txRef,
@@ -383,7 +412,7 @@ const adminService = {
     }
   },
 
-  async updateWalletLimit(profileId, maxBalance) {
+  async updateWalletLimit(profileId, maxBalance, ctx) {
     const num = parseFloat(maxBalance);
     if (!Number.isFinite(num) || num <= 0) {
       throw new AppError("Invalid wallet limit.", 400);
@@ -403,11 +432,14 @@ const adminService = {
       );
     }
 
+    const oldLimit = parseFloat(wallet.max_balance);
     const updated = await walletModel.updateMaxBalanceByProfileId(
       profileId,
       num,
     );
     if (!updated) throw new AppError("Could not update wallet limit.", 500);
+
+    adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'UPDATE_WALLET_LIMIT', targetProfileId: profileId, ip: ctx?.ip, metadata: { oldLimit, newLimit: num } });
 
     return {
       profileId,
@@ -416,7 +448,7 @@ const adminService = {
     };
   },
 
-  async updateUserStatus(profileId, newStatus) {
+  async updateUserStatus(profileId, newStatus, ctx) {
     // First get the user's type
     const userResult = await pool.query(
       `SELECT p.profile_id, pt.type_name
@@ -503,6 +535,10 @@ const adminService = {
       }
 
       await client.query("COMMIT");
+
+      adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'UPDATE_USER_STATUS', targetProfileId: profileId, ip: ctx?.ip, metadata: { newStatus, typeName: type_name } });
+      auditLogService.logAudit({ eventType: 'UPDATE_USER_STATUS', actorId: null, actorType: 'ADMIN', summary: `Admin set ${type_name} #${profileId} status to ${updated.status}` });
+
       return { profileId, typeName: type_name, newStatus: updated.status };
     } catch (error) {
       await client.query("ROLLBACK");
@@ -521,7 +557,7 @@ const adminService = {
   /**
    * Reverse a completed transaction by inverting all ledger lines (and wallet balances).
    */
-  async reverseTransaction(transactionId) {
+  async reverseTransaction(transactionId, ctx) {
     const original = await adminModel.getTransactionForReversal(transactionId);
     if (!original) throw new AppError("Transaction not found.", 404);
     if (original.status !== "COMPLETED") {
@@ -553,13 +589,16 @@ const adminService = {
         await walletModel.findByWalletIdForUpdate(client, wid);
       }
 
+      const reversalBalances = new Map();
       for (const e of entries) {
         const amt = parseFloat(e.amount);
         if (e.entry_type === "DEBIT") {
-          await walletModel.credit(client, e.wallet_id, amt);
+          const r = await walletModel.credit(client, e.wallet_id, amt);
+          reversalBalances.set(`${e.wallet_id}_${e.id}`, { before_balance: r.before_balance, after_balance: r.after_balance });
         } else {
           try {
-            await walletModel.debit(client, e.wallet_id, amt);
+            const r = await walletModel.debit(client, e.wallet_id, amt);
+            reversalBalances.set(`${e.wallet_id}_${e.id}`, { before_balance: r.before_balance, after_balance: r.after_balance });
           } catch {
             throw new AppError(
               `Cannot reverse: insufficient balance on wallet ${e.wallet_id} to undo credit of ৳${amt.toFixed(2)}.`,
@@ -607,12 +646,15 @@ const adminService = {
       for (const e of entries) {
         const amt = parseFloat(e.amount);
         const inv = e.entry_type === "DEBIT" ? "CREDIT" : "DEBIT";
+        const bal = reversalBalances.get(`${e.wallet_id}_${e.id}`) || {};
         await ledgerModel.createLedgerEntry(client, {
           transactionId: reversalTxId,
           walletId: e.wallet_id,
           entryType: inv,
           amount: amt,
           description: `Reversal Entry - Original Txn #${transactionId}`,
+          beforeBalance: bal.before_balance,
+          afterBalance: bal.after_balance,
         });
       }
 
@@ -622,6 +664,9 @@ const adminService = {
       );
 
       await client.query("COMMIT");
+
+      adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'REVERSE_TRANSACTION', ip: ctx?.ip, amount, metadata: { originalTransactionId: transactionId, reversalTransactionId: reversalTxId, reversalRef: txRef } });
+      auditLogService.logAudit({ eventType: 'REVERSE_TRANSACTION', actorId: null, actorType: 'ADMIN', summary: `Admin reversed transaction #${transactionId} (৳${amount})`, relatedTransactionId: reversalTxId });
 
       return {
         originalTransactionId: transactionId,
@@ -643,7 +688,7 @@ const adminService = {
     return adminModel.getTransactionTypes();
   },
 
-  async updateTransactionType(typeId, fields) {
+  async updateTransactionType(typeId, fields, ctx) {
     const allowed = [
       "fee_percentage",
       "fee_flat_amount",
@@ -658,6 +703,9 @@ const adminService = {
     const result = await adminModel.updateTransactionType(typeId, filtered);
     if (!result)
       throw new AppError("Transaction type not found or no valid fields.", 404);
+
+    adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'UPDATE_TRANSACTION_TYPE', targetEntity: 'transaction_type', ip: ctx?.ip, metadata: { typeId, changes: filtered } });
+
     return result;
   },
 
@@ -665,16 +713,19 @@ const adminService = {
     return adminModel.getTransactionLimits();
   },
 
-  async upsertTransactionLimit(data) {
-    return adminModel.upsertTransactionLimit(data);
+  async upsertTransactionLimit(data, ctx) {
+    const result = await adminModel.upsertTransactionLimit(data);
+    adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'UPSERT_LIMIT', targetEntity: 'transaction_limit', ip: ctx?.ip, metadata: data });
+    return result;
   },
 
-  async deleteTransactionLimit(profileTypeId, transactionTypeId) {
+  async deleteTransactionLimit(profileTypeId, transactionTypeId, ctx) {
     const result = await adminModel.deleteTransactionLimit(
       profileTypeId,
       transactionTypeId,
     );
     if (!result) throw new AppError("Limit not found.", 404);
+    adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'DELETE_LIMIT', targetEntity: 'transaction_limit', ip: ctx?.ip, metadata: { profileTypeId, transactionTypeId } });
     return result;
   },
 
@@ -682,16 +733,19 @@ const adminService = {
     return adminModel.getCommissionPolicies();
   },
 
-  async upsertCommissionPolicy(data) {
-    return adminModel.upsertCommissionPolicy(data);
+  async upsertCommissionPolicy(data, ctx) {
+    const result = await adminModel.upsertCommissionPolicy(data);
+    adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'UPSERT_COMMISSION', targetEntity: 'commission_policy', ip: ctx?.ip, metadata: data });
+    return result;
   },
 
-  async deleteCommissionPolicy(profileTypeId, transactionTypeId) {
+  async deleteCommissionPolicy(profileTypeId, transactionTypeId, ctx) {
     const result = await adminModel.deleteCommissionPolicy(
       profileTypeId,
       transactionTypeId,
     );
     if (!result) throw new AppError("Policy not found.", 404);
+    adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'DELETE_COMMISSION', targetEntity: 'commission_policy', ip: ctx?.ip, metadata: { profileTypeId, transactionTypeId } });
     return result;
   },
 
@@ -707,6 +761,10 @@ const adminService = {
 
   async getUserGrowthReport(filters) {
     return adminModel.getUserGrowthReport(filters);
+  },
+
+  async getMfsOverviewReport(filters) {
+    return adminModel.getMfsOverviewReport(filters);
   },
 };
 

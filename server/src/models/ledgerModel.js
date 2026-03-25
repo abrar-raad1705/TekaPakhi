@@ -19,12 +19,12 @@ const ledgerModel = {
   /**
    * Insert a ledger line (inside a transaction)
    */
-  async createLedgerEntry(client, { transactionId, walletId, entryType, amount, description }) {
+  async createLedgerEntry(client, { transactionId, walletId, entryType, amount, description, beforeBalance, afterBalance }) {
     const result = await client.query(
-      `INSERT INTO tp.ledger_entries (transaction_id, wallet_id, entry_type, amount, description)
-       VALUES ($1, $2, $3::tp.ledger_entry_type, $4, $5)
+      `INSERT INTO tp.ledger_entries (transaction_id, wallet_id, entry_type, amount, description, before_balance, after_balance)
+       VALUES ($1, $2, $3::tp.ledger_entry_type, $4, $5, $6, $7)
        RETURNING *`,
-      [transactionId, walletId, entryType, amount, description ?? null]
+      [transactionId, walletId, entryType, amount, description ?? null, beforeBalance ?? null, afterBalance ?? null]
     );
     return result.rows[0];
   },

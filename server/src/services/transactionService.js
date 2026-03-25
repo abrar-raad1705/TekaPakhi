@@ -9,6 +9,12 @@ import feeService from './feeService.js';
 import limitService from './limitService.js';
 import ledgerService from './ledgerService.js';
 import authService from './authService.js';
+import auditLogService from './auditLogService.js';
+
+function maskPhone(phone) {
+  if (!phone || phone.length < 6) return phone;
+  return phone.slice(0, 3) + '****' + phone.slice(-3);
+}
 
 /**
  * Lock wallets in deterministic order (avoids deadlocks).
@@ -90,7 +96,7 @@ async function assertSenderCanTransact(sender) {
 }
 
 const transactionService = {
-  async execute({ senderProfileId, receiverPhone, amount, typeCode, pin, note, billAccountNumber = null, billContactNumber = null }) {
+  async execute({ senderProfileId, receiverPhone, amount, typeCode, pin, note, billAccountNumber = null, billContactNumber = null, meta }) {
     // Resolve transaction type
     const txType = await transactionTypeModel.findByName(typeCode);
     if (!txType) {
@@ -127,7 +133,7 @@ const transactionService = {
 
     await assertSenderCanTransact(sender);
     // Verify PIN (with brute force protection)
-    await authService.verifyTransactionPin(senderProfileId, pin);
+    await authService.verifyTransactionPin(senderProfileId, pin, meta);
 
     // Transaction
     const client = await pool.connect();
@@ -213,15 +219,17 @@ const transactionService = {
         throw new AppError("Transaction would exceed the recipient's maximum wallet balance.", 400);
       }
 
-      // Debit sender
-      await walletModel.debit(client, senderWallet.wallet_id, senderDebit);
+      const balances = new Map();
 
-      // Credit receiver
-      await walletModel.credit(client, receiverWallet.wallet_id, receiverCredit);
+      const senderResult = await walletModel.debit(client, senderWallet.wallet_id, senderDebit);
+      balances.set(senderWallet.wallet_id, { before_balance: senderResult.before_balance, after_balance: senderResult.after_balance });
 
-      // Fee to Revenue wallet
+      const receiverResult = await walletModel.credit(client, receiverWallet.wallet_id, receiverCredit);
+      balances.set(receiverWallet.wallet_id, { before_balance: receiverResult.before_balance, after_balance: receiverResult.after_balance });
+
       if (fee > 0 && revenueWalletId) {
-        await walletModel.credit(client, revenueWalletId, fee);
+        const revResult = await walletModel.credit(client, revenueWalletId, fee);
+        balances.set(revenueWalletId, { before_balance: revResult.before_balance, after_balance: revResult.after_balance });
       }
 
       // Insert transaction record (retry on rare transaction_ref collision)
@@ -262,6 +270,7 @@ const transactionService = {
         fee,
         amount,
         typeLabel: txType.type_name,
+        balances,
       });
 
       await ledgerService.distributeCommissions(
@@ -279,7 +288,15 @@ const transactionService = {
 
       await client.query('COMMIT');
 
-      // Return receipt
+      auditLogService.logAudit({
+        eventType: txType.type_name,
+        actorId: sender.profile_id,
+        actorType: 'USER',
+        summary: `${sender.type_name} ${maskPhone(sender.phone_number)} sent ৳${parseFloat(amount)} to ${maskPhone(receiver.phone_number)} (fee: ৳${fee}, ref: ${txRef})`,
+        details: { type: txType.type_name, amount: parseFloat(amount), fee, senderDebit, receiverCredit },
+        relatedTransactionId: transaction.transaction_id,
+      });
+
       return {
         transactionRef: txRef,
         transactionId: transaction.transaction_id,

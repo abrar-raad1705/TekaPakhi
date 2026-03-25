@@ -1,11 +1,13 @@
 import express from 'express';
 import cors from 'cors';
-import morgan from 'morgan';
+import pinoHttp from 'pino-http';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import env from './config/env.js';
+import logger from './config/logger.js';
 import routes from './routes/index.js';
 import errorHandler from './middleware/errorHandler.js';
+import requestMeta from './middleware/requestMeta.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,11 +24,14 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-if (env.NODE_ENV === 'development') {
-  app.use(morgan('dev'));
-}
+app.use(pinoHttp({
+  logger,
+  autoLogging: env.NODE_ENV === 'development',
+  quietReqLogger: true,
+}));
 
-// Serve uploaded files (avatars, etc.)
+app.use(requestMeta);
+
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 app.use('/api/v1', routes);

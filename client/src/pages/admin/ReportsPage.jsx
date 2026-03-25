@@ -1,34 +1,36 @@
-import { useState } from 'react';
-import { adminApi } from '../../api/adminApi';
-import { formatBDT } from '../../utils/formatCurrency';
-import AdminLayout from '../../components/admin/AdminLayout';
-import LoadingSpinner from '../../components/common/LoadingSpinner';
-import { toast } from 'sonner';
+import { useState } from "react";
+import { adminApi } from "../../api/adminApi";
+import { formatBDT } from "../../utils/formatCurrency";
+import AdminLayout from "../../components/admin/AdminLayout";
+import LoadingSpinner from "../../components/common/LoadingSpinner";
+import { toast } from "sonner";
 
 export default function ReportsPage() {
-  const [reportType, setReportType] = useState('transactions');
-  const [groupBy, setGroupBy] = useState('day');
+  const [reportType, setReportType] = useState("transactions");
+  const [groupBy, setGroupBy] = useState("day");
   const [fromDate, setFromDate] = useState(() => {
     const d = new Date();
     d.setMonth(d.getMonth() - 1);
-    return d.toISOString().split('T')[0];
+    return d.toISOString().split("T")[0];
   });
-  const [toDate, setToDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [toDate, setToDate] = useState(
+    () => new Date().toISOString().split("T")[0],
+  );
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
-
 
   const handleGenerate = async () => {
     setLoading(true);
     setData(null);
     try {
       const params = { fromDate, toDate, groupBy };
-      const res = reportType === 'transactions'
-        ? await adminApi.getTransactionReport(params)
-        : await adminApi.getUserGrowthReport(params);
+      const res =
+        reportType === "transactions"
+          ? await adminApi.getTransactionReport(params)
+          : await adminApi.getUserGrowthReport(params);
       setData(res.data.data);
     } catch (err) {
-      toast.error('Failed to generate report.');
+      toast.error("Failed to generate report.");
     } finally {
       setLoading(false);
     }
@@ -39,13 +41,13 @@ export default function ReportsPage() {
 
     const headers = Object.keys(data[0]);
     const csvContent = [
-      headers.join(','),
-      ...data.map((row) => headers.map((h) => `"${row[h] ?? ''}"`).join(',')),
-    ].join('\n');
+      headers.join(","),
+      ...data.map((row) => headers.map((h) => `"${row[h] ?? ""}"`).join(",")),
+    ].join("\n");
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = url;
     link.download = `${reportType}_report_${fromDate}_${toDate}.csv`;
     link.click();
@@ -56,16 +58,23 @@ export default function ReportsPage() {
     <AdminLayout>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
-        <p className="text-sm text-gray-500">Generate and export platform reports</p>
+        <p className="text-sm text-gray-500">
+          Generate and export platform reports
+        </p>
       </div>
 
       {/* Controls */}
       <div className="mb-6 flex flex-wrap items-end gap-4 rounded-xl border border-gray-200 bg-white p-5">
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-500">Report Type</label>
+          <label className="mb-1 block text-xs font-medium text-gray-500">
+            Report Type
+          </label>
           <select
             value={reportType}
-            onChange={(e) => { setReportType(e.target.value); setData(null); }}
+            onChange={(e) => {
+              setReportType(e.target.value);
+              setData(null);
+            }}
             className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none"
           >
             <option value="transactions">Transaction Volume</option>
@@ -74,7 +83,9 @@ export default function ReportsPage() {
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-500">From</label>
+          <label className="mb-1 block text-xs font-medium text-gray-500">
+            From
+          </label>
           <input
             type="date"
             value={fromDate}
@@ -84,7 +95,9 @@ export default function ReportsPage() {
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-500">To</label>
+          <label className="mb-1 block text-xs font-medium text-gray-500">
+            To
+          </label>
           <input
             type="date"
             value={toDate}
@@ -94,7 +107,9 @@ export default function ReportsPage() {
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-500">Group By</label>
+          <label className="mb-1 block text-xs font-medium text-gray-500">
+            Group By
+          </label>
           <select
             value={groupBy}
             onChange={(e) => setGroupBy(e.target.value)}
@@ -111,7 +126,7 @@ export default function ReportsPage() {
           disabled={loading}
           className="rounded-lg bg-primary-600 px-6 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50"
         >
-          {loading ? 'Generating...' : 'Generate'}
+          {loading ? "Generating..." : "Generate"}
         </button>
 
         {data && data.length > 0 && (
@@ -130,16 +145,16 @@ export default function ReportsPage() {
       {data && !loading && (
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
           {data.length === 0 ? (
-            <p className="py-12 text-center text-sm text-gray-500">No data for the selected period.</p>
-          ) : reportType === 'transactions' ? (
+            <p className="py-12 text-center text-sm text-gray-500">
+              No data for the selected period.
+            </p>
+          ) : reportType === "transactions" ? (
             <TransactionReportTable data={data} />
           ) : (
             <UserGrowthTable data={data} />
           )}
         </div>
       )}
-
-
     </AdminLayout>
   );
 }
@@ -152,7 +167,7 @@ function TransactionReportTable({ data }) {
       volume: acc.volume + parseFloat(r.volume),
       revenue: acc.revenue + parseFloat(r.revenue),
     }),
-    { count: 0, volume: 0, revenue: 0 }
+    { count: 0, volume: 0, revenue: 0 },
   );
 
   return (
@@ -173,17 +188,29 @@ function TransactionReportTable({ data }) {
               <td className="px-4 py-3 text-gray-700">{r.period}</td>
               <td className="px-4 py-3 text-gray-700">{r.type_name}</td>
               <td className="px-4 py-3 text-right text-gray-900">{r.count}</td>
-              <td className="px-4 py-3 text-right font-medium text-gray-900">{formatBDT(r.volume)}</td>
-              <td className="px-4 py-3 text-right font-medium text-green-600">{formatBDT(r.revenue)}</td>
+              <td className="px-4 py-3 text-right font-medium text-gray-900">
+                {formatBDT(r.volume)}
+              </td>
+              <td className="px-4 py-3 text-right font-medium text-green-600">
+                {formatBDT(r.revenue)}
+              </td>
             </tr>
           ))}
         </tbody>
         <tfoot className="border-t border-gray-200 bg-gray-50">
           <tr className="font-semibold">
-            <td className="px-4 py-3 text-gray-900" colSpan={2}>Totals</td>
-            <td className="px-4 py-3 text-right text-gray-900">{totals.count}</td>
-            <td className="px-4 py-3 text-right text-gray-900">{formatBDT(totals.volume)}</td>
-            <td className="px-4 py-3 text-right text-green-600">{formatBDT(totals.revenue)}</td>
+            <td className="px-4 py-3 text-gray-900" colSpan={2}>
+              Totals
+            </td>
+            <td className="px-4 py-3 text-right text-gray-900">
+              {totals.count}
+            </td>
+            <td className="px-4 py-3 text-right text-gray-900">
+              {formatBDT(totals.volume)}
+            </td>
+            <td className="px-4 py-3 text-right text-green-600">
+              {formatBDT(totals.revenue)}
+            </td>
           </tr>
         </tfoot>
       </table>
@@ -215,7 +242,9 @@ function UserGrowthTable({ data }) {
         </tbody>
         <tfoot className="border-t border-gray-200 bg-gray-50">
           <tr className="font-semibold">
-            <td className="px-4 py-3 text-gray-900" colSpan={2}>Total</td>
+            <td className="px-4 py-3 text-gray-900" colSpan={2}>
+              Total
+            </td>
             <td className="px-4 py-3 text-right text-gray-900">{total}</td>
           </tr>
         </tfoot>

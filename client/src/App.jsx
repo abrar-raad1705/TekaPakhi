@@ -44,6 +44,9 @@ import TransactionMonitorPage from './pages/admin/TransactionMonitorPage';
 import ConfigPage from './pages/admin/ConfigPage';
 import ReportsPage from './pages/admin/ReportsPage';
 import DistributorLoadPage from './pages/admin/DistributorLoadPage';
+import SecurityLogsPage from './pages/admin/SecurityLogsPage';
+import AdminActionLogsPage from './pages/admin/AdminActionLogsPage';
+import AuditTrailPage from './pages/admin/AuditTrailPage';
 
 export default function App() {
   const { isAuthenticated, user, getHomeRoute } = useAuth();
@@ -101,6 +104,9 @@ export default function App() {
         <Route path="/admin/load-emoney" element={<AdminRoute><DistributorLoadPage /></AdminRoute>} />
         <Route path="/admin/config" element={<AdminRoute><ConfigPage /></AdminRoute>} />
         <Route path="/admin/reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
+        <Route path="/admin/logs/security" element={<AdminRoute><SecurityLogsPage /></AdminRoute>} />
+        <Route path="/admin/logs/actions" element={<AdminRoute><AdminActionLogsPage /></AdminRoute>} />
+        <Route path="/admin/logs/audit" element={<AdminRoute><AuditTrailPage /></AdminRoute>} />
 
         <Route path="*" element={<Navigate to={isAuthenticated ? homeRoute : '/login'} replace />} />
       </Route>

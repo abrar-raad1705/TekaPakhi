@@ -7,6 +7,7 @@ import profileModel from "../models/profileModel.js";
 import otpService from "./otpService.js";
 import { generateAgentCode, generateMerchantCode } from "../utils/helpers.js";
 import { PROFILE_TYPES, PIN_RESET_RESTRICTED_TYPE_NAMES } from "../utils/constants.js";
+import securityLogService from "./securityLogService.js";
 
 const SALT_ROUNDS = 12;
 
@@ -141,24 +142,24 @@ const authService = {
    * Login with phone + PIN
    * Flow: find profile → check lock → verify PIN → generate access token
    */
-  async login({ phoneNumber, securityPin }) {
+  async login({ phoneNumber, securityPin, meta }) {
     const profile = await profileModel.findByPhone(phoneNumber);
     if (!profile) {
+      securityLogService.logEvent({ profileId: null, eventType: 'LOGIN_FAILURE', ...meta, metadata: { phoneNumber, reason: 'unknown_phone' } });
       throw new AppError("Invalid phone number or PIN.", 401);
     }
 
-    // Check if account is locked
     if (profile.locked_until && new Date(profile.locked_until) > new Date()) {
       const minutesLeft = Math.ceil(
         (new Date(profile.locked_until) - new Date()) / 60000,
       );
+      securityLogService.logEvent({ profileId: profile.profile_id, eventType: 'LOGIN_FAILURE', ...meta, metadata: { reason: 'account_locked', minutesLeft } });
       throw new AppError(
         `Account is temporarily locked. Try again in ${minutesLeft} minute(s).`,
         423,
       );
     }
 
-    // Verify PIN
     const isPinValid = await bcrypt.compare(
       securityPin,
       profile.security_pin_hash,
@@ -173,20 +174,22 @@ const authService = {
           Date.now() + env.PIN_LOCK_DURATION_MINUTES * 60 * 1000,
         );
         await profileModel.lockAccount(profile.profile_id, lockUntil);
+        securityLogService.logEvent({ profileId: profile.profile_id, eventType: 'ACCOUNT_LOCK', ...meta, metadata: { reason: 'max_pin_attempts', lockUntil } });
         throw new AppError(
           `Too many failed attempts. Account locked for ${env.PIN_LOCK_DURATION_MINUTES} minutes.`,
           423,
         );
       }
 
+      securityLogService.logEvent({ profileId: profile.profile_id, eventType: 'LOGIN_FAILURE', ...meta, metadata: { failedAttempts: failed_pin_attempts } });
       throw new AppError(
         `Invalid phone number or PIN. ${env.MAX_PIN_ATTEMPTS - failed_pin_attempts} attempt(s) remaining.`,
         401,
       );
     }
 
-    // Reset failed attempts on successful login
     await profileModel.resetFailedAttempts(profile.profile_id);
+    securityLogService.logEvent({ profileId: profile.profile_id, eventType: 'LOGIN_SUCCESS', ...meta });
 
     // Get account status from subtype table
     const accountStatus = await profileModel.getAccountStatus(
@@ -267,21 +270,20 @@ const authService = {
   /**
    * Verify phone number with OTP
    */
-  async verifyOtp({ phoneNumber, otpCode, purpose = "VERIFY_PHONE", isCheckOnly = false }) {
+  async verifyOtp({ phoneNumber, otpCode, purpose = "VERIFY_PHONE", isCheckOnly = false, meta }) {
     await otpService.verifyOTP(phoneNumber, otpCode, purpose, !isCheckOnly);
-    if (!isCheckOnly && purpose === "VERIFY_PHONE") {
-      const profile = await profileModel.findByPhone(phoneNumber);
-      if (profile) {
-        await profileModel.setPhoneVerified(phoneNumber);
-      }
+    const profile = await profileModel.findByPhone(phoneNumber);
+    if (!isCheckOnly && purpose === "VERIFY_PHONE" && profile) {
+      await profileModel.setPhoneVerified(phoneNumber);
     }
+    securityLogService.logEvent({ profileId: profile?.profile_id ?? null, eventType: 'OTP_VERIFY', ...meta, metadata: { purpose, phoneNumber } });
     return { message: "OTP verified successfully." };
   },
 
   /**
    * Request OTP for PIN reset or phone verification
    */
-  async requestOtp(phoneNumber, purpose = "RESET_PIN") {
+  async requestOtp(phoneNumber, purpose = "RESET_PIN", meta) {
     const profile = await profileModel.findByPhone(phoneNumber);
 
     if (purpose === "VERIFY_PHONE") {
@@ -308,6 +310,7 @@ const authService = {
     }
 
     const otpResult = await otpService.sendOTP(phoneNumber, purpose);
+    securityLogService.logEvent({ profileId: profile?.profile_id ?? null, eventType: 'OTP_REQUEST', ...meta, metadata: { purpose, phoneNumber } });
     return {
       message: "OTP sent successfully.",
       ...otpResult,
@@ -317,13 +320,13 @@ const authService = {
   /**
    * Reset PIN with OTP verification
    */
-  async resetPin({ phoneNumber, otpCode, newPin }) {
-    // await otpService.verifyOTP(phoneNumber, otpCode, 'RESET_PIN');
-
+  async resetPin({ phoneNumber, otpCode, newPin, meta }) {
     const profile = await profileModel.findByPhone(phoneNumber);
     if (!profile) {
       throw new AppError("Profile not found.", 404);
     }
+
+    const wasAdminGranted = PIN_RESET_RESTRICTED_TYPE_NAMES.includes(profile.type_name) && profile.pin_reset_granted;
 
     if (
       PIN_RESET_RESTRICTED_TYPE_NAMES.includes(profile.type_name) &&
@@ -335,39 +338,37 @@ const authService = {
       );
     }
 
-    // Hash new PIN and update
     const pinHash = await bcrypt.hash(newPin, SALT_ROUNDS);
     await profileModel.updatePin(profile.profile_id, pinHash);
 
-    // Reset failed attempts and unlock
     await profileModel.resetFailedAttempts(profile.profile_id);
 
     if (PIN_RESET_RESTRICTED_TYPE_NAMES.includes(profile.type_name)) {
       await profileModel.setPinResetGranted(profile.profile_id, false);
     }
 
+    securityLogService.logEvent({ profileId: profile.profile_id, eventType: 'PIN_RESET', ...meta, metadata: { adminGranted: wasAdminGranted } });
     return { message: "PIN reset successful. Please login with your new PIN." };
   },
 
   /**
    * Change PIN (authenticated user, requires old PIN)
    */
-  async changePin({ profileId, oldPin, newPin }) {
+  async changePin({ profileId, oldPin, newPin, meta }) {
     const profile = await profileModel.findById(profileId);
     if (!profile) {
       throw new AppError("Profile not found.", 404);
     }
 
-    // Verify old PIN
     const isPinValid = await bcrypt.compare(oldPin, profile.security_pin_hash);
     if (!isPinValid) {
       throw new AppError("Current PIN is incorrect.", 401);
     }
 
-    // Hash and update new PIN
     const pinHash = await bcrypt.hash(newPin, SALT_ROUNDS);
     await profileModel.updatePin(profileId, pinHash);
 
+    securityLogService.logEvent({ profileId, eventType: 'PIN_CHANGE', ...meta });
     return { message: "PIN changed successfully." };
   },
 
@@ -375,13 +376,12 @@ const authService = {
    * Verify transaction PIN (reusable for any PIN-gated action)
    * Includes brute force protection (lock after MAX_PIN_ATTEMPTS)
    */
-  async verifyTransactionPin(profileId, pin) {
+  async verifyTransactionPin(profileId, pin, meta) {
     const profile = await profileModel.findById(profileId);
     if (!profile) {
       throw new AppError("Profile not found.", 404);
     }
 
-    // Check if account is locked
     if (profile.locked_until && new Date(profile.locked_until) > new Date()) {
       const minutesLeft = Math.ceil(
         (new Date(profile.locked_until) - new Date()) / 60000,
@@ -403,19 +403,20 @@ const authService = {
           Date.now() + env.PIN_LOCK_DURATION_MINUTES * 60 * 1000,
         );
         await profileModel.lockAccount(profileId, lockUntil);
+        securityLogService.logEvent({ profileId, eventType: 'ACCOUNT_LOCK', ...meta, metadata: { reason: 'max_txn_pin_attempts', lockUntil } });
         throw new AppError(
           `Too many failed attempts. Account locked for ${env.PIN_LOCK_DURATION_MINUTES} minutes.`,
           423,
         );
       }
 
+      securityLogService.logEvent({ profileId, eventType: 'TXN_PIN_FAILURE', ...meta, metadata: { failedAttempts: failed_pin_attempts } });
       throw new AppError(
         `Invalid PIN. ${env.MAX_PIN_ATTEMPTS - failed_pin_attempts} attempt(s) remaining.`,
         401,
       );
     }
 
-    // Reset on success
     await profileModel.resetFailedAttempts(profileId);
     return true;
   },

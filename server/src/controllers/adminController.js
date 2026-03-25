@@ -1,4 +1,11 @@
 import adminService from '../services/adminService.js';
+import securityLogService from '../services/securityLogService.js';
+import adminActionLogService from '../services/adminActionLogService.js';
+import auditLogService from '../services/auditLogService.js';
+
+function adminCtx(req) {
+  return { adminId: 'ADMIN', ip: req.meta?.ip };
+}
 
 const adminController = {
   // Dashboard 
@@ -32,7 +39,7 @@ const adminController = {
 
   async createProfile(req, res, next) {
     try {
-      const data = await adminService.createProfile(req.validatedBody);
+      const data = await adminService.createProfile(req.validatedBody, adminCtx(req));
       res.status(201).json({ success: true, data, message: `${data.accountType} profile created.` });
     } catch (error) {
       next(error);
@@ -43,7 +50,8 @@ const adminController = {
     try {
       const data = await adminService.loadWallet(
         req.params.id,
-        req.validatedBody.amount
+        req.validatedBody.amount,
+        adminCtx(req),
       );
       res.json({ success: true, data, message: `৳${data.amount} loaded successfully.` });
     } catch (error) {
@@ -53,7 +61,7 @@ const adminController = {
 
   async updateUserStatus(req, res, next) {
     try {
-      const data = await adminService.updateUserStatus(req.params.id, req.validatedBody.status);
+      const data = await adminService.updateUserStatus(req.params.id, req.validatedBody.status, adminCtx(req));
       res.json({ success: true, data, message: `User status updated to ${data.newStatus}.` });
     } catch (error) {
       next(error);
@@ -65,6 +73,7 @@ const adminController = {
       const data = await adminService.updateWalletLimit(
         req.params.id,
         req.validatedBody.maxBalance,
+        adminCtx(req),
       );
       res.json({ success: true, data, message: "Wallet limit updated." });
     } catch (error) {
@@ -77,6 +86,7 @@ const adminController = {
       const data = await adminService.setPinResetGrant(
         req.params.id,
         req.validatedBody.granted,
+        adminCtx(req),
       );
       res.json({
         success: true,
@@ -103,7 +113,7 @@ const adminController = {
 
   async reverseTransaction(req, res, next) {
     try {
-      const data = await adminService.reverseTransaction(req.params.id);
+      const data = await adminService.reverseTransaction(req.params.id, adminCtx(req));
       res.json({ success: true, data, message: 'Transaction reversed successfully.' });
     } catch (error) {
       next(error);
@@ -123,7 +133,7 @@ const adminController = {
 
   async updateTransactionType(req, res, next) {
     try {
-      const data = await adminService.updateTransactionType(req.params.id, req.validatedBody);
+      const data = await adminService.updateTransactionType(req.params.id, req.validatedBody, adminCtx(req));
       res.json({ success: true, data, message: 'Transaction type updated.' });
     } catch (error) {
       next(error);
@@ -143,7 +153,7 @@ const adminController = {
 
   async upsertTransactionLimit(req, res, next) {
     try {
-      const data = await adminService.upsertTransactionLimit(req.validatedBody);
+      const data = await adminService.upsertTransactionLimit(req.validatedBody, adminCtx(req));
       res.json({ success: true, data, message: 'Limit saved.' });
     } catch (error) {
       next(error);
@@ -152,7 +162,7 @@ const adminController = {
 
   async deleteTransactionLimit(req, res, next) {
     try {
-      const data = await adminService.deleteTransactionLimit(req.params.profileTypeId, req.params.txTypeId);
+      const data = await adminService.deleteTransactionLimit(req.params.profileTypeId, req.params.txTypeId, adminCtx(req));
       res.json({ success: true, data, message: 'Limit removed.' });
     } catch (error) {
       next(error);
@@ -172,7 +182,7 @@ const adminController = {
 
   async upsertCommissionPolicy(req, res, next) {
     try {
-      const data = await adminService.upsertCommissionPolicy(req.validatedBody);
+      const data = await adminService.upsertCommissionPolicy(req.validatedBody, adminCtx(req));
       res.json({ success: true, data, message: 'Policy saved.' });
     } catch (error) {
       next(error);
@@ -181,7 +191,7 @@ const adminController = {
 
   async deleteCommissionPolicy(req, res, next) {
     try {
-      const data = await adminService.deleteCommissionPolicy(req.params.profileTypeId, req.params.txTypeId);
+      const data = await adminService.deleteCommissionPolicy(req.params.profileTypeId, req.params.txTypeId, adminCtx(req));
       res.json({ success: true, data, message: 'Policy removed.' });
     } catch (error) {
       next(error);
@@ -210,6 +220,65 @@ const adminController = {
   async userGrowthReport(req, res, next) {
     try {
       const data = await adminService.getUserGrowthReport(req.query);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async mfsOverviewReport(req, res, next) {
+    try {
+      const data = await adminService.getMfsOverviewReport(req.query);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // Logs
+
+  async getSecurityLogs(req, res, next) {
+    try {
+      const data = await securityLogService.query({
+        page: parseInt(req.query.page) || 1,
+        limit: parseInt(req.query.limit) || 25,
+        eventType: req.query.eventType || undefined,
+        profileId: req.query.profileId || undefined,
+        startDate: req.query.startDate || undefined,
+        endDate: req.query.endDate || undefined,
+      });
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getActionLogs(req, res, next) {
+    try {
+      const data = await adminActionLogService.query({
+        page: parseInt(req.query.page) || 1,
+        limit: parseInt(req.query.limit) || 25,
+        action: req.query.action || undefined,
+        adminId: req.query.adminId || undefined,
+        startDate: req.query.startDate || undefined,
+        endDate: req.query.endDate || undefined,
+      });
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getAuditLogs(req, res, next) {
+    try {
+      const data = await auditLogService.query({
+        page: parseInt(req.query.page) || 1,
+        limit: parseInt(req.query.limit) || 25,
+        eventType: req.query.eventType || undefined,
+        actorType: req.query.actorType || undefined,
+        startDate: req.query.startDate || undefined,
+        endDate: req.query.endDate || undefined,
+      });
       res.json({ success: true, data });
     } catch (error) {
       next(error);
