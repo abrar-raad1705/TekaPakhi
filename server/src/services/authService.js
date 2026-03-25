@@ -165,72 +165,87 @@ const authService = {
       profile.security_pin_hash,
     );
 
-    if (!isPinValid) {
-      const { failed_pin_attempts } =
-        await profileModel.incrementFailedAttempts(profile.profile_id);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
 
-      if (failed_pin_attempts >= env.MAX_PIN_ATTEMPTS) {
-        const lockUntil = new Date(
-          Date.now() + env.PIN_LOCK_DURATION_MINUTES * 60 * 1000,
-        );
-        await profileModel.lockAccount(profile.profile_id, lockUntil);
-        securityLogService.logEvent({ profileId: profile.profile_id, eventType: 'ACCOUNT_LOCK', ...meta, metadata: { reason: 'max_pin_attempts', lockUntil } });
+      if (!isPinValid) {
+        const { failed_pin_attempts } =
+          await profileModel.incrementFailedAttempts(profile.profile_id, client);
+
+        if (failed_pin_attempts >= env.MAX_PIN_ATTEMPTS) {
+          const lockUntil = new Date(
+            Date.now() + env.PIN_LOCK_DURATION_MINUTES * 60 * 1000,
+          );
+          await profileModel.lockAccount(profile.profile_id, lockUntil, client);
+          await client.query("COMMIT");
+          securityLogService.logEvent({ profileId: profile.profile_id, eventType: 'ACCOUNT_LOCK', ...meta, metadata: { reason: 'max_pin_attempts', lockUntil } });
+          throw new AppError(
+            `Too many failed attempts. Account locked for ${env.PIN_LOCK_DURATION_MINUTES} minutes.`,
+            423,
+          );
+        }
+
+        await client.query("COMMIT");
+        securityLogService.logEvent({ profileId: profile.profile_id, eventType: 'LOGIN_FAILURE', ...meta, metadata: { failedAttempts: failed_pin_attempts } });
         throw new AppError(
-          `Too many failed attempts. Account locked for ${env.PIN_LOCK_DURATION_MINUTES} minutes.`,
-          423,
+          `Invalid phone number or PIN. ${env.MAX_PIN_ATTEMPTS - failed_pin_attempts} attempt(s) remaining.`,
+          401,
         );
       }
 
-      securityLogService.logEvent({ profileId: profile.profile_id, eventType: 'LOGIN_FAILURE', ...meta, metadata: { failedAttempts: failed_pin_attempts } });
-      throw new AppError(
-        `Invalid phone number or PIN. ${env.MAX_PIN_ATTEMPTS - failed_pin_attempts} attempt(s) remaining.`,
-        401,
+      await profileModel.resetFailedAttempts(profile.profile_id, client);
+
+      // Get account status from subtype table
+      const accountStatus = await profileModel.getAccountStatus(
+        profile.profile_id,
+        profile.type_name,
       );
+
+      let isPhoneVerified = profile.is_phone_verified;
+      let requiresPinSetup = false;
+      if (profile.type_name === "DISTRIBUTOR" || profile.type_name === "BILLER") {
+        await client.query(
+          `UPDATE ${DB_SCHEMA}.profiles SET is_phone_verified = TRUE WHERE profile_id = $1`,
+          [profile.profile_id],
+        );
+        isPhoneVerified = true;
+        const subtypeTable =
+          profile.type_name === "DISTRIBUTOR"
+            ? "distributor_profiles"
+            : "biller_profiles";
+        const dp = await client.query(
+          `SELECT pending_pin_setup FROM ${DB_SCHEMA}.${subtypeTable} WHERE profile_id = $1`,
+          [profile.profile_id],
+        );
+        requiresPinSetup = dp.rows[0]?.pending_pin_setup === true;
+      }
+
+      await client.query("COMMIT");
+
+      securityLogService.logEvent({ profileId: profile.profile_id, eventType: 'LOGIN_SUCCESS', ...meta });
+
+      const accessToken = this.generateAccessToken(profile);
+
+      return {
+        accessToken,
+        profile: {
+          profileId: profile.profile_id,
+          phoneNumber: profile.phone_number,
+          fullName: profile.full_name,
+          typeId: profile.type_id,
+          typeName: profile.type_name,
+          isPhoneVerified,
+          requiresPinSetup,
+          accountStatus,
+        },
+      };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
     }
-
-    await profileModel.resetFailedAttempts(profile.profile_id);
-    securityLogService.logEvent({ profileId: profile.profile_id, eventType: 'LOGIN_SUCCESS', ...meta });
-
-    // Get account status from subtype table
-    const accountStatus = await profileModel.getAccountStatus(
-      profile.profile_id,
-      profile.type_name,
-    );
-
-    let isPhoneVerified = profile.is_phone_verified;
-    let requiresPinSetup = false;
-    if (profile.type_name === "DISTRIBUTOR" || profile.type_name === "BILLER") {
-      await pool.query(
-        `UPDATE ${DB_SCHEMA}.profiles SET is_phone_verified = TRUE WHERE profile_id = $1`,
-        [profile.profile_id],
-      );
-      isPhoneVerified = true;
-      const subtypeTable =
-        profile.type_name === "DISTRIBUTOR"
-          ? "distributor_profiles"
-          : "biller_profiles";
-      const dp = await pool.query(
-        `SELECT pending_pin_setup FROM ${DB_SCHEMA}.${subtypeTable} WHERE profile_id = $1`,
-        [profile.profile_id],
-      );
-      requiresPinSetup = dp.rows[0]?.pending_pin_setup === true;
-    }
-
-    const accessToken = this.generateAccessToken(profile);
-
-    return {
-      accessToken,
-      profile: {
-        profileId: profile.profile_id,
-        phoneNumber: profile.phone_number,
-        fullName: profile.full_name,
-        typeId: profile.type_id,
-        typeName: profile.type_name,
-        isPhoneVerified,
-        requiresPinSetup,
-        accountStatus,
-      },
-    };
   },
 
   /**
@@ -259,11 +274,22 @@ const authService = {
       throw new AppError("PIN setup already completed.", 400);
     }
     const pinHash = await bcrypt.hash(newPin, SALT_ROUNDS);
-    await profileModel.updatePin(profileId, pinHash);
-    await pool.query(
-      `UPDATE ${DB_SCHEMA}.${subtypeTable} SET pending_pin_setup = FALSE WHERE profile_id = $1`,
-      [profileId],
-    );
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await profileModel.updatePin(profileId, pinHash, client);
+      await client.query(
+        `UPDATE ${DB_SCHEMA}.${subtypeTable} SET pending_pin_setup = FALSE WHERE profile_id = $1`,
+        [profileId],
+      );
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
     return { message: "Your PIN has been set. You can now use the app." };
   },
 
@@ -271,13 +297,23 @@ const authService = {
    * Verify phone number with OTP
    */
   async verifyOtp({ phoneNumber, otpCode, purpose = "VERIFY_PHONE", isCheckOnly = false, meta }) {
-    await otpService.verifyOTP(phoneNumber, otpCode, purpose, !isCheckOnly);
-    const profile = await profileModel.findByPhone(phoneNumber);
-    if (!isCheckOnly && purpose === "VERIFY_PHONE" && profile) {
-      await profileModel.setPhoneVerified(phoneNumber);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await otpService.verifyOTP(phoneNumber, otpCode, purpose, !isCheckOnly, client);
+      const profile = await profileModel.findByPhone(phoneNumber);
+      if (!isCheckOnly && purpose === "VERIFY_PHONE" && profile) {
+        await profileModel.setPhoneVerified(phoneNumber, client);
+      }
+      await client.query("COMMIT");
+      securityLogService.logEvent({ profileId: profile?.profile_id ?? null, eventType: 'OTP_VERIFY', ...meta, metadata: { purpose, phoneNumber } });
+      return { message: "OTP verified successfully." };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
     }
-    securityLogService.logEvent({ profileId: profile?.profile_id ?? null, eventType: 'OTP_VERIFY', ...meta, metadata: { purpose, phoneNumber } });
-    return { message: "OTP verified successfully." };
   },
 
   /**
@@ -339,12 +375,21 @@ const authService = {
     }
 
     const pinHash = await bcrypt.hash(newPin, SALT_ROUNDS);
-    await profileModel.updatePin(profile.profile_id, pinHash);
 
-    await profileModel.resetFailedAttempts(profile.profile_id);
-
-    if (PIN_RESET_RESTRICTED_TYPE_NAMES.includes(profile.type_name)) {
-      await profileModel.setPinResetGranted(profile.profile_id, false);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await profileModel.updatePin(profile.profile_id, pinHash, client);
+      await profileModel.resetFailedAttempts(profile.profile_id, client);
+      if (PIN_RESET_RESTRICTED_TYPE_NAMES.includes(profile.type_name)) {
+        await profileModel.setPinResetGranted(profile.profile_id, false, client);
+      }
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
     }
 
     securityLogService.logEvent({ profileId: profile.profile_id, eventType: 'PIN_RESET', ...meta, metadata: { adminGranted: wasAdminGranted } });
@@ -366,7 +411,18 @@ const authService = {
     }
 
     const pinHash = await bcrypt.hash(newPin, SALT_ROUNDS);
-    await profileModel.updatePin(profileId, pinHash);
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await profileModel.updatePin(profileId, pinHash, client);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
 
     securityLogService.logEvent({ profileId, eventType: 'PIN_CHANGE', ...meta });
     return { message: "PIN changed successfully." };
@@ -394,31 +450,44 @@ const authService = {
 
     const isPinValid = await bcrypt.compare(pin, profile.security_pin_hash);
 
-    if (!isPinValid) {
-      const { failed_pin_attempts } =
-        await profileModel.incrementFailedAttempts(profileId);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
 
-      if (failed_pin_attempts >= env.MAX_PIN_ATTEMPTS) {
-        const lockUntil = new Date(
-          Date.now() + env.PIN_LOCK_DURATION_MINUTES * 60 * 1000,
-        );
-        await profileModel.lockAccount(profileId, lockUntil);
-        securityLogService.logEvent({ profileId, eventType: 'ACCOUNT_LOCK', ...meta, metadata: { reason: 'max_txn_pin_attempts', lockUntil } });
+      if (!isPinValid) {
+        const { failed_pin_attempts } =
+          await profileModel.incrementFailedAttempts(profileId, client);
+
+        if (failed_pin_attempts >= env.MAX_PIN_ATTEMPTS) {
+          const lockUntil = new Date(
+            Date.now() + env.PIN_LOCK_DURATION_MINUTES * 60 * 1000,
+          );
+          await profileModel.lockAccount(profileId, lockUntil, client);
+          await client.query("COMMIT");
+          securityLogService.logEvent({ profileId, eventType: 'ACCOUNT_LOCK', ...meta, metadata: { reason: 'max_txn_pin_attempts', lockUntil } });
+          throw new AppError(
+            `Too many failed attempts. Account locked for ${env.PIN_LOCK_DURATION_MINUTES} minutes.`,
+            423,
+          );
+        }
+
+        await client.query("COMMIT");
+        securityLogService.logEvent({ profileId, eventType: 'TXN_PIN_FAILURE', ...meta, metadata: { failedAttempts: failed_pin_attempts } });
         throw new AppError(
-          `Too many failed attempts. Account locked for ${env.PIN_LOCK_DURATION_MINUTES} minutes.`,
-          423,
+          `Invalid PIN. ${env.MAX_PIN_ATTEMPTS - failed_pin_attempts} attempt(s) remaining.`,
+          401,
         );
       }
 
-      securityLogService.logEvent({ profileId, eventType: 'TXN_PIN_FAILURE', ...meta, metadata: { failedAttempts: failed_pin_attempts } });
-      throw new AppError(
-        `Invalid PIN. ${env.MAX_PIN_ATTEMPTS - failed_pin_attempts} attempt(s) remaining.`,
-        401,
-      );
+      await profileModel.resetFailedAttempts(profileId, client);
+      await client.query("COMMIT");
+      return true;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
     }
-
-    await profileModel.resetFailedAttempts(profileId);
-    return true;
   },
 
   /**

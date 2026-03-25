@@ -9,40 +9,53 @@ const otpService = {
    * In development mode, the OTP is returned in the response
    */
   async sendOTP(phoneNumber, purpose = 'VERIFY_PHONE') {
-    // Invalidate any previous unused OTPs for this phone + purpose
-    await pool.query(
-      `UPDATE ${DB_SCHEMA}.otp_codes SET is_used = TRUE
-       WHERE phone_number = $1 AND purpose = $2 AND is_used = FALSE`,
-      [phoneNumber, purpose]
-    );
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
 
-    const otpCode = generateOTP();
-    const expiresAt = new Date(Date.now() + env.OTP_EXPIRY_MINUTES * 60 * 1000);
+      // Invalidate any previous unused OTPs for this phone + purpose
+      await client.query(
+        `UPDATE ${DB_SCHEMA}.otp_codes SET is_used = TRUE
+         WHERE phone_number = $1 AND purpose = $2 AND is_used = FALSE`,
+        [phoneNumber, purpose]
+      );
 
-    await pool.query(
-      `INSERT INTO ${DB_SCHEMA}.otp_codes (phone_number, otp_code, purpose, expires_at)
-       VALUES ($1, $2, $3, $4)`,
-      [phoneNumber, otpCode, purpose, expiresAt]
-    );
+      const otpCode = generateOTP();
+      const expiresAt = new Date(Date.now() + env.OTP_EXPIRY_MINUTES * 60 * 1000);
 
-    if (env.NODE_ENV === 'development') {
-      console.log(`[DEV OTP] ${phoneNumber} → ${otpCode} (${purpose})`);
+      await client.query(
+        `INSERT INTO ${DB_SCHEMA}.otp_codes (phone_number, otp_code, purpose, expires_at)
+         VALUES ($1, $2, $3, $4)`,
+        [phoneNumber, otpCode, purpose, expiresAt]
+      );
+
+      await client.query('COMMIT');
+
+      if (env.NODE_ENV === 'development') {
+        console.log(`[DEV OTP] ${phoneNumber} → ${otpCode} (${purpose})`);
+      }
+
+      return {
+        message: 'OTP sent successfully.',
+        expiresInMinutes: env.OTP_EXPIRY_MINUTES,
+        // Exposing OTP in development
+        ...(env.NODE_ENV === 'development' && { otp: otpCode }),
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
-
-    return {
-      message: 'OTP sent successfully.',
-      expiresInMinutes: env.OTP_EXPIRY_MINUTES,
-      // Exposing OTP in development
-      ...(env.NODE_ENV === 'development' && { otp: otpCode }),
-    };
   },
 
   /**
    * Verify an OTP code
    * Throws AppError if OTP is invalid or expired
    */
-  async verifyOTP(phoneNumber, otpCode, purpose = 'VERIFY_PHONE', markUsed = true) {
-    const result = await pool.query(
+  async verifyOTP(phoneNumber, otpCode, purpose = 'VERIFY_PHONE', markUsed = true, client = null) {
+    const db = client || pool;
+    const result = await db.query(
       `SELECT * FROM ${DB_SCHEMA}.otp_codes
        WHERE phone_number = $1 AND otp_code = $2 AND purpose = $3
          AND is_used = FALSE AND expires_at > NOW()
@@ -57,7 +70,7 @@ const otpService = {
 
     // Mark OTP as used
     if (markUsed) {
-      await pool.query(
+      await db.query(
         `UPDATE ${DB_SCHEMA}.otp_codes SET is_used = TRUE WHERE otp_id = $1`,
         [result.rows[0].otp_id]
       );

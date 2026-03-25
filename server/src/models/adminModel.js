@@ -249,7 +249,8 @@ const adminModel = {
     };
   },
 
-  async updateUserStatus(profileId, typeName, newStatus) {
+  async updateUserStatus(profileId, typeName, newStatus, client = null) {
+    const db = client || pool;
     const tableMap = {
       CUSTOMER: "customer_profiles",
       AGENT: "agent_profiles",
@@ -266,7 +267,7 @@ const adminModel = {
       newStatus === "ACTIVE" && hasApprovedDate
         ? ", approved_date = CURRENT_TIMESTAMP"
         : "";
-    const result = await pool.query(
+    const result = await db.query(
       `UPDATE ${DB_SCHEMA}.${table}
        SET status = $1 ${approvedClause}
        WHERE profile_id = $2
@@ -387,7 +388,8 @@ const adminModel = {
     return result.rows;
   },
 
-  async updateTransactionType(typeId, fields) {
+  async updateTransactionType(typeId, fields, client = null) {
+    const db = client || pool;
     const setClauses = [];
     const values = [];
     let idx = 1;
@@ -400,7 +402,7 @@ const adminModel = {
     if (setClauses.length === 0) return null;
 
     values.push(typeId);
-    const result = await pool.query(
+    const result = await db.query(
       `UPDATE ${DB_SCHEMA}.transaction_types SET ${setClauses.join(", ")} WHERE type_id = $${idx} RETURNING *`,
       values,
     );
@@ -418,8 +420,9 @@ const adminModel = {
     return result.rows;
   },
 
-  async upsertTransactionLimit(data) {
-    const result = await pool.query(
+  async upsertTransactionLimit(data, client = null) {
+    const db = client || pool;
+    const result = await db.query(
       `INSERT INTO ${DB_SCHEMA}.transaction_limits
          (profile_type_id, transaction_type_id, daily_limit, monthly_limit,
           max_count_daily, max_count_monthly, min_per_transaction, max_per_transaction)
@@ -467,8 +470,9 @@ const adminModel = {
     return result.rows;
   },
 
-  async upsertCommissionPolicy(data) {
-    const result = await pool.query(
+  async upsertCommissionPolicy(data, client = null) {
+    const db = client || pool;
+    const result = await db.query(
       `INSERT INTO ${DB_SCHEMA}.commission_policies (profile_type_id, transaction_type_id, commission_share)
        VALUES ($1, $2, $3)
        ON CONFLICT (profile_type_id, transaction_type_id) DO UPDATE SET

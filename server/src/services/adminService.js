@@ -291,12 +291,24 @@ const adminService = {
     }
 
     const pinHash = await bcrypt.hash(securityPin, SALT_ROUNDS);
-    const profile = await profileModel.create({
-      phoneNumber,
-      fullName,
-      pinHash,
-      typeId,
-    });
+
+    const client = await pool.connect();
+    let profile;
+    try {
+      await client.query("BEGIN");
+      profile = await profileModel.create({
+        phoneNumber,
+        fullName,
+        pinHash,
+        typeId,
+      }, client);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
 
     adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'CREATE_PROFILE', targetProfileId: profile.profile_id, ip: ctx?.ip, metadata: { accountType } });
     auditLogService.logAudit({ eventType: 'CREATE_PROFILE', actorId: null, actorType: 'ADMIN', summary: `Admin created ${accountType} profile ${maskPhone(profile.phone_number)}` });
@@ -433,11 +445,24 @@ const adminService = {
     }
 
     const oldLimit = parseFloat(wallet.max_balance);
-    const updated = await walletModel.updateMaxBalanceByProfileId(
-      profileId,
-      num,
-    );
-    if (!updated) throw new AppError("Could not update wallet limit.", 500);
+
+    const client = await pool.connect();
+    let updated;
+    try {
+      await client.query("BEGIN");
+      updated = await walletModel.updateMaxBalanceByProfileId(
+        profileId,
+        num,
+        client,
+      );
+      if (!updated) throw new AppError("Could not update wallet limit.", 500);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
 
     adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'UPDATE_WALLET_LIMIT', targetProfileId: profileId, ip: ctx?.ip, metadata: { oldLimit, newLimit: num } });
 

@@ -107,8 +107,9 @@ const walletModel = {
   /**
    * Admin: set max_balance for a normal user wallet (role IS NULL).
    */
-  async updateMaxBalanceByProfileId(profileId, maxBalance) {
-    const result = await pool.query(
+  async updateMaxBalanceByProfileId(profileId, maxBalance, client = null) {
+    const db = client || pool;
+    const result = await db.query(
       `UPDATE ${DB_SCHEMA}.wallets
        SET max_balance = $1
        WHERE profile_id = $2 AND role IS NULL

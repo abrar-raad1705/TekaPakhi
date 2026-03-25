@@ -292,7 +292,8 @@ const profileModel = {
   /**
    * Update profile fields (full_name, email, nid_number)
    */
-  async update(profileId, fields) {
+  async update(profileId, fields, client = null) {
+    const db = client || pool;
     const setClauses = [];
     const values = [];
     let paramIdx = 1;
@@ -313,7 +314,7 @@ const profileModel = {
     if (setClauses.length === 0) return null;
 
     values.push(profileId);
-    const result = await pool.query(
+    const result = await db.query(
       `UPDATE ${DB_SCHEMA}.profiles
        SET ${setClauses.join(", ")}
        WHERE profile_id = $${paramIdx}
@@ -326,8 +327,9 @@ const profileModel = {
   /**
    * Update security PIN hash
    */
-  async updatePin(profileId, pinHash) {
-    await pool.query(
+  async updatePin(profileId, pinHash, client = null) {
+    const db = client || pool;
+    await db.query(
       `UPDATE ${DB_SCHEMA}.profiles SET security_pin_hash = $1 WHERE profile_id = $2`,
       [pinHash, profileId],
     );
@@ -336,8 +338,9 @@ const profileModel = {
   /**
    * Admin: allow/revoke one-time Forgot PIN for agent, distributor, biller.
    */
-  async setPinResetGranted(profileId, granted) {
-    const result = await pool.query(
+  async setPinResetGranted(profileId, granted, client = null) {
+    const db = client || pool;
+    const result = await db.query(
       `UPDATE ${DB_SCHEMA}.profiles SET pin_reset_granted = $2 WHERE profile_id = $1
        RETURNING profile_id, pin_reset_granted`,
       [profileId, granted],
@@ -362,8 +365,9 @@ const profileModel = {
   /**
    * Increment failed PIN attempts (brute force tracking)
    */
-  async incrementFailedAttempts(profileId) {
-    const result = await pool.query(
+  async incrementFailedAttempts(profileId, client = null) {
+    const db = client || pool;
+    const result = await db.query(
       `UPDATE ${DB_SCHEMA}.profiles
        SET failed_pin_attempts = COALESCE(failed_pin_attempts, 0) + 1
        WHERE profile_id = $1
@@ -376,8 +380,9 @@ const profileModel = {
   /**
    * Lock account until a specific time
    */
-  async lockAccount(profileId, lockUntil) {
-    await pool.query(
+  async lockAccount(profileId, lockUntil, client = null) {
+    const db = client || pool;
+    await db.query(
       `UPDATE ${DB_SCHEMA}.profiles SET locked_until = $1 WHERE profile_id = $2`,
       [lockUntil, profileId],
     );
@@ -386,8 +391,9 @@ const profileModel = {
   /**
    * Reset failed attempts and unlock account
    */
-  async resetFailedAttempts(profileId) {
-    await pool.query(
+  async resetFailedAttempts(profileId, client = null) {
+    const db = client || pool;
+    await db.query(
       `UPDATE ${DB_SCHEMA}.profiles
        SET failed_pin_attempts = 0, locked_until = NULL
        WHERE profile_id = $1`,
@@ -398,8 +404,9 @@ const profileModel = {
   /**
    * Update profile picture URL
    */
-  async updateProfilePicture(profileId, imageUrl) {
-    const result = await pool.query(
+  async updateProfilePicture(profileId, imageUrl, client = null) {
+    const db = client || pool;
+    const result = await db.query(
       `UPDATE ${DB_SCHEMA}.profiles
        SET profile_picture_url = $1
        WHERE profile_id = $2
