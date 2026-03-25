@@ -10,7 +10,7 @@ CREATE INDEX IF NOT EXISTS idx_locations_district ON locations(district);
 CREATE INDEX IF NOT EXISTS idx_locations_area ON locations(area);
 
 -- Seed data
-INSERT INTO tp.locations (district, area)
+INSERT INTO locations (district, area)
 VALUES 
 ('Barguna', 'Amtali'),
 ('Barguna', 'Bamna'),

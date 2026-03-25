@@ -23,7 +23,6 @@ client/dist/
 Thumbs.db
 
 # database dumps
-migrations/tp.sql
 
 # uploads
 server/uploads/
