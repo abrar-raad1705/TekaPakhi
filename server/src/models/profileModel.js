@@ -1,4 +1,4 @@
-import pool from "../config/db.js";
+import pool, { DB_SCHEMA } from "../config/db.js";
 
 const profileModel = {
   /**
@@ -7,8 +7,8 @@ const profileModel = {
   async findByPhone(phoneNumber) {
     const result = await pool.query(
       `SELECT p.*, pt.type_name
-       FROM tp.profiles p
-       JOIN tp.profile_types pt ON p.type_id = pt.type_id
+       FROM ${DB_SCHEMA}.profiles p
+       JOIN ${DB_SCHEMA}.profile_types pt ON p.type_id = pt.type_id
        WHERE p.phone_number = $1`,
       [phoneNumber],
     );
@@ -21,8 +21,8 @@ const profileModel = {
   async findById(profileId) {
     const result = await pool.query(
       `SELECT p.*, pt.type_name
-       FROM tp.profiles p
-       JOIN tp.profile_types pt ON p.type_id = pt.type_id
+       FROM ${DB_SCHEMA}.profiles p
+       JOIN ${DB_SCHEMA}.profile_types pt ON p.type_id = pt.type_id
        WHERE p.profile_id = $1`,
       [profileId],
     );
@@ -42,12 +42,12 @@ const profileModel = {
          w.max_balance AS target_max_balance,
          ap.agent_code,
          ap.shop_name
-       FROM tp.agent_profiles ap
-       JOIN tp.profiles p
+       FROM ${DB_SCHEMA}.agent_profiles ap
+       JOIN ${DB_SCHEMA}.profiles p
          ON p.profile_id = ap.profile_id
-       JOIN tp.wallets w
+       JOIN ${DB_SCHEMA}.wallets w
          ON w.profile_id = p.profile_id
-       LEFT JOIN tp.saved_recipients sr
+       LEFT JOIN ${DB_SCHEMA}.saved_recipients sr
          ON sr.saver_profile_id = $1
         AND sr.target_profile_id = p.profile_id
        WHERE ap.distributor_id = $1
@@ -64,7 +64,7 @@ const profileModel = {
   async getAgentDistributorId(agentProfileId) {
     const result = await pool.query(
       `SELECT distributor_id
-       FROM tp.agent_profiles
+       FROM ${DB_SCHEMA}.agent_profiles
        WHERE profile_id = $1
          AND status = 'ACTIVE'
        LIMIT 1`,
@@ -82,9 +82,9 @@ const profileModel = {
          p.profile_picture_url AS target_profile_picture_url,
          w.balance AS target_balance,
          w.max_balance AS target_max_balance
-       FROM tp.agent_profiles ap
-       JOIN tp.profiles p ON p.profile_id = ap.distributor_id
-       JOIN tp.wallets w ON w.profile_id = p.profile_id
+       FROM ${DB_SCHEMA}.agent_profiles ap
+       JOIN ${DB_SCHEMA}.profiles p ON p.profile_id = ap.distributor_id
+       JOIN ${DB_SCHEMA}.wallets w ON w.profile_id = p.profile_id
        WHERE ap.profile_id = $1
          AND ap.status = 'ACTIVE'
        LIMIT 1`,
@@ -96,7 +96,7 @@ const profileModel = {
   async isAgentConnectedToDistributor(distributorProfileId, agentProfileId) {
     const result = await pool.query(
       `SELECT 1
-       FROM tp.agent_profiles
+       FROM ${DB_SCHEMA}.agent_profiles
        WHERE distributor_id = $1
          AND profile_id = $2
          AND status = 'ACTIVE'
@@ -127,7 +127,7 @@ const profileModel = {
 
     if (table) {
       const result = await pool.query(
-        `SELECT * FROM tp.${table} WHERE profile_id = $1`,
+        `SELECT * FROM ${DB_SCHEMA}.${table} WHERE profile_id = $1`,
         [profileId],
       );
       subtypeData = result.rows[0] || null;
@@ -146,7 +146,7 @@ const profileModel = {
   ) {
     const db = client || pool;
     const result = await db.query(
-      `INSERT INTO tp.profiles (phone_number, full_name, security_pin_hash, type_id, email)
+      `INSERT INTO ${DB_SCHEMA}.profiles (phone_number, full_name, security_pin_hash, type_id, email)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING profile_id, phone_number, full_name, email, is_phone_verified, registration_date, type_id`,
       [phoneNumber, fullName, pinHash, typeId, email || null],
@@ -160,7 +160,7 @@ const profileModel = {
   async createCustomerSubtype(profileId, client = null) {
     const db = client || pool;
     const result = await db.query(
-      `INSERT INTO tp.customer_profiles (profile_id, status, approved_date)
+      `INSERT INTO ${DB_SCHEMA}.customer_profiles (profile_id, status, approved_date)
        VALUES ($1, 'ACTIVE', CURRENT_TIMESTAMP)
        RETURNING *`,
       [profileId],
@@ -178,7 +178,7 @@ const profileModel = {
   ) {
     const db = client || pool;
     const result = await db.query(
-      `INSERT INTO tp.agent_profiles (profile_id, agent_code, shop_name, shop_address, district, area, status)
+      `INSERT INTO ${DB_SCHEMA}.agent_profiles (profile_id, agent_code, shop_name, shop_address, district, area, status)
        VALUES ($1, $2, $3, $4, $5, $6, 'PENDING_KYC')
        RETURNING *`,
       [
@@ -203,7 +203,7 @@ const profileModel = {
   ) {
     const db = client || pool;
     const result = await db.query(
-      `INSERT INTO tp.merchant_profiles (profile_id, merchant_code, shop_name, shop_address, district, area, status)
+      `INSERT INTO ${DB_SCHEMA}.merchant_profiles (profile_id, merchant_code, shop_name, shop_address, district, area, status)
        VALUES ($1, $2, $3, $4, $5, $6, 'PENDING_KYC')
        RETURNING *`,
       [
@@ -228,7 +228,7 @@ const profileModel = {
   ) {
     const db = client || pool;
     const result = await db.query(
-      `INSERT INTO tp.distributor_profiles
+      `INSERT INTO ${DB_SCHEMA}.distributor_profiles
          (profile_id, business_name, additional_info, status, created_at, pending_pin_setup)
        VALUES ($1, $2, $3, 'ACTIVE', CURRENT_TIMESTAMP, TRUE)
        RETURNING *`,
@@ -236,7 +236,7 @@ const profileModel = {
     );
     for (const { district, area } of areas) {
       await db.query(
-        `INSERT INTO tp.distributor_areas (profile_id, district, area) VALUES ($1, $2, $3)`,
+        `INSERT INTO ${DB_SCHEMA}.distributor_areas (profile_id, district, area) VALUES ($1, $2, $3)`,
         [profileId, district, area],
       );
     }
@@ -253,9 +253,9 @@ const profileModel = {
   ) {
     const db = client || pool;
     const result = await db.query(
-      `INSERT INTO tp.biller_profiles
+      `INSERT INTO ${DB_SCHEMA}.biller_profiles
          (profile_id, service_name, biller_type, sender_charge_flat, sender_charge_percent, status, pending_pin_setup)
-       VALUES ($1, $2, $3::tp.biller_type, $4, $5, 'ACTIVE', TRUE)
+       VALUES ($1, $2, $3::${DB_SCHEMA}.biller_type, $4, $5, 'ACTIVE', TRUE)
        RETURNING *`,
       [
         profileId,
@@ -283,7 +283,7 @@ const profileModel = {
     if (!table) return "ACTIVE"; // SYSTEM profiles are always active
 
     const result = await pool.query(
-      `SELECT status FROM tp.${table} WHERE profile_id = $1`,
+      `SELECT status FROM ${DB_SCHEMA}.${table} WHERE profile_id = $1`,
       [profileId],
     );
     return result.rows[0]?.status || null;
@@ -314,7 +314,7 @@ const profileModel = {
 
     values.push(profileId);
     const result = await pool.query(
-      `UPDATE tp.profiles
+      `UPDATE ${DB_SCHEMA}.profiles
        SET ${setClauses.join(", ")}
        WHERE profile_id = $${paramIdx}
        RETURNING profile_id, phone_number, full_name, email, nid_number, is_phone_verified, type_id`,
@@ -328,7 +328,7 @@ const profileModel = {
    */
   async updatePin(profileId, pinHash) {
     await pool.query(
-      `UPDATE tp.profiles SET security_pin_hash = $1 WHERE profile_id = $2`,
+      `UPDATE ${DB_SCHEMA}.profiles SET security_pin_hash = $1 WHERE profile_id = $2`,
       [pinHash, profileId],
     );
   },
@@ -338,7 +338,7 @@ const profileModel = {
    */
   async setPinResetGranted(profileId, granted) {
     const result = await pool.query(
-      `UPDATE tp.profiles SET pin_reset_granted = $2 WHERE profile_id = $1
+      `UPDATE ${DB_SCHEMA}.profiles SET pin_reset_granted = $2 WHERE profile_id = $1
        RETURNING profile_id, pin_reset_granted`,
       [profileId, granted],
     );
@@ -351,7 +351,7 @@ const profileModel = {
   async setPhoneVerified(phoneNumber, client = null) {
     const db = client || pool;
     const result = await db.query(
-      `UPDATE tp.profiles SET is_phone_verified = TRUE
+      `UPDATE ${DB_SCHEMA}.profiles SET is_phone_verified = TRUE
        WHERE phone_number = $1
        RETURNING profile_id, phone_number, is_phone_verified`,
       [phoneNumber],
@@ -364,7 +364,7 @@ const profileModel = {
    */
   async incrementFailedAttempts(profileId) {
     const result = await pool.query(
-      `UPDATE tp.profiles
+      `UPDATE ${DB_SCHEMA}.profiles
        SET failed_pin_attempts = COALESCE(failed_pin_attempts, 0) + 1
        WHERE profile_id = $1
        RETURNING failed_pin_attempts`,
@@ -378,7 +378,7 @@ const profileModel = {
    */
   async lockAccount(profileId, lockUntil) {
     await pool.query(
-      `UPDATE tp.profiles SET locked_until = $1 WHERE profile_id = $2`,
+      `UPDATE ${DB_SCHEMA}.profiles SET locked_until = $1 WHERE profile_id = $2`,
       [lockUntil, profileId],
     );
   },
@@ -388,7 +388,7 @@ const profileModel = {
    */
   async resetFailedAttempts(profileId) {
     await pool.query(
-      `UPDATE tp.profiles
+      `UPDATE ${DB_SCHEMA}.profiles
        SET failed_pin_attempts = 0, locked_until = NULL
        WHERE profile_id = $1`,
       [profileId],
@@ -400,7 +400,7 @@ const profileModel = {
    */
   async updateProfilePicture(profileId, imageUrl) {
     const result = await pool.query(
-      `UPDATE tp.profiles
+      `UPDATE ${DB_SCHEMA}.profiles
        SET profile_picture_url = $1
        WHERE profile_id = $2
        RETURNING profile_id, profile_picture_url`,

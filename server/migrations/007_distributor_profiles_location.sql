@@ -1,5 +1,3 @@
-SET search_path TO tp;
-
 -- 1. Distributor profile updates
 ALTER TABLE distributor_profiles
   ADD COLUMN IF NOT EXISTS business_name VARCHAR(100) NOT NULL,

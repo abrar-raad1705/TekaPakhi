@@ -1,4 +1,4 @@
-import pool from '../config/db.js';
+import pool, { DB_SCHEMA } from '../config/db.js';
 
 const limitModel = {
   /**
@@ -6,7 +6,7 @@ const limitModel = {
    */
   async findByTypes(profileTypeId, transactionTypeId) {
     const result = await pool.query(
-      `SELECT * FROM tp.transaction_limits
+      `SELECT * FROM ${DB_SCHEMA}.transaction_limits
        WHERE profile_type_id = $1 AND transaction_type_id = $2`,
       [profileTypeId, transactionTypeId]
     );

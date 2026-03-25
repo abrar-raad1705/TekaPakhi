@@ -1,4 +1,4 @@
-import pool from '../config/db.js';
+import pool, { DB_SCHEMA } from '../config/db.js';
 import walletModel from '../models/walletModel.js';
 import AppError from '../utils/AppError.js';
 
@@ -34,8 +34,8 @@ const walletService = {
 
     const commissionQuery = `
       SELECT COALESCE(SUM(le.amount), 0)::numeric AS total
-      FROM tp.ledger_entries le
-      JOIN tp.wallets w ON w.wallet_id = le.wallet_id
+      FROM ${DB_SCHEMA}.ledger_entries le
+      JOIN ${DB_SCHEMA}.wallets w ON w.wallet_id = le.wallet_id
       WHERE w.profile_id = $1
         AND le.entry_type = 'CREDIT'
         AND (
@@ -50,9 +50,9 @@ const walletService = {
         await Promise.all([
           pool.query(
             `SELECT COUNT(*)::int AS count
-             FROM tp.transactions t
-             JOIN tp.transaction_types tt ON tt.type_id = t.type_id
-             JOIN tp.wallets sw ON sw.wallet_id = t.sender_wallet_id
+             FROM ${DB_SCHEMA}.transactions t
+             JOIN ${DB_SCHEMA}.transaction_types tt ON tt.type_id = t.type_id
+             JOIN ${DB_SCHEMA}.wallets sw ON sw.wallet_id = t.sender_wallet_id
              WHERE sw.profile_id = $1
                AND tt.type_name = 'CASH_IN'
                AND t.status = 'COMPLETED'
@@ -61,9 +61,9 @@ const walletService = {
           ),
           pool.query(
             `SELECT COUNT(*)::int AS count
-             FROM tp.transactions t
-             JOIN tp.wallets sw ON sw.wallet_id = t.sender_wallet_id
-             JOIN tp.wallets rw ON rw.wallet_id = t.receiver_wallet_id
+             FROM ${DB_SCHEMA}.transactions t
+             JOIN ${DB_SCHEMA}.wallets sw ON sw.wallet_id = t.sender_wallet_id
+             JOIN ${DB_SCHEMA}.wallets rw ON rw.wallet_id = t.receiver_wallet_id
              WHERE (sw.profile_id = $1 OR rw.profile_id = $1)
                AND t.status = 'COMPLETED'
                AND t.transaction_time >= date_trunc('month', CURRENT_DATE)`,
@@ -85,7 +85,7 @@ const walletService = {
         await Promise.all([
           pool.query(
             `SELECT COUNT(*)::int AS count
-             FROM tp.agent_profiles
+             FROM ${DB_SCHEMA}.agent_profiles
              WHERE distributor_id = $1
                AND status = 'ACTIVE'`,
             [profileId],
@@ -94,9 +94,9 @@ const walletService = {
             `SELECT
                COUNT(*)::int AS count,
                COALESCE(SUM(t.amount), 0)::numeric AS total
-             FROM tp.transactions t
-             JOIN tp.transaction_types tt ON tt.type_id = t.type_id
-             JOIN tp.wallets sw ON sw.wallet_id = t.sender_wallet_id
+             FROM ${DB_SCHEMA}.transactions t
+             JOIN ${DB_SCHEMA}.transaction_types tt ON tt.type_id = t.type_id
+             JOIN ${DB_SCHEMA}.wallets sw ON sw.wallet_id = t.sender_wallet_id
              WHERE sw.profile_id = $1
                AND tt.type_name = 'B2B'
                AND t.status = 'COMPLETED'

@@ -1,5 +1,3 @@
-SET search_path TO tp;
-
 -- 1. Create biller_type ENUM
 DO $$ BEGIN
   CREATE TYPE biller_type AS ENUM (

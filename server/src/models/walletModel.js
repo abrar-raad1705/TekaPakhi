@@ -1,4 +1,4 @@
-import pool from '../config/db.js';
+import pool, { DB_SCHEMA } from '../config/db.js';
 import AppError from '../utils/AppError.js';
 
 const walletModel = {
@@ -7,7 +7,7 @@ const walletModel = {
    */
   async findByProfileId(profileId) {
     const result = await pool.query(
-      `SELECT * FROM tp.wallets WHERE profile_id = $1`,
+      `SELECT * FROM ${DB_SCHEMA}.wallets WHERE profile_id = $1`,
       [profileId]
     );
     return result.rows[0] || null;
@@ -18,7 +18,7 @@ const walletModel = {
    */
   async findByProfileIdForUpdate(client, profileId) {
     const result = await client.query(
-      `SELECT * FROM tp.wallets WHERE profile_id = $1 FOR UPDATE`,
+      `SELECT * FROM ${DB_SCHEMA}.wallets WHERE profile_id = $1 FOR UPDATE`,
       [profileId]
     );
     return result.rows[0] || null;
@@ -29,7 +29,7 @@ const walletModel = {
    */
   async findByRole(role) {
     const result = await pool.query(
-      `SELECT * FROM tp.wallets WHERE role = $1::tp.wallet_role`,
+      `SELECT * FROM ${DB_SCHEMA}.wallets WHERE role = $1::${DB_SCHEMA}.wallet_role`,
       [role]
     );
     return result.rows[0] || null;
@@ -40,7 +40,7 @@ const walletModel = {
    */
   async findByRoleForUpdate(client, role) {
     const result = await client.query(
-      `SELECT * FROM tp.wallets WHERE role = $1::tp.wallet_role FOR UPDATE`,
+      `SELECT * FROM ${DB_SCHEMA}.wallets WHERE role = $1::${DB_SCHEMA}.wallet_role FOR UPDATE`,
       [role]
     );
     return result.rows[0] || null;
@@ -51,7 +51,7 @@ const walletModel = {
    */
   async findByWalletIdForUpdate(client, walletId) {
     const result = await client.query(
-      `SELECT * FROM tp.wallets WHERE wallet_id = $1 FOR UPDATE`,
+      `SELECT * FROM ${DB_SCHEMA}.wallets WHERE wallet_id = $1 FOR UPDATE`,
       [walletId]
     );
     return result.rows[0] || null;
@@ -62,7 +62,7 @@ const walletModel = {
    */
   async debit(client, walletId, amount) {
     const result = await client.query(
-      `UPDATE tp.wallets
+      `UPDATE ${DB_SCHEMA}.wallets
        SET balance = balance - $1, last_activity_date = NOW()
        WHERE wallet_id = $2 AND balance >= $1
        RETURNING *, (balance + $1) AS before_balance, balance AS after_balance`,
@@ -79,7 +79,7 @@ const walletModel = {
    */
   async credit(client, walletId, amount) {
     const result = await client.query(
-      `UPDATE tp.wallets
+      `UPDATE ${DB_SCHEMA}.wallets
        SET balance = balance + $1, last_activity_date = NOW()
        WHERE wallet_id = $2
        RETURNING *, (balance - $1) AS before_balance, balance AS after_balance`,
@@ -95,9 +95,9 @@ const walletModel = {
     const result = await pool.query(
       `SELECT w.wallet_id, w.balance, w.max_balance, w.last_activity_date,
               p.phone_number, p.full_name, pt.type_name
-       FROM tp.wallets w
-       JOIN tp.profiles p ON w.profile_id = p.profile_id
-       JOIN tp.profile_types pt ON p.type_id = pt.type_id
+       FROM ${DB_SCHEMA}.wallets w
+       JOIN ${DB_SCHEMA}.profiles p ON w.profile_id = p.profile_id
+       JOIN ${DB_SCHEMA}.profile_types pt ON p.type_id = pt.type_id
        WHERE w.profile_id = $1`,
       [profileId]
     );
@@ -109,7 +109,7 @@ const walletModel = {
    */
   async updateMaxBalanceByProfileId(profileId, maxBalance) {
     const result = await pool.query(
-      `UPDATE tp.wallets
+      `UPDATE ${DB_SCHEMA}.wallets
        SET max_balance = $1
        WHERE profile_id = $2 AND role IS NULL
        RETURNING *`,

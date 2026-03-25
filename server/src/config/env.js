@@ -18,6 +18,7 @@ const env = {
   DB_NAME: process.env.DB_NAME || 'tekapakhi_db',
   DB_USER: process.env.DB_USER || 'postgres',
   DB_PASSWORD: process.env.DB_PASSWORD,
+  DB_SCHEMA: process.env.DB_SCHEMA || 'tp',
 
   // JWT
   JWT_SECRET: process.env.JWT_SECRET,

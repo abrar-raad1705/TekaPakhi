@@ -1,4 +1,4 @@
-import pool from '../config/db.js';
+import pool, { DB_SCHEMA } from '../config/db.js';
 import profileModel from '../models/profileModel.js';
 import AppError from '../utils/AppError.js';
 
@@ -88,8 +88,8 @@ const profileController = {
         `SELECT p.profile_id, p.full_name, p.phone_number, p.profile_picture_url,
                 b.service_name, b.biller_type, b.sender_charge_flat,
                 b.sender_charge_percent, b.status
-         FROM tp.biller_profiles b
-         JOIN tp.profiles p ON b.profile_id = p.profile_id
+         FROM ${DB_SCHEMA}.biller_profiles b
+         JOIN ${DB_SCHEMA}.profiles p ON b.profile_id = p.profile_id
          WHERE b.status = 'ACTIVE'
          ORDER BY b.biller_type, b.service_name`
       );

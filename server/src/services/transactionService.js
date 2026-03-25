@@ -1,4 +1,4 @@
-import pool from '../config/db.js';
+import pool, { DB_SCHEMA } from '../config/db.js';
 import AppError from '../utils/AppError.js';
 import { PROFILE_TYPES, WALLET_ROLES } from '../utils/constants.js';
 import profileModel from '../models/profileModel.js';
@@ -148,7 +148,7 @@ const transactionService = {
       } else if (typeCode === 'PAY_BILL') {
         // Use biller-specific charges instead of system-wide fee
         const billerRes = await client.query(
-          `SELECT sender_charge_flat, sender_charge_percent FROM tp.biller_profiles WHERE profile_id = $1`,
+          `SELECT sender_charge_flat, sender_charge_percent FROM ${DB_SCHEMA}.biller_profiles WHERE profile_id = $1`,
           [receiver.profile_id],
         );
         const biller = billerRes.rows[0];
@@ -161,11 +161,11 @@ const transactionService = {
       const { senderDebit, receiverCredit } = feeService.applyFeeBearer(amount, fee, txType.fee_bearer);
 
       const swRes = await client.query(
-        `SELECT wallet_id FROM tp.wallets WHERE profile_id = $1`,
+        `SELECT wallet_id FROM ${DB_SCHEMA}.wallets WHERE profile_id = $1`,
         [sender.profile_id]
       );
       const rwRes = await client.query(
-        `SELECT wallet_id FROM tp.wallets WHERE profile_id = $1`,
+        `SELECT wallet_id FROM ${DB_SCHEMA}.wallets WHERE profile_id = $1`,
         [receiver.profile_id]
       );
       if (!swRes.rows[0]?.wallet_id)
@@ -174,7 +174,7 @@ const transactionService = {
         throw new AppError("Receiver wallet not found.", 404);
 
       const revLookup = await client.query(
-        `SELECT wallet_id FROM tp.wallets WHERE role = $1::tp.wallet_role`,
+        `SELECT wallet_id FROM ${DB_SCHEMA}.wallets WHERE role = $1::${DB_SCHEMA}.wallet_role`,
         [WALLET_ROLES.REVENUE]
       );
       const revenueWalletId = revLookup.rows[0]?.wallet_id;
@@ -183,7 +183,7 @@ const transactionService = {
       }
 
       const treasuryLookup = await client.query(
-        `SELECT wallet_id FROM tp.wallets WHERE role = $1::tp.wallet_role`,
+        `SELECT wallet_id FROM ${DB_SCHEMA}.wallets WHERE role = $1::${DB_SCHEMA}.wallet_role`,
         [WALLET_ROLES.TREASURY]
       );
       const treasuryWalletId = treasuryLookup.rows[0]?.wallet_id;
@@ -370,7 +370,7 @@ const transactionService = {
     } else if (typeCode === 'PAY_BILL') {
       // Use biller-specific charges instead of system-wide fee
       const billerRes = await pool.query(
-        `SELECT sender_charge_flat, sender_charge_percent FROM tp.biller_profiles WHERE profile_id = $1`,
+        `SELECT sender_charge_flat, sender_charge_percent FROM ${DB_SCHEMA}.biller_profiles WHERE profile_id = $1`,
         [receiver.profile_id],
       );
       const biller = billerRes.rows[0];

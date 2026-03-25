@@ -1,5 +1,6 @@
 import ledgerModel from "../models/ledgerModel.js";
 import walletModel from "../models/walletModel.js";
+import { DB_SCHEMA } from "../config/db.js";
 import { PROFILE_TYPES, WALLET_ROLES } from "../utils/constants.js";
 
 /**
@@ -128,7 +129,7 @@ const ledgerService = {
 
         if (agentProfileId) {
           const agentRes = await client.query(
-            `SELECT distributor_id FROM tp.agent_profiles WHERE profile_id = $1`,
+            `SELECT distributor_id FROM ${DB_SCHEMA}.agent_profiles WHERE profile_id = $1`,
             [agentProfileId],
           );
           beneficiaryProfileId = agentRes.rows[0]?.distributor_id;

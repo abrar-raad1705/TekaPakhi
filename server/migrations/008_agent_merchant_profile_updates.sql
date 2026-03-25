@@ -1,5 +1,3 @@
-SET search_path TO tp;
-
 ALTER TABLE merchant_profiles
   DROP COLUMN IF EXISTS business_type;
 
@@ -8,7 +6,7 @@ BEGIN
   IF EXISTS (
     SELECT 1 
     FROM information_schema.columns 
-    WHERE table_schema = 'tp' 
+    WHERE table_schema = current_schema()
     AND table_name = 'merchant_profiles' 
     AND column_name = 'business_name'
   ) THEN

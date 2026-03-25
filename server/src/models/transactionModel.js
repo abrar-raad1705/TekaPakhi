@@ -1,4 +1,4 @@
-import pool from '../config/db.js';
+import pool, { DB_SCHEMA } from '../config/db.js';
 import { allocateUniqueTxRef } from '../utils/txRef.js';
 
 const transactionModel = {
@@ -7,9 +7,9 @@ const transactionModel = {
    */
   async create(client, { txRef, amount, fee, typeId, senderWalletId, receiverWalletId, note, status = 'COMPLETED' }) {
     const result = await client.query(
-      `INSERT INTO tp.transactions
+      `INSERT INTO ${DB_SCHEMA}.transactions
          (transaction_ref, amount, fee_amount, type_id, sender_wallet_id, receiver_wallet_id, user_note, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::tp.transaction_status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::${DB_SCHEMA}.transaction_status)
        RETURNING *`,
       [txRef, amount, fee, typeId, senderWalletId, receiverWalletId, note, status]
     );
@@ -37,7 +37,7 @@ const transactionModel = {
    */
   async createBillDetails(client, { transactionId, billAccountNumber, billContactNumber }) {
     await client.query(
-      `INSERT INTO tp.bill_payment_details (transaction_id, bill_account_number, bill_contact_number)
+      `INSERT INTO ${DB_SCHEMA}.bill_payment_details (transaction_id, bill_account_number, bill_contact_number)
        VALUES ($1, $2, $3)`,
       [transactionId, billAccountNumber, billContactNumber]
     );
@@ -54,13 +54,13 @@ const transactionModel = {
               rp.full_name AS receiver_name, rp.phone_number AS receiver_phone,
               rp.profile_picture_url AS receiver_profile_picture_url,
               bpd.bill_account_number, bpd.bill_contact_number
-       FROM tp.transactions t
-       JOIN tp.transaction_types tt ON t.type_id = tt.type_id
-       JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
-       JOIN tp.profiles sp ON sw.profile_id = sp.profile_id
-       JOIN tp.wallets rw ON t.receiver_wallet_id = rw.wallet_id
-       JOIN tp.profiles rp ON rw.profile_id = rp.profile_id
-       LEFT JOIN tp.bill_payment_details bpd ON t.transaction_id = bpd.transaction_id
+       FROM ${DB_SCHEMA}.transactions t
+       JOIN ${DB_SCHEMA}.transaction_types tt ON t.type_id = tt.type_id
+       JOIN ${DB_SCHEMA}.wallets sw ON t.sender_wallet_id = sw.wallet_id
+       JOIN ${DB_SCHEMA}.profiles sp ON sw.profile_id = sp.profile_id
+       JOIN ${DB_SCHEMA}.wallets rw ON t.receiver_wallet_id = rw.wallet_id
+       JOIN ${DB_SCHEMA}.profiles rp ON rw.profile_id = rp.profile_id
+       LEFT JOIN ${DB_SCHEMA}.bill_payment_details bpd ON t.transaction_id = bpd.transaction_id
        WHERE t.transaction_ref = $1`,
       [txRef]
     );
@@ -80,13 +80,13 @@ const transactionModel = {
               rp.full_name AS receiver_name, rp.phone_number AS receiver_phone,
               rp.profile_picture_url AS receiver_profile_picture_url,
               bpd.bill_account_number, bpd.bill_contact_number
-       FROM tp.transactions t
-       JOIN tp.transaction_types tt ON t.type_id = tt.type_id
-       JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
-       JOIN tp.profiles sp ON sw.profile_id = sp.profile_id
-       JOIN tp.wallets rw ON t.receiver_wallet_id = rw.wallet_id
-       JOIN tp.profiles rp ON rw.profile_id = rp.profile_id
-       LEFT JOIN tp.bill_payment_details bpd ON t.transaction_id = bpd.transaction_id
+       FROM ${DB_SCHEMA}.transactions t
+       JOIN ${DB_SCHEMA}.transaction_types tt ON t.type_id = tt.type_id
+       JOIN ${DB_SCHEMA}.wallets sw ON t.sender_wallet_id = sw.wallet_id
+       JOIN ${DB_SCHEMA}.profiles sp ON sw.profile_id = sp.profile_id
+       JOIN ${DB_SCHEMA}.wallets rw ON t.receiver_wallet_id = rw.wallet_id
+       JOIN ${DB_SCHEMA}.profiles rp ON rw.profile_id = rp.profile_id
+       LEFT JOIN ${DB_SCHEMA}.bill_payment_details bpd ON t.transaction_id = bpd.transaction_id
        WHERE t.transaction_id = $1
          AND (sw.profile_id = $2 OR rw.profile_id = $2)`,
       [transactionId, profileId]
@@ -141,12 +141,12 @@ const transactionModel = {
           rp.full_name AS receiver_name,
           rp.phone_number AS receiver_phone,
           rp.profile_picture_url AS receiver_profile_picture_url
-        FROM tp.transactions t
-        JOIN tp.transaction_types tt ON t.type_id = tt.type_id
-        JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
-        JOIN tp.profiles sp ON sw.profile_id = sp.profile_id
-        JOIN tp.wallets rw ON t.receiver_wallet_id = rw.wallet_id
-        JOIN tp.profiles rp ON rw.profile_id = rp.profile_id
+        FROM ${DB_SCHEMA}.transactions t
+        JOIN ${DB_SCHEMA}.transaction_types tt ON t.type_id = tt.type_id
+        JOIN ${DB_SCHEMA}.wallets sw ON t.sender_wallet_id = sw.wallet_id
+        JOIN ${DB_SCHEMA}.profiles sp ON sw.profile_id = sp.profile_id
+        JOIN ${DB_SCHEMA}.wallets rw ON t.receiver_wallet_id = rw.wallet_id
+        JOIN ${DB_SCHEMA}.profiles rp ON rw.profile_id = rp.profile_id
         WHERE (sw.profile_id = $1 OR rw.profile_id = $1)
 
         UNION ALL
@@ -163,7 +163,7 @@ const transactionModel = {
           'COMMISSION' AS type_name,
           tt_src.type_name AS source_tx_type_name,
           le.description AS user_note,
-          'COMPLETED'::tp.transaction_status AS status,
+          'COMPLETED'::${DB_SCHEMA}.transaction_status AS status,
           NULL::bigint AS sender_profile_id,
           NULL::varchar AS sender_name,
           NULL::varchar AS sender_phone,
@@ -172,11 +172,11 @@ const transactionModel = {
           p.full_name AS receiver_name,
           p.phone_number AS receiver_phone,
           p.profile_picture_url AS receiver_profile_picture_url
-        FROM tp.ledger_entries le
-        JOIN tp.wallets w ON le.wallet_id = w.wallet_id
-        JOIN tp.profiles p ON w.profile_id = p.profile_id
-        JOIN tp.transactions t ON le.transaction_id = t.transaction_id
-        JOIN tp.transaction_types tt_src ON t.type_id = tt_src.type_id
+        FROM ${DB_SCHEMA}.ledger_entries le
+        JOIN ${DB_SCHEMA}.wallets w ON le.wallet_id = w.wallet_id
+        JOIN ${DB_SCHEMA}.profiles p ON w.profile_id = p.profile_id
+        JOIN ${DB_SCHEMA}.transactions t ON le.transaction_id = t.transaction_id
+        JOIN ${DB_SCHEMA}.transaction_types tt_src ON t.type_id = tt_src.type_id
         WHERE w.profile_id = $1
           AND le.entry_type = 'CREDIT'
           AND (
@@ -195,10 +195,10 @@ const transactionModel = {
         SELECT
           t.transaction_time,
           tt.type_name
-        FROM tp.transactions t
-        JOIN tp.transaction_types tt ON t.type_id = tt.type_id
-        JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
-        JOIN tp.wallets rw ON t.receiver_wallet_id = rw.wallet_id
+        FROM ${DB_SCHEMA}.transactions t
+        JOIN ${DB_SCHEMA}.transaction_types tt ON t.type_id = tt.type_id
+        JOIN ${DB_SCHEMA}.wallets sw ON t.sender_wallet_id = sw.wallet_id
+        JOIN ${DB_SCHEMA}.wallets rw ON t.receiver_wallet_id = rw.wallet_id
         WHERE (sw.profile_id = $1 OR rw.profile_id = $1)
 
         UNION ALL
@@ -206,8 +206,8 @@ const transactionModel = {
         SELECT
           le.created_at AS transaction_time,
           'COMMISSION' AS type_name
-        FROM tp.ledger_entries le
-        JOIN tp.wallets w ON le.wallet_id = w.wallet_id
+        FROM ${DB_SCHEMA}.ledger_entries le
+        JOIN ${DB_SCHEMA}.wallets w ON le.wallet_id = w.wallet_id
         WHERE w.profile_id = $1
           AND le.entry_type = 'CREDIT'
           AND (
@@ -239,8 +239,8 @@ const transactionModel = {
   async countToday(client, profileId, typeId) {
     const result = await client.query(
       `SELECT COUNT(*)::int AS count, COALESCE(SUM(t.amount), 0)::numeric AS total_amount
-       FROM tp.transactions t
-       JOIN tp.wallets w ON t.sender_wallet_id = w.wallet_id
+       FROM ${DB_SCHEMA}.transactions t
+       JOIN ${DB_SCHEMA}.wallets w ON t.sender_wallet_id = w.wallet_id
        WHERE w.profile_id = $1 AND t.type_id = $2
          AND t.status = 'COMPLETED'
          AND t.transaction_time >= CURRENT_DATE`,
@@ -255,8 +255,8 @@ const transactionModel = {
   async countThisMonth(client, profileId, typeId) {
     const result = await client.query(
       `SELECT COUNT(*)::int AS count, COALESCE(SUM(t.amount), 0)::numeric AS total_amount
-       FROM tp.transactions t
-       JOIN tp.wallets w ON t.sender_wallet_id = w.wallet_id
+       FROM ${DB_SCHEMA}.transactions t
+       JOIN ${DB_SCHEMA}.wallets w ON t.sender_wallet_id = w.wallet_id
        WHERE w.profile_id = $1 AND t.type_id = $2
          AND t.status = 'COMPLETED'
          AND t.transaction_time >= date_trunc('month', CURRENT_DATE)`,
@@ -272,8 +272,8 @@ const transactionModel = {
   async getMonthlyTotal(profileId, typeId) {
     const result = await pool.query(
       `SELECT COALESCE(SUM(t.amount), 0)::numeric AS total_amount
-       FROM tp.transactions t
-       JOIN tp.wallets w ON t.sender_wallet_id = w.wallet_id
+       FROM ${DB_SCHEMA}.transactions t
+       JOIN ${DB_SCHEMA}.wallets w ON t.sender_wallet_id = w.wallet_id
        WHERE w.profile_id = $1 AND t.type_id = $2
          AND t.status = 'COMPLETED'
          AND t.transaction_time >= date_trunc('month', CURRENT_DATE)`,
@@ -288,8 +288,8 @@ const transactionModel = {
   async getMonthlyTotalForUpdate(client, profileId, typeId) {
     const result = await client.query(
       `SELECT COALESCE(SUM(t.amount), 0)::numeric AS total_amount
-       FROM tp.transactions t
-       JOIN tp.wallets w ON t.sender_wallet_id = w.wallet_id
+       FROM ${DB_SCHEMA}.transactions t
+       JOIN ${DB_SCHEMA}.wallets w ON t.sender_wallet_id = w.wallet_id
        WHERE w.profile_id = $1 AND t.type_id = $2
          AND t.status = 'COMPLETED'
          AND t.transaction_time >= date_trunc('month', CURRENT_DATE)`,
@@ -310,12 +310,12 @@ const transactionModel = {
               rw.profile_id AS receiver_profile_id,
               rp.full_name AS receiver_name, rp.phone_number AS receiver_phone,
               rp.profile_picture_url AS receiver_profile_picture_url
-       FROM tp.transactions t
-       JOIN tp.transaction_types tt ON t.type_id = tt.type_id
-       JOIN tp.wallets sw ON t.sender_wallet_id = sw.wallet_id
-       JOIN tp.profiles sp ON sw.profile_id = sp.profile_id
-       JOIN tp.wallets rw ON t.receiver_wallet_id = rw.wallet_id
-       JOIN tp.profiles rp ON rw.profile_id = rp.profile_id
+       FROM ${DB_SCHEMA}.transactions t
+       JOIN ${DB_SCHEMA}.transaction_types tt ON t.type_id = tt.type_id
+       JOIN ${DB_SCHEMA}.wallets sw ON t.sender_wallet_id = sw.wallet_id
+       JOIN ${DB_SCHEMA}.profiles sp ON sw.profile_id = sp.profile_id
+       JOIN ${DB_SCHEMA}.wallets rw ON t.receiver_wallet_id = rw.wallet_id
+       JOIN ${DB_SCHEMA}.profiles rp ON rw.profile_id = rp.profile_id
        WHERE (sw.profile_id = $1 OR rw.profile_id = $1)
          AND t.status = 'COMPLETED'
        ORDER BY t.transaction_time DESC

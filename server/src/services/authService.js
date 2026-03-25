@@ -1,6 +1,6 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import pool from "../config/db.js";
+import pool, { DB_SCHEMA } from '../config/db.js';
 import env from "../config/env.js";
 import AppError from "../utils/AppError.js";
 import profileModel from "../models/profileModel.js";
@@ -201,7 +201,7 @@ const authService = {
     let requiresPinSetup = false;
     if (profile.type_name === "DISTRIBUTOR" || profile.type_name === "BILLER") {
       await pool.query(
-        `UPDATE tp.profiles SET is_phone_verified = TRUE WHERE profile_id = $1`,
+        `UPDATE ${DB_SCHEMA}.profiles SET is_phone_verified = TRUE WHERE profile_id = $1`,
         [profile.profile_id],
       );
       isPhoneVerified = true;
@@ -210,7 +210,7 @@ const authService = {
           ? "distributor_profiles"
           : "biller_profiles";
       const dp = await pool.query(
-        `SELECT pending_pin_setup FROM tp.${subtypeTable} WHERE profile_id = $1`,
+        `SELECT pending_pin_setup FROM ${DB_SCHEMA}.${subtypeTable} WHERE profile_id = $1`,
         [profile.profile_id],
       );
       requiresPinSetup = dp.rows[0]?.pending_pin_setup === true;
@@ -252,7 +252,7 @@ const authService = {
         ? "distributor_profiles"
         : "biller_profiles";
     const r = await pool.query(
-      `SELECT pending_pin_setup FROM tp.${subtypeTable} WHERE profile_id = $1`,
+      `SELECT pending_pin_setup FROM ${DB_SCHEMA}.${subtypeTable} WHERE profile_id = $1`,
       [profileId],
     );
     if (!r.rows[0]?.pending_pin_setup) {
@@ -261,7 +261,7 @@ const authService = {
     const pinHash = await bcrypt.hash(newPin, SALT_ROUNDS);
     await profileModel.updatePin(profileId, pinHash);
     await pool.query(
-      `UPDATE tp.${subtypeTable} SET pending_pin_setup = FALSE WHERE profile_id = $1`,
+      `UPDATE ${DB_SCHEMA}.${subtypeTable} SET pending_pin_setup = FALSE WHERE profile_id = $1`,
       [profileId],
     );
     return { message: "Your PIN has been set. You can now use the app." };

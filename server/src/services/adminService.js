@@ -1,6 +1,6 @@
 import bcrypt from "bcrypt";
 import crypto from "crypto";
-import pool from "../config/db.js";
+import pool, { DB_SCHEMA } from '../config/db.js';
 import AppError from "../utils/AppError.js";
 import { allocateUniqueTxRef } from "../utils/txRef.js";
 import { PROFILE_TYPES, WALLET_ROLES, PIN_RESET_RESTRICTED_TYPE_NAMES } from "../utils/constants.js";
@@ -327,7 +327,7 @@ const adminService = {
       await client.query("BEGIN");
 
       const twRes = await client.query(
-        `SELECT wallet_id FROM tp.wallets WHERE profile_id = $1`,
+        `SELECT wallet_id FROM ${DB_SCHEMA}.wallets WHERE profile_id = $1`,
         [targetProfileId],
       );
       const targetWid = twRes.rows[0]?.wallet_id;
@@ -355,11 +355,11 @@ const adminService = {
       try {
         const { txRef: ref, result } = await allocateUniqueTxRef((ref) =>
           client.query(
-            `INSERT INTO tp.transactions
+            `INSERT INTO ${DB_SCHEMA}.transactions
                (transaction_ref, amount, fee_amount, status, sender_wallet_id, receiver_wallet_id,
                 type_id, user_note)
              VALUES ($1, $2, 0, 'COMPLETED', $3, $4,
-               (SELECT type_id FROM tp.transaction_types WHERE type_name = 'CASH_IN'),
+               (SELECT type_id FROM ${DB_SCHEMA}.transaction_types WHERE type_name = 'CASH_IN'),
                $5)
              RETURNING transaction_id`,
             [
@@ -452,8 +452,8 @@ const adminService = {
     // First get the user's type
     const userResult = await pool.query(
       `SELECT p.profile_id, pt.type_name
-       FROM tp.profiles p
-       JOIN tp.profile_types pt ON p.type_id = pt.type_id
+       FROM ${DB_SCHEMA}.profiles p
+       JOIN ${DB_SCHEMA}.profile_types pt ON p.type_id = pt.type_id
        WHERE p.profile_id = $1`,
       [profileId],
     );
@@ -484,7 +484,7 @@ const adminService = {
           ? ", approved_date = CURRENT_TIMESTAMP"
           : "";
       const updateResult = await client.query(
-        `UPDATE tp.${table}
+        `UPDATE ${DB_SCHEMA}.${table}
          SET status = $1 ${approvedClause}
          WHERE profile_id = $2
          RETURNING *`,
@@ -499,7 +499,7 @@ const adminService = {
 
       if (type_name === "AGENT" && newStatus === "ACTIVE") {
         const agentLoc = await client.query(
-          `SELECT district, area FROM tp.agent_profiles WHERE profile_id = $1`,
+          `SELECT district, area FROM ${DB_SCHEMA}.agent_profiles WHERE profile_id = $1`,
           [profileId],
         );
         const district = agentLoc.rows[0]?.district;
@@ -514,8 +514,8 @@ const adminService = {
 
         const distributor = await client.query(
           `SELECT da.profile_id
-           FROM tp.distributor_areas da
-           JOIN tp.distributor_profiles dp ON dp.profile_id = da.profile_id
+           FROM ${DB_SCHEMA}.distributor_areas da
+           JOIN ${DB_SCHEMA}.distributor_profiles dp ON dp.profile_id = da.profile_id
            WHERE da.district = $1 AND da.area = $2 AND dp.status = 'ACTIVE'
            LIMIT 1`,
           [district, area],
@@ -529,7 +529,7 @@ const adminService = {
         }
 
         await client.query(
-          `UPDATE tp.agent_profiles SET distributor_id = $1 WHERE profile_id = $2`,
+          `UPDATE ${DB_SCHEMA}.agent_profiles SET distributor_id = $1 WHERE profile_id = $2`,
           [distributor.rows[0].profile_id, profileId],
         );
       }
@@ -613,7 +613,7 @@ const adminService = {
       try {
         const { txRef: ref, result } = await allocateUniqueTxRef((ref) =>
           client.query(
-            `INSERT INTO tp.transactions
+            `INSERT INTO ${DB_SCHEMA}.transactions
                (transaction_ref, amount, fee_amount, transaction_time, status,
                 sender_wallet_id, receiver_wallet_id, type_id, original_transaction_id,
                 user_note)
@@ -659,7 +659,7 @@ const adminService = {
       }
 
       await client.query(
-        `UPDATE tp.transactions SET status = 'REVERSED' WHERE transaction_id = $1`,
+        `UPDATE ${DB_SCHEMA}.transactions SET status = 'REVERSED' WHERE transaction_id = $1`,
         [transactionId],
       );
 

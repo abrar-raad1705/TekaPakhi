@@ -20,4 +20,5 @@ pool.on('error', (err) => {
   process.exit(1);
 });
 
+export const DB_SCHEMA = env.DB_SCHEMA;
 export default pool;

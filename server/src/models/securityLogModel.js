@@ -1,9 +1,9 @@
-import pool from '../config/db.js';
+import pool, { DB_SCHEMA } from '../config/db.js';
 
 const securityLogModel = {
   async create({ profileId, eventType, ipAddress, userAgent, deviceInfo, metadata }) {
     const result = await pool.query(
-      `INSERT INTO tp.security_logs (profile_id, event_type, ip_address, user_agent, device_info, metadata)
+      `INSERT INTO ${DB_SCHEMA}.security_logs (profile_id, event_type, ip_address, user_agent, device_info, metadata)
        VALUES ($1, $2, $3::inet, $4, $5, $6)
        RETURNING *`,
       [profileId ?? null, eventType, ipAddress ?? null, userAgent ?? null, deviceInfo ?? '{}', metadata ?? '{}'],
@@ -37,15 +37,15 @@ const securityLogModel = {
     const offset = (page - 1) * limit;
 
     const countRes = await pool.query(
-      `SELECT COUNT(*) FROM tp.security_logs sl ${where}`,
+      `SELECT COUNT(*) FROM ${DB_SCHEMA}.security_logs sl ${where}`,
       params,
     );
 
     const dataRes = await pool.query(
       `SELECT sl.*, p.phone_number, p.full_name, pt.type_name
-       FROM tp.security_logs sl
-       LEFT JOIN tp.profiles p ON sl.profile_id = p.profile_id
-       LEFT JOIN tp.profile_types pt ON p.type_id = pt.type_id
+       FROM ${DB_SCHEMA}.security_logs sl
+       LEFT JOIN ${DB_SCHEMA}.profiles p ON sl.profile_id = p.profile_id
+       LEFT JOIN ${DB_SCHEMA}.profile_types pt ON p.type_id = pt.type_id
        ${where}
        ORDER BY sl.created_at DESC
        LIMIT $${idx++} OFFSET $${idx++}`,
