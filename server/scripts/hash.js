@@ -1,6 +1,6 @@
 import bcrypt from "bcrypt";
 
-const password = "mypassword123";
+const password = "root1234";
 const saltRounds = 12;
 
 bcrypt
