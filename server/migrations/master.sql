@@ -13,7 +13,7 @@ SET search_path TO tp;
 \i 005_system_wallet_creation.sql
 \i 006_locations.sql
 \i 007_distributor_profiles_location.sql
-\i 008_distributor_areas.sql
+\i 008_agent_merchant_profile_updates.sql
 \i 009_update_commission_policies.sql
 \i 010_biller_profile_updates.sql
 \i 011_pin_reset_grant.sql
