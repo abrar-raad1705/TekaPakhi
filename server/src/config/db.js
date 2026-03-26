@@ -11,7 +11,8 @@ const pool = new Pool({
   password: env.DB_PASSWORD,
 });
 
-pool.on('connect', () => {
+pool.on('connect', (client) => {
+  client.query(`SET search_path TO ${env.DB_SCHEMA}`);
   logger.debug('DB client connected to PostgreSQL');
 });
 
