@@ -28,6 +28,12 @@ app.use(pinoHttp({
   logger,
   autoLogging: env.NODE_ENV === 'development',
   quietReqLogger: true,
+  customSuccessMessage: (req, res) => `${req.method} ${req.url} ${res.statusCode}`,
+  customErrorMessage: (req, res, err) => `${req.method} ${req.url} ${res.statusCode} - ${err.message}`,
+  serializers: env.NODE_ENV === 'development' ? {
+    req: () => undefined,
+    res: () => undefined,
+  } : undefined,
 }));
 
 app.use(requestMeta);
