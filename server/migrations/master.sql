@@ -1,9 +1,9 @@
 -- create schema
-DROP SCHEMA IF EXISTS tp CASCADE;
-CREATE SCHEMA IF NOT EXISTS tp;
+DROP SCHEMA IF EXISTS teka CASCADE;
+CREATE SCHEMA IF NOT EXISTS teka;
 
 -- set search path
-SET search_path TO tp;
+SET search_path TO teka;
 
 -- run other files
 \i 001_init.sql

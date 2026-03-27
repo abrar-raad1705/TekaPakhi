@@ -2,7 +2,6 @@ CREATE TABLE IF NOT EXISTS locations (
     location_id SERIAL PRIMARY KEY,
     district VARCHAR(100) NOT NULL,
     area VARCHAR(100) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(district, area)
 );
 
