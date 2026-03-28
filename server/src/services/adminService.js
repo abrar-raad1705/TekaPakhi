@@ -338,6 +338,9 @@ const adminService = {
     try {
       await client.query("BEGIN");
 
+      // AUTHORIZE INTERNAL SYSTEM OPERATION
+      await client.query("SELECT set_config('teka.internal_op', 'true', true)");
+
       const twRes = await client.query(
         `SELECT wallet_id FROM ${DB_SCHEMA}.wallets WHERE profile_id = $1`,
         [targetProfileId],
@@ -450,6 +453,10 @@ const adminService = {
     let updated;
     try {
       await client.query("BEGIN");
+      
+      // AUTHORIZE INTERNAL SYSTEM OPERATION
+      await client.query("SELECT set_config('teka.internal_op', 'true', true)");
+
       updated = await walletModel.updateMaxBalanceByProfileId(
         profileId,
         num,

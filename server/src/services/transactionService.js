@@ -140,6 +140,9 @@ const transactionService = {
     try {
       await client.query('BEGIN');
 
+      // AUTHORIZE INTERNAL SYSTEM OPERATION
+      await client.query("SELECT set_config('teka.internal_op', 'true', true)");
+
       //Calculate fee
       let fee;
       if (typeCode === 'SEND_MONEY') {
@@ -207,6 +210,7 @@ const transactionService = {
       await limitService.check(client, sender.type_id, txType.type_id, sender.profile_id, amount);
 
       // Check sender balance
+      console.log(`[DEBUG] WalletID: ${senderWallet.wallet_id}, BaseBalance: ${senderWallet.balance}, ParsedBalance: ${parseFloat(senderWallet.balance)}, DebitRequested: ${senderDebit}`);
       if (parseFloat(senderWallet.balance) < senderDebit) {
         throw new AppError(
           `Insufficient balance. You need ৳${senderDebit.toFixed(2)} but have ৳${parseFloat(senderWallet.balance).toFixed(2)}.`,

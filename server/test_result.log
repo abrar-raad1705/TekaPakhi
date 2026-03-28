@@ -1,0 +1,48 @@
+﻿BEGIN
+ profile_id 
+------------
+         17
+(1 row)
+
+INSERT 0 1
+psql : psql:test_admin_
+flow.sql:16: ERROR:  
+column "biller_type" 
+of relation 
+"biller_profiles" does 
+not exist
+At line:1 char:30
++ ... shihab123'; psql 
+-U postgres -d 
+tekapakhi_db -P 
+pager=off -f test_adm 
+...
++                 ~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (psql:test_adm   
+ in... does not exi    
+st:String) [], Rem    
+oteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+LINE 1: ...O 
+teka.biller_profiles 
+(profile_id, 
+service_name, 
+biller_typ...
+                       
+                       
+               ^
+psql:test_admin_flow.sq
+l:23: ERROR:  current 
+transaction is 
+aborted, commands 
+ignored until end of 
+transaction block
+ROLLBACK

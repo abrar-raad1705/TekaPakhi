@@ -407,7 +407,7 @@ const authService = {
 
     const isPinValid = await bcrypt.compare(oldPin, profile.security_pin_hash);
     if (!isPinValid) {
-      throw new AppError("Current PIN is incorrect.", 401);
+      throw new AppError("Current PIN is incorrect.", 403);
     }
 
     const pinHash = await bcrypt.hash(newPin, SALT_ROUNDS);
@@ -475,7 +475,7 @@ const authService = {
         securityLogService.logEvent({ profileId, eventType: 'TXN_PIN_FAILURE', ...meta, metadata: { failedAttempts: failed_pin_attempts } });
         throw new AppError(
           `Invalid PIN. ${env.MAX_PIN_ATTEMPTS - failed_pin_attempts} attempt(s) remaining.`,
-          401,
+          403,
         );
       }
 

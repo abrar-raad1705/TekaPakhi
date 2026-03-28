@@ -1,4 +1,4 @@
-INSERT INTO profiles (
+INSERT INTO teka.profiles (
     phone_number,
     full_name,
     email,
@@ -13,20 +13,20 @@ VALUES
 ('01900000002', 'ADJUSTMENT', 'adjustment@system.internal', 'NO_LOGIN', TRUE, 6, TRUE);
 
 -- Assign roles to the system wallets: 'TREASURY', 'REVENUE', 'ADJUSTMENT'
-UPDATE wallets w
+UPDATE teka.wallets w
 SET role = 'TREASURY'
-FROM profiles p
+FROM teka.profiles p
 WHERE w.profile_id = p.profile_id
 AND p.full_name = 'TREASURY';
 
-UPDATE wallets w
+UPDATE teka.wallets w
 SET role = 'REVENUE'
-FROM profiles p
+FROM teka.profiles p
 WHERE w.profile_id = p.profile_id
 AND p.full_name = 'REVENUE';
 
-UPDATE wallets w
+UPDATE teka.wallets w
 SET role = 'ADJUSTMENT'
-FROM profiles p
+FROM teka.profiles p
 WHERE w.profile_id = p.profile_id
 AND p.full_name = 'ADJUSTMENT';
