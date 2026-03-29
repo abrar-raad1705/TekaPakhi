@@ -31,7 +31,7 @@ CREATE TABLE profiles (
     CONSTRAINT check_bd_phone CHECK (phone_number ~ '^01[3-9][0-9]{8}$')
 );
 
-CREATE INDEX idx_profile_phone ON profiles(phone_number);
+
 
 -- 3. PROFILE SUBTYPES (Inheritance via Shared PK)
 -- Customer Profile
@@ -88,9 +88,7 @@ CREATE TABLE wallets (
     last_activity_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE UNIQUE INDEX unique_wallet_role  
-ON wallets(role)  
-WHERE role IS NOT NULL;
+
 
 -- 5. CONTACTS
 CREATE TABLE saved_recipients (
@@ -160,8 +158,7 @@ CREATE TABLE transactions (
     CONSTRAINT check_different_wallets CHECK (sender_wallet_id != receiver_wallet_id)
 );
 
-CREATE INDEX idx_txn_sender ON transactions(sender_wallet_id);
-CREATE INDEX idx_txn_receiver ON transactions(receiver_wallet_id);
+
 
 -- Double-entry ledger
 CREATE TYPE ledger_entry_type AS ENUM ('DEBIT', 'CREDIT');
@@ -176,9 +173,7 @@ CREATE TABLE ledger_entries (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_ledger_transaction ON ledger_entries(transaction_id);
-CREATE INDEX idx_ledger_wallet ON ledger_entries(wallet_id);
-CREATE INDEX idx_ledger_wallet_type ON ledger_entries(wallet_id, entry_type);
+
 
 --OTP codes table
 CREATE TABLE otp_codes (
@@ -192,6 +187,3 @@ CREATE TABLE otp_codes (
 
     CONSTRAINT check_otp_phone CHECK (phone_number ~ '^01[3-9][0-9]{8}$')
 );
-
-CREATE INDEX IF NOT EXISTS idx_otp_phone ON otp_codes(phone_number);
-CREATE INDEX IF NOT EXISTS idx_otp_expires ON otp_codes(expires_at);

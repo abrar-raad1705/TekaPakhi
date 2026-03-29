@@ -12,9 +12,6 @@ import securityLogService from "./securityLogService.js";
 const SALT_ROUNDS = 12;
 
 const authService = {
-  /**
-   * Generate a JWT access token
-   */
   generateAccessToken(profile) {
     return jwt.sign(
       {
@@ -28,13 +25,6 @@ const authService = {
     );
   },
 
-  /**
-   * Register a new account (Customer, Agent, or Merchant)
-   * Flow: validate → hash PIN → create profile → create subtype → send OTP
-   *
-   * - Customers are set to ACTIVE immediately
-   * - Agents & Merchants are set to PENDING_KYC (need admin approval to transact)
-   */
   async register({
     phoneNumber,
     fullName,
@@ -138,10 +128,7 @@ const authService = {
     };
   },
 
-  /**
-   * Login with phone + PIN
-   * Flow: find profile → check lock → verify PIN → generate access token
-   */
+
   async login({ phoneNumber, securityPin, meta }) {
     const profile = await profileModel.findByPhone(phoneNumber);
     if (!profile) {
@@ -428,10 +415,6 @@ const authService = {
     return { message: "PIN changed successfully." };
   },
 
-  /**
-   * Verify transaction PIN (reusable for any PIN-gated action)
-   * Includes brute force protection (lock after MAX_PIN_ATTEMPTS)
-   */
   async verifyTransactionPin(profileId, pin, meta) {
     const profile = await profileModel.findById(profileId);
     if (!profile) {

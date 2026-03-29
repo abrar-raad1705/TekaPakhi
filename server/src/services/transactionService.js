@@ -141,7 +141,7 @@ const transactionService = {
       await client.query('BEGIN');
 
       // AUTHORIZE INTERNAL SYSTEM OPERATION
-      await client.query("SELECT set_config('teka.internal_op', 'true', true)");
+      await client.query("SELECT set_config('app.internal_op', 'true', true)");
 
       //Calculate fee
       let fee;
@@ -176,82 +176,29 @@ const transactionService = {
       if (!rwRes.rows[0]?.wallet_id)
         throw new AppError("Receiver wallet not found.", 404);
 
-      const revLookup = await client.query(
-        `SELECT wallet_id FROM ${DB_SCHEMA}.wallets WHERE role = $1::${DB_SCHEMA}.wallet_role`,
-        [WALLET_ROLES.REVENUE]
-      );
-      const revenueWalletId = revLookup.rows[0]?.wallet_id;
-      if (!revenueWalletId) {
-        throw new AppError("Revenue wallet not configured.", 500);
-      }
-
-      const treasuryLookup = await client.query(
-        `SELECT wallet_id FROM ${DB_SCHEMA}.wallets WHERE role = $1::${DB_SCHEMA}.wallet_role`,
-        [WALLET_ROLES.TREASURY]
-      );
-      const treasuryWalletId = treasuryLookup.rows[0]?.wallet_id;
-      if (!treasuryWalletId) {
-        throw new AppError("Treasury wallet not configured.", 500);
-      }
-
-      const lockIds = [
-        swRes.rows[0].wallet_id,
-        rwRes.rows[0].wallet_id,
-        revenueWalletId,
-        treasuryWalletId,
-      ];
-
-      const locked = await lockWalletsOrdered(client, lockIds);
-      const senderWallet = locked.get(swRes.rows[0].wallet_id);
-      const receiverWallet = locked.get(rwRes.rows[0].wallet_id);
-      if (!senderWallet || !receiverWallet) throw new AppError('Wallet lock failed.', 500);
-
       // Check limits
       await limitService.check(client, sender.type_id, txType.type_id, sender.profile_id, amount);
 
-      // Check sender balance
-      console.log(`[DEBUG] WalletID: ${senderWallet.wallet_id}, BaseBalance: ${senderWallet.balance}, ParsedBalance: ${parseFloat(senderWallet.balance)}, DebitRequested: ${senderDebit}`);
-      if (parseFloat(senderWallet.balance) < senderDebit) {
-        throw new AppError(
-          `Insufficient balance. You need ৳${senderDebit.toFixed(2)} but have ৳${parseFloat(senderWallet.balance).toFixed(2)}.`,
-          400
-        );
-      }
-
-      // Check receiver max balance
-      if (parseFloat(receiverWallet.balance) + receiverCredit > parseFloat(receiverWallet.max_balance)) {
-        throw new AppError("Transaction would exceed the recipient's maximum wallet balance.", 400);
-      }
-
-      const balances = new Map();
-
-      const senderResult = await walletModel.debit(client, senderWallet.wallet_id, senderDebit);
-      balances.set(senderWallet.wallet_id, { before_balance: senderResult.before_balance, after_balance: senderResult.after_balance });
-
-      const receiverResult = await walletModel.credit(client, receiverWallet.wallet_id, receiverCredit);
-      balances.set(receiverWallet.wallet_id, { before_balance: receiverResult.before_balance, after_balance: receiverResult.after_balance });
-
-      if (fee > 0 && revenueWalletId) {
-        const revResult = await walletModel.credit(client, revenueWalletId, fee);
-        balances.set(revenueWalletId, { before_balance: revResult.before_balance, after_balance: revResult.after_balance });
-      }
-
-      // Insert transaction record (retry on rare transaction_ref collision)
-      let transaction;
+      // The Stored Procedure handles order-locking, balance checks, transaction insert, ledger entries, and commissions.
+      let transactionId;
       let txRef;
       try {
-        ({ txRef, row: transaction } = await transactionModel.createWithTxRef(client, {
+        const result = await transactionModel.executeProcedure(client, {
+          senderWalletId: swRes.rows[0].wallet_id,
+          receiverWalletId: rwRes.rows[0].wallet_id,
           amount,
           fee,
           typeId: txType.type_id,
-          senderWalletId: senderWallet.wallet_id,
-          receiverWalletId: receiverWallet.wallet_id,
           note,
-          status: 'COMPLETED',
-        }));
+        });
+        txRef = result.txRef;
+        transactionId = result.transactionId;
       } catch (e) {
         if (e.code === 'TX_REF_EXHAUSTED') {
           throw new AppError('Could not assign a transaction ID. Please try again.', 503);
+        }
+        if (e.code === 'P0001') { // PostgreSQL RAISE EXCEPTION code
+          throw new AppError(e.message, 400); // Expose DB error nicely
         }
         throw e;
       }
@@ -259,36 +206,11 @@ const transactionService = {
       // If PAY_BILL, write account/contact to the dedicated details table
       if (txType.type_name === 'PAY_BILL' && billAccountNumber && billContactNumber) {
         await transactionModel.createBillDetails(client, {
-          transactionId: transaction.transaction_id,
+          transactionId,
           billAccountNumber,
           billContactNumber,
         });
       }
-
-      await ledgerService.recordMainTransactionLedger(client, transaction.transaction_id, {
-        senderWalletId: senderWallet.wallet_id,
-        receiverWalletId: receiverWallet.wallet_id,
-        revenueWalletId,
-        senderDebit,
-        receiverCredit,
-        fee,
-        amount,
-        typeLabel: txType.type_name,
-        balances,
-      });
-
-      await ledgerService.distributeCommissions(
-        client,
-        txType.type_id,
-        amount,
-        transaction.transaction_id,
-        {
-          senderProfileId: sender.profile_id,
-          senderTypeId: sender.type_id,
-          receiverProfileId: receiver.profile_id,
-          receiverTypeId: receiver.type_id,
-        }
-      );
 
       await client.query('COMMIT');
 
@@ -298,12 +220,12 @@ const transactionService = {
         actorType: 'USER',
         summary: `${sender.type_name} ${maskPhone(sender.phone_number)} sent ৳${parseFloat(amount)} to ${maskPhone(receiver.phone_number)} (fee: ৳${fee}, ref: ${txRef})`,
         details: { type: txType.type_name, amount: parseFloat(amount), fee, senderDebit, receiverCredit },
-        relatedTransactionId: transaction.transaction_id,
+        relatedTransactionId: transactionId,
       });
 
       return {
         transactionRef: txRef,
-        transactionId: transaction.transaction_id,
+        transactionId: transactionId,
         type: txType.type_name,
         amount: parseFloat(amount),
         fee,
@@ -322,7 +244,7 @@ const transactionService = {
         billAccountNumber: billAccountNumber || null,
         billContactNumber: billContactNumber || null,
         status: 'COMPLETED',
-        timestamp: transaction.transaction_time,
+        timestamp: new Date(),
       };
     } catch (error) {
       await client.query('ROLLBACK');

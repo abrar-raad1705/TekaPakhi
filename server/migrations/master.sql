@@ -19,5 +19,6 @@ SET search_path TO teka;
 \i 011_pin_reset_grant.sql
 \i 012_logging_system.sql
 \i 013_transaction_procedure.sql
-\i 014_transaction_functions.sql
-\i 015_privacy_and_integrity_triggers.sql
+\i 014_database_functions.sql
+\i 015_database_triggers.sql
+\i 016_database_indexes.sql

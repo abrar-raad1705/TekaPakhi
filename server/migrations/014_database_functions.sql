@@ -1,7 +1,5 @@
--- 014: Transaction Functions (Fee Calculation & Limit Checking)
-
--- 1. Function to Calculate Transaction Fee
-CREATE OR REPLACE FUNCTION teka.fn_calculate_transaction_fee(
+-- 1. to Calculate Transaction Fee
+CREATE OR REPLACE FUNCTION fn_calculate_transaction_fee(
     p_type_id INT,
     p_amount DECIMAL,
     p_sender_profile_id BIGINT DEFAULT NULL,
@@ -22,7 +20,7 @@ BEGIN
     -- Fetch standard config
     SELECT type_name, fee_percentage, fee_flat_amount, fee_min_amount, fee_max_amount
     INTO v_type_name, v_pct, v_flat, v_min_fee, v_max_fee
-    FROM teka.transaction_types
+    FROM transaction_types
     WHERE type_id = p_type_id;
 
     IF v_type_name IS NULL THEN
@@ -39,8 +37,8 @@ BEGIN
         -- Fetch monthly total
         SELECT COALESCE(SUM(amount), 0)
         INTO v_monthly_total
-        FROM teka.transactions
-        WHERE sender_wallet_id IN (SELECT wallet_id FROM teka.wallets WHERE profile_id = p_sender_profile_id)
+        FROM transactions
+        WHERE sender_wallet_id IN (SELECT wallet_id FROM wallets WHERE profile_id = p_sender_profile_id)
           AND type_id = p_type_id
           AND status = 'COMPLETED'
           AND transaction_time >= DATE_TRUNC('month', CURRENT_TIMESTAMP);
@@ -58,7 +56,7 @@ BEGIN
     IF v_type_name = 'PAY_BILL' AND p_receiver_profile_id IS NOT NULL THEN
         SELECT sender_charge_flat, sender_charge_percent
         INTO v_flat, v_pct
-        FROM teka.biller_profiles
+        FROM biller_profiles
         WHERE profile_id = p_receiver_profile_id;
         
         IF v_flat IS NULL THEN v_flat := 0; END IF;
@@ -76,8 +74,8 @@ BEGIN
 END;
 $$;
 
--- 2. Function to Check Transaction Limits
-CREATE OR REPLACE FUNCTION teka.fn_check_transaction_limits(
+-- 2. to Check Transaction Limits
+CREATE OR REPLACE FUNCTION fn_check_transaction_limits(
     p_sender_profile_id BIGINT,
     p_type_id INT,
     p_amount DECIMAL
@@ -94,11 +92,11 @@ DECLARE
     v_monthly_total DECIMAL(15, 2);
 BEGIN
     -- Get sender profile type
-    SELECT type_id INTO v_profile_type_id FROM teka.profiles WHERE profile_id = p_sender_profile_id;
+    SELECT type_id INTO v_profile_type_id FROM profiles WHERE profile_id = p_sender_profile_id;
 
     -- Fetch limits
     SELECT * INTO v_limits 
-    FROM teka.transaction_limits 
+    FROM transaction_limits 
     WHERE profile_type_id = v_profile_type_id AND transaction_type_id = p_type_id;
 
     IF v_limits IS NULL THEN
@@ -118,8 +116,8 @@ BEGIN
         COUNT(*), 
         COALESCE(SUM(amount), 0)
     INTO v_daily_count, v_daily_total
-    FROM teka.transactions
-    WHERE sender_wallet_id IN (SELECT wallet_id FROM teka.wallets WHERE profile_id = p_sender_profile_id)
+    FROM transactions
+    WHERE sender_wallet_id IN (SELECT wallet_id FROM wallets WHERE profile_id = p_sender_profile_id)
       AND type_id = p_type_id
       AND status = 'COMPLETED'
       AND transaction_time >= DATE_TRUNC('day', CURRENT_TIMESTAMP);
@@ -128,8 +126,8 @@ BEGIN
         COUNT(*), 
         COALESCE(SUM(amount), 0)
     INTO v_monthly_count, v_monthly_total
-    FROM teka.transactions
-    WHERE sender_wallet_id IN (SELECT wallet_id FROM teka.wallets WHERE profile_id = p_sender_profile_id)
+    FROM transactions
+    WHERE sender_wallet_id IN (SELECT wallet_id FROM wallets WHERE profile_id = p_sender_profile_id)
       AND type_id = p_type_id
       AND status = 'COMPLETED'
       AND transaction_time >= DATE_TRUNC('month', CURRENT_TIMESTAMP);
@@ -153,3 +151,126 @@ BEGIN
     RETURN NULL; -- ALL OK
 END;
 $$;
+
+-- 3. Security enforcement function
+CREATE OR REPLACE FUNCTION fn_enforce_internal_only()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Check if the internal operation flag is set to 'true'
+    IF current_setting('app.internal_op', true) IS DISTINCT FROM 'true' THEN
+        RAISE EXCEPTION 'Data Privacy Violation: Direct modification of financial records is prohibited. Use authorized procedures.';
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 4. Transaction immutability guard
+CREATE OR REPLACE FUNCTION fn_transaction_immutable_fields()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.transaction_ref IS DISTINCT FROM NEW.transaction_ref THEN
+        RAISE EXCEPTION 'Cannot modify transaction_ref after creation.';
+    END IF;
+    IF OLD.amount IS DISTINCT FROM NEW.amount THEN
+        RAISE EXCEPTION 'Cannot modify transaction amount after creation.';
+    END IF;
+    IF OLD.fee_amount IS DISTINCT FROM NEW.fee_amount THEN
+        RAISE EXCEPTION 'Cannot modify fee_amount after creation.';
+    END IF;
+    IF OLD.sender_wallet_id IS DISTINCT FROM NEW.sender_wallet_id THEN
+        RAISE EXCEPTION 'Cannot modify sender_wallet_id after creation.';
+    END IF;
+    IF OLD.receiver_wallet_id IS DISTINCT FROM NEW.receiver_wallet_id THEN
+        RAISE EXCEPTION 'Cannot modify receiver_wallet_id after creation.';
+    END IF;
+    IF OLD.type_id IS DISTINCT FROM NEW.type_id THEN
+        RAISE EXCEPTION 'Cannot modify type_id after creation.';
+    END IF;
+    IF OLD.transaction_time IS DISTINCT FROM NEW.transaction_time THEN
+        RAISE EXCEPTION 'Cannot modify transaction_time after creation.';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 5. Transaction status transition enforcement
+CREATE OR REPLACE FUNCTION fn_enforce_status_transition()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.status = NEW.status THEN
+        RETURN NEW; -- no-op, allow
+    END IF;
+
+    IF OLD.status = 'PENDING' AND NEW.status IN ('COMPLETED', 'FAILED') THEN
+        RETURN NEW;
+    END IF;
+
+    IF OLD.status = 'COMPLETED' AND NEW.status = 'REVERSED' THEN
+        RETURN NEW;
+    END IF;
+
+    RAISE EXCEPTION 'Invalid status transition: % → %', OLD.status, NEW.status;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 6. Ledger immutability 
+CREATE OR REPLACE FUNCTION fn_ledger_no_update()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'Ledger entries are immutable. Updates are not allowed.';
+END;
+$$ LANGUAGE plpgsql;
+
+-- 7. Wallet balance defense-in-depth 
+CREATE OR REPLACE FUNCTION fn_wallet_no_negative()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.balance < 0 THEN
+        RAISE EXCEPTION 'Wallet % balance cannot go negative. Attempted balance: %',
+            NEW.wallet_id, NEW.balance;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 8. Max balance enforcement on credits
+CREATE OR REPLACE FUNCTION fn_wallet_max_balance_guard()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Skip for system wallets (TREASURY, REVENUE, ADJUSTMENT)
+    IF NEW.role IS NOT NULL THEN
+        RETURN NEW;
+    END IF;
+
+    IF NEW.balance > NEW.max_balance THEN
+        RAISE EXCEPTION 'Wallet % would exceed maximum balance. Balance: %, Max: %',
+            NEW.wallet_id, NEW.balance, NEW.max_balance;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 9. OTP auto-expire 
+CREATE OR REPLACE FUNCTION fn_otp_auto_expire()
+RETURNS TRIGGER AS $$
+BEGIN
+    UPDATE otp_codes
+    SET is_used = TRUE
+    WHERE phone_number = NEW.phone_number
+      AND purpose = NEW.purpose
+      AND is_used = FALSE
+      AND otp_id != NEW.otp_id;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 10. Auto-update updated_at timestamp 
+CREATE OR REPLACE FUNCTION fn_auto_update_timestamp()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;

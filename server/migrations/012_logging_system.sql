@@ -1,7 +1,3 @@
--- 012: Logging & Audit System
--- Adds balance snapshots to ledger_entries and creates security_logs,
--- admin_action_logs, and audit_logs tables.
-
 -- 1. Enhance ledger_entries with balance snapshots
 ALTER TABLE ledger_entries
   ADD COLUMN IF NOT EXISTS before_balance DECIMAL(15,2),
@@ -19,10 +15,6 @@ CREATE TABLE IF NOT EXISTS security_logs (
   created_at    TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_security_logs_profile ON security_logs(profile_id);
-CREATE INDEX IF NOT EXISTS idx_security_logs_event   ON security_logs(event_type);
-CREATE INDEX IF NOT EXISTS idx_security_logs_time    ON security_logs(created_at);
-
 -- 3. Admin action log (wallet loads, reversals, config changes, etc.)
 CREATE TABLE IF NOT EXISTS admin_action_logs (
   id                BIGSERIAL PRIMARY KEY,
@@ -37,10 +29,6 @@ CREATE TABLE IF NOT EXISTS admin_action_logs (
   created_at        TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_admin_logs_admin  ON admin_action_logs(admin_id);
-CREATE INDEX IF NOT EXISTS idx_admin_logs_action ON admin_action_logs(action);
-CREATE INDEX IF NOT EXISTS idx_admin_logs_time   ON admin_action_logs(created_at);
-
 -- 4. Audit log (human-readable summaries for dashboards/investigations)
 CREATE TABLE IF NOT EXISTS audit_logs (
   id                     BIGSERIAL PRIMARY KEY,
@@ -53,6 +41,4 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   created_at             TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_audit_event ON audit_logs(event_type);
-CREATE INDEX IF NOT EXISTS idx_audit_time  ON audit_logs(created_at);
-CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_logs(actor_id);
+

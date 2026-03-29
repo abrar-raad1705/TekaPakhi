@@ -33,7 +33,36 @@ const transactionModel = {
   },
 
   /**
-   * Insert bill payment details for a PAY_BILL transaction (within the same DB client/transaction)
+   * Execute transaction via Stored Procedure
+   */
+  async executeProcedure(
+    client,
+    { senderWalletId, receiverWalletId, amount, fee, typeId, note },
+    options
+  ) {
+    const { txRef, result: transactionId } = await allocateUniqueTxRef(
+      async (txRefStr) => {
+        const res = await client.query(
+          `CALL ${DB_SCHEMA}.sp_execute_transaction($1, $2, $3, $4, $5, $6, null)`,
+          [senderWalletId, receiverWalletId, amount, fee, typeId, txRefStr]
+        );
+        
+        if (note) {
+          await client.query(
+            `UPDATE ${DB_SCHEMA}.transactions SET user_note = $1 WHERE transaction_id = $2`,
+            [note, res.rows[0].p_transaction_id]
+          );
+        }
+        
+        return res.rows[0].p_transaction_id;
+      },
+      options
+    );
+    return { txRef, transactionId };
+  },
+
+  /**
+   * Insert bill payment details for a PAY_BILL transaction
    */
   async createBillDetails(client, { transactionId, billAccountNumber, billContactNumber }) {
     await client.query(

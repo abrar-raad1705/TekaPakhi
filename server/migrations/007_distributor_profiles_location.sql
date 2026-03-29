@@ -16,12 +16,7 @@ CREATE TABLE IF NOT EXISTS distributor_areas (
   UNIQUE (district, area)
 );
 
--- 3. Indexes (optional but good)
-CREATE INDEX IF NOT EXISTS idx_distributor_areas_profile
-  ON distributor_areas(profile_id);
 
-CREATE INDEX IF NOT EXISTS idx_distributor_areas_district
-  ON distributor_areas(district);
 
 -- 4. Drop old stuff (only if exists)
 ALTER TABLE distributor_profiles DROP COLUMN IF EXISTS region;
