@@ -30,7 +30,7 @@ api.interceptors.response.use(
 
     const skipRedirect =
       url.startsWith('/auth/') ||
-      url.startsWith('/root/');
+      url.startsWith('/admin/');
 
     if (error.response?.status === 401 && !originalRequest?._retry && !skipRedirect) {
       originalRequest._retry = true;

@@ -4,7 +4,7 @@ export default function AdminRoute({ children }) {
   const adminToken = localStorage.getItem('adminToken');
 
   if (!adminToken) {
-    return <Navigate to="/root" replace />;
+    return <Navigate to="/admin/login" replace />;
   }
 
   return children;

@@ -15,7 +15,7 @@ import {
 
 const router = Router();
 
-// All admin routes require admin JWT (password login at POST /api/v1/root/login)
+// All admin routes require admin JWT (password login at POST /api/v1/admin/login)
 router.use(adminAuthenticate);
 
 // Dashboard

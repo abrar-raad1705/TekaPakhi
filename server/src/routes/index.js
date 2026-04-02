@@ -16,7 +16,7 @@ router.use('/profile', profileRoutes);
 router.use('/wallet', walletRoutes);
 router.use('/transactions', transactionRoutes);
 router.use('/recipients', recipientRoutes);
-router.use('/root', adminAuthRoutes);
+router.use('/admin', adminAuthRoutes);
 router.use('/admin', adminRoutes);
 
 export default router;

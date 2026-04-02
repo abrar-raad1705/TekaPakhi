@@ -27,8 +27,8 @@ adminApiClient.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem("adminToken");
       const path = window.location.pathname || "";
-      if (!path.startsWith("/root")) {
-        window.location.href = "/root";
+      if (!path.startsWith("/admin/login")) {
+        window.location.href = "/admin/login";
       }
     }
     return Promise.reject(error);
@@ -37,7 +37,7 @@ adminApiClient.interceptors.response.use(
 
 /** Public: password login for admin panel */
 export const adminLoginRequest = (password) =>
-  axios.post(`${API_URL}/root/login`, { password });
+  axios.post(`${API_URL}/admin/login`, { password });
 
 export const adminApi = {
   getDashboard: () => adminApiClient.get("/admin/dashboard"),

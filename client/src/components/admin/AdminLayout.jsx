@@ -39,7 +39,7 @@ export default function AdminLayout({ children }) {
 
   function adminLogout() {
     localStorage.removeItem("adminToken");
-    navigate("/root", { replace: true });
+    navigate("/admin/login", { replace: true });
   }
 
   return (

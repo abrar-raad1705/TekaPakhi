@@ -50,8 +50,8 @@ export default function AdminLoginPage() {
 
   if (checkingSession) {
     return (
-      <div className="flex min-h-dvh flex-col bg-white overflow-x-hidden">
-        <main className="mx-auto flex w-full max-w-100 flex-1 flex-col items-center justify-center px-6 py-12 md:py-20">
+      <div className="flex flex-col bg-white overflow-x-hidden">
+        <main className="mx-auto flex w-full max-w-sm min-h-[100dvh] flex-col items-center justify-center px-6 py-12">
           <LoadingSpinner size="lg" />
           <p className="mt-4 text-sm font-medium text-gray-500">
             Checking session...
@@ -63,17 +63,17 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="flex min-h-dvh flex-col bg-white overflow-x-hidden">
-      <main className="mx-auto flex w-full max-w-100 flex-1 flex-col justify-center px-6 py-10 md:py-16">
+    <div className="flex flex-col bg-white overflow-x-hidden">
+      <main className="mx-auto flex w-full max-w-sm min-h-[100dvh] flex-col justify-center px-6 py-12">
         <div className="text-center mb-10">
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full border border-primary-100 bg-primary-50">
             <LockClosedIcon className="h-8 w-8 text-primary-600" />
           </div>
           <h1 className="text-[28px] font-bold tracking-tight text-gray-900 leading-tight">
-            Root access
+            Admin Login
           </h1>
           <p className="mt-3 text-[15px] font-medium text-gray-500">
-            Enter the root password to continue.
+            Enter the admin password to continue.
           </p>
         </div>
 
@@ -83,7 +83,7 @@ export default function AdminLoginPage() {
               htmlFor="admin-password"
               className="block text-[15px] font-bold text-gray-700"
             >
-              Root password
+              Password
             </label>
             <div>
               <input

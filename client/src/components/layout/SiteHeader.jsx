@@ -21,7 +21,7 @@ const DASHBOARD_PATHS = [
 ];
 
 function resolveVariant(pathname) {
-  if (pathname.startsWith("/admin") || pathname.startsWith("/root"))
+  if (pathname.startsWith("/admin"))
     return "hidden";
   if (AUTH_PATHS.includes(pathname)) return "auth";
   if (

@@ -79,3 +79,50 @@ input[type="number"] {
   background: #e2e8f0;
   border-radius: 10px;
 }
+
+/* Force Sonner Icon Colors */
+[data-sonner-toast][data-rich-colors="true"][data-type="success"] [data-icon] {
+  color: #059669 !important;
+}
+[data-sonner-toast][data-rich-colors="true"][data-type="error"] [data-icon] {
+  color: #dc2626 !important;
+}
+[data-sonner-toast][data-rich-colors="true"][data-type="warning"] [data-icon] {
+  color: #d97706 !important;
+}
+[data-sonner-toast][data-rich-colors="true"][data-type="info"] [data-icon] {
+  color: #2563eb !important;
+}
+
+/* Force Sonner title text to be fully opaque and bold */
+[data-sonner-toast] [data-title] {
+  font-weight: 700 !important;
+  color: #111827 !important;
+  font-size: 14px !important;
+  line-height: 1.4 !important;
+}
+
+/* Force description text to be readable */
+[data-sonner-toast] [data-description] {
+  color: #4b5563 !important;
+  font-size: 13px !important;
+}
+
+
+/* Action Button — solid primary blue */
+[data-sonner-toast] [data-button] {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+  padding: 7px 14px !important;
+  border-radius: 8px !important;
+  border: none !important;
+  transition: background 0.15s !important;
+  box-shadow: 0 1px 3px 0 rgba(37, 99, 235, 0.3) !important;
+}
+
+[data-sonner-toast] [data-button]:hover {
+  background: #1d4ed8 !important;
+}
+

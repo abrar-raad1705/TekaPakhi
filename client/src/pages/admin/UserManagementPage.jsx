@@ -9,6 +9,7 @@ import PinInput from "../../components/common/PinInput";
 import { ChevronDownIcon } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import ProfileAvatar from "../../components/common/ProfileAvatar";
+import SearchableSelect from "../../components/common/SearchableSelect";
 import { getProfileTypeAdmin, ADMIN_TYPE_PILL_BOX } from "../../utils/roleTheme";
 
 const profileTypes = [
@@ -18,7 +19,6 @@ const profileTypes = [
   { id: "3", label: "Merchant" },
   { id: "4", label: "Distributor" },
   { id: "5", label: "Biller" },
-  { id: "6", label: "System" },
 ];
 
 const statusOptions = [
@@ -322,12 +322,6 @@ function CreateProfileForm({ onCreated }) {
   const [districts, setDistricts] = useState([]);
   const [areasList, setAreasList] = useState([]);
   const [saving, setSaving] = useState(false);
-  const [isAreaPickerOpen, setIsAreaPickerOpen] = useState(false);
-  const [areaSearch, setAreaSearch] = useState("");
-
-  const filteredAreas = areasList.filter((area) =>
-    area.toLowerCase().includes(areaSearch.toLowerCase().trim()),
-  );
 
   useEffect(() => {
     if (form.accountType !== "DISTRIBUTOR") return;
@@ -367,16 +361,6 @@ function CreateProfileForm({ onCreated }) {
     };
   }, [form.accountType, form.district]);
 
-  const toggleArea = (area) => {
-    setForm((p) => {
-      const has = p.selectedAreas.includes(area);
-      const selectedAreas = has
-        ? p.selectedAreas.filter((a) => a !== area)
-        : [...p.selectedAreas, area];
-      return { ...p, selectedAreas };
-    });
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -399,9 +383,14 @@ function CreateProfileForm({ onCreated }) {
         if (temporaryPin) {
           toast.success(`Temporary PIN: ${temporaryPin}`, {
             duration: Infinity,
-            closeButton: true,
-            description:
-              "Share this PIN with the distributor once. It will not be shown again.",
+            description: "Profile created! Share this PIN now. It will not be shown again.",
+            action: {
+              label: "Copy PIN",
+              onClick: () => {
+                navigator.clipboard.writeText(temporaryPin);
+                toast.success("PIN copied to clipboard", { duration: 1000 });
+              },
+            },
           });
         } else {
           toast.success("Distributor profile created.");
@@ -421,9 +410,14 @@ function CreateProfileForm({ onCreated }) {
         if (temporaryPin) {
           toast.success(`Temporary PIN: ${temporaryPin}`, {
             duration: Infinity,
-            closeButton: true,
-            description:
-              "Share this PIN with the biller once. It will not be shown again.",
+            description: "Profile created! Share this PIN now. It will not be shown again.",
+            action: {
+              label: "Copy PIN",
+              onClick: () => {
+                navigator.clipboard.writeText(temporaryPin);
+                toast.success("PIN copied to clipboard", { duration: 1000 });
+              },
+            },
           });
         } else {
           toast.success("BILLER profile created successfully.");
@@ -458,8 +452,6 @@ function CreateProfileForm({ onCreated }) {
                 district: "",
                 selectedAreas: [],
               }));
-              setIsAreaPickerOpen(false);
-              setAreaSearch("");
             }}
             className={`rounded-lg border-2 px-4 py-2 text-sm font-medium transition-colors ${
               form.accountType === t
@@ -495,97 +487,40 @@ function CreateProfileForm({ onCreated }) {
               <label className="mb-1 block text-xs font-medium text-gray-700">
                 {req("District")}
               </label>
-              <select
-                required
+              <SearchableSelect
                 value={form.district}
-                onChange={(e) => {
+                onChange={(val) => {
                   setForm((p) => ({
                     ...p,
-                    district: e.target.value,
+                    district: val,
                     selectedAreas: [],
                   }));
-                  setIsAreaPickerOpen(false);
-                  setAreaSearch("");
                 }}
-                className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-9 text-sm"
-              >
-                <option value="">Choose district</option>
-                {districts.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
-              <ChevronDownIcon className="pointer-events-none absolute right-3 top-9 h-4 w-4 text-gray-500" />
+                options={districts}
+                placeholder={districts.length === 0 ? "Loading..." : "Choose district"}
+                searchPlaceholder="Search district..."
+                size="small"
+              />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-700">
                 {req("Areas")}
               </label>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!form.district) return;
-                    setIsAreaPickerOpen((v) => !v);
-                  }}
-                  className={`w-full rounded-lg border px-3 py-2 pr-9 text-left text-sm ${
-                    form.district
-                      ? "border-gray-300 text-gray-900"
-                      : "border-gray-200 bg-gray-50 text-gray-400"
-                  }`}
-                >
-                  {form.selectedAreas.length > 0
-                    ? form.selectedAreas.join(", ")
-                    : form.district
-                      ? "Choose areas"
-                      : "Choose district first"}
-                </button>
-                <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-
-                {isAreaPickerOpen && form.district ? (
-                  <div className="absolute z-20 mt-2 w-full rounded-lg border border-gray-200 bg-white p-2 shadow-lg">
-                    <input
-                      type="text"
-                      value={areaSearch}
-                      onChange={(e) => setAreaSearch(e.target.value)}
-                      placeholder="Type to search area"
-                      className="mb-2 w-full rounded-md border border-gray-300 px-2.5 py-2 text-sm focus:border-primary-500 focus:outline-none"
-                    />
-                    <div className="max-h-48 overflow-y-auto rounded-md border border-gray-100 p-1">
-                      {filteredAreas.length === 0 ? (
-                        <p className="px-2 py-2 text-xs text-gray-500">
-                          No matching areas found
-                        </p>
-                      ) : (
-                        filteredAreas.map((a) => (
-                          <label
-                            key={a}
-                            className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-gray-50"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={form.selectedAreas.includes(a)}
-                              onChange={() => toggleArea(a)}
-                              className="rounded border-gray-300"
-                            />
-                            <span className="text-sm text-gray-800">{a}</span>
-                          </label>
-                        ))
-                      )}
-                    </div>
-                    <div className="mt-2 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => setIsAreaPickerOpen(false)}
-                        className="rounded-md bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700"
-                      >
-                        Done
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
+              <SearchableSelect
+                value={form.selectedAreas}
+                onChange={(val) => {
+                  setForm((p) => ({ ...p, selectedAreas: val }));
+                }}
+                options={areasList.map((a) => {
+                  if (typeof a === 'string') return { label: a, value: a, disabled: false };
+                  return { label: a.area, value: a.area, disabled: a.isTaken };
+                })}
+                placeholder={!form.district ? "Choose district first" : "Choose areas"}
+                searchPlaceholder="Search area..."
+                multiple={true}
+                disabled={!form.district}
+                size="small"
+              />
               <p className="mt-1 text-[11px] text-gray-500">
                 One area can only be assigned to one distributor.
               </p>
@@ -733,21 +668,14 @@ function CreateProfileForm({ onCreated }) {
               <label className="mb-1 block text-xs font-medium text-gray-700">
                 {req("Biller type")}
               </label>
-              <select
-                required
+              <SearchableSelect
                 value={form.billerType}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, billerType: e.target.value }))
-                }
-                className="w-full appearance-none rounded-lg border border-gray-300 px-3 py-2 pr-9 text-sm"
-              >
-                {BILLER_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-              <ChevronDownIcon className="pointer-events-none absolute right-3 top-9 h-4 w-4 text-gray-500" />
+                onChange={(val) => setForm((p) => ({ ...p, billerType: val }))}
+                options={BILLER_TYPES}
+                placeholder="Choose biller type"
+                searchPlaceholder="Search biller type..."
+                size="small"
+              />
             </div>
           </div>
 

@@ -11,9 +11,9 @@ import { FieldError, GlobalError } from "../../components/common/FormError";
 import { formatPhone } from "../../utils/formatCurrency";
 import {
   ChevronLeftIcon,
-  ChevronDownIcon,
   InformationCircleIcon,
 } from "@heroicons/react/24/outline";
+import SearchableSelect from "../../components/common/SearchableSelect";
 
 const accountTypes = [
   { id: "CUSTOMER", label: "Personal", desc: "Send & receive money" },
@@ -474,80 +474,44 @@ export default function RegisterPage() {
                                   <label className="block text-[15px] font-bold text-gray-700">
                                     Choose district
                                   </label>
-                                  <div className="relative">
-                                    <select
-                                      value={form.districtId}
-                                      onChange={(e) => {
-                                        setForm((prev) => ({
-                                          ...prev,
-                                          districtId: e.target.value,
-                                          areaId: "", // Reset area
-                                        }));
-                                        if (errors.districtId)
-                                          setErrors((prev) => ({
-                                            ...prev,
-                                            districtId: null,
-                                          }));
-                                      }}
-                                      className={`w-full rounded-xl border-2 py-4 pl-4 pr-11 text-[15px] font-medium transition-all focus:outline-none appearance-none cursor-pointer ${errors.districtId
-                                          ? "border-[#CD1C1C] focus:border-[#CD1C1C]"
-                                          : "border-gray-200 focus:border-primary-500"
-                                        }`}
-                                    >
-                                      <option value="">
-                                        {loadingDistricts
-                                          ? "Loading..."
-                                          : "Choose district"}
-                                      </option>
-                                      {districts.map((d) => (
-                                        <option key={d} value={d}>
-                                          {d}
-                                        </option>
-                                      ))}
-                                    </select>
-                                    <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-500" />
-                                  </div>
+                                  <SearchableSelect
+                                    value={form.districtId}
+                                    onChange={(val) => {
+                                      setForm((prev) => ({
+                                        ...prev,
+                                        districtId: val,
+                                        areaId: "",
+                                      }));
+                                      if (errors.districtId)
+                                        setErrors((prev) => ({ ...prev, districtId: null }));
+                                    }}
+                                    options={districts.map(d => ({ label: d, value: d }))}
+                                    placeholder={loadingDistricts ? "Loading..." : "Choose district"}
+                                    searchPlaceholder="Search district..."
+                                    error={!!errors.districtId}
+                                  />
                                   <FieldError message={errors.districtId} />
                                 </div>
                                 <div className="space-y-2">
                                   <label className="block text-[15px] font-bold text-gray-700">
                                     Choose area
                                   </label>
-                                  <div className="relative">
-                                    <select
-                                      value={form.areaId}
-                                      onChange={(e) => {
-                                        setForm((prev) => ({
-                                          ...prev,
-                                          areaId: e.target.value,
-                                        }));
-                                        if (errors.areaId)
-                                          setErrors((prev) => ({
-                                            ...prev,
-                                            areaId: null,
-                                          }));
-                                      }}
-                                      disabled={!form.districtId || loadingAreas}
-                                      className={`w-full rounded-xl border-2 py-4 pl-4 pr-11 text-[15px] font-medium transition-all focus:outline-none appearance-none cursor-pointer ${errors.areaId
-                                          ? "border-[#CD1C1C] focus:border-[#CD1C1C]"
-                                          : "border-gray-200 focus:border-primary-500"
-                                        } disabled:opacity-50 disabled:cursor-not-allowed`}
-                                    >
-                                      <option value="">
-                                        {!form.districtId
-                                          ? "Choose district first"
-                                          : loadingAreas
-                                            ? "Loading..."
-                                            : "Choose area"}
-                                      </option>
-                                      {areas.map((a) => (
-                                        <option key={a} value={a}>
-                                          {a}
-                                        </option>
-                                      ))}
-                                    </select>
-                                    <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-500" />
-                                  </div>
+                                  <SearchableSelect
+                                    value={form.areaId}
+                                    onChange={(val) => {
+                                      setForm((prev) => ({ ...prev, areaId: val }));
+                                      if (errors.areaId)
+                                        setErrors((prev) => ({ ...prev, areaId: null }));
+                                    }}
+                                    options={areas.map((a) => {
+                                      const areaName = typeof a === 'string' ? a : a.area;
+                                      return { label: areaName, value: areaName };
+                                    })}
+                                    placeholder={!form.districtId ? "Choose district first" : loadingAreas ? "Loading..." : "Choose area"}
+                                    searchPlaceholder="Search area..."
+                                    disabled={!form.districtId || loadingAreas}
+                                    error={!!errors.areaId}
+                                  />
                                   <FieldError message={errors.areaId} />
                                 </div>
                               </div>

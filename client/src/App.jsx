@@ -47,6 +47,7 @@ import DistributorLoadPage from './pages/admin/DistributorLoadPage';
 import SecurityLogsPage from './pages/admin/SecurityLogsPage';
 import AdminActionLogsPage from './pages/admin/AdminActionLogsPage';
 import AuditTrailPage from './pages/admin/AuditTrailPage';
+import ToastPlayground from './pages/admin/ToastPlayground';
 
 export default function App() {
   const { isAuthenticated, user, getHomeRoute } = useAuth();
@@ -56,7 +57,7 @@ export default function App() {
     <Routes>
       <Route element={<ShellLayout />}>
         {/* Public routes */}
-        <Route path="/root" element={<AdminLoginPage />} />
+        <Route path="/admin/login" element={<AdminLoginPage />} />
         <Route path="/login" element={isAuthenticated ? (user?.isPhoneVerified ? <Navigate to={homeRoute} replace /> : <Navigate to="/verify-phone" state={{ phoneNumber: user?.phoneNumber }} replace />) : <LoginPage />} />
         <Route path="/register" element={isAuthenticated ? (user?.isPhoneVerified ? <Navigate to={homeRoute} replace /> : <Navigate to="/verify-phone" state={{ phoneNumber: user?.phoneNumber }} replace />) : <RegisterPage />} />
         <Route path="/verify-phone" element={<VerifyPhonePage />} />
@@ -107,6 +108,7 @@ export default function App() {
         <Route path="/admin/logs/security" element={<AdminRoute><SecurityLogsPage /></AdminRoute>} />
         <Route path="/admin/logs/actions" element={<AdminRoute><AdminActionLogsPage /></AdminRoute>} />
         <Route path="/admin/logs/audit" element={<AdminRoute><AuditTrailPage /></AdminRoute>} />
+        <Route path="/admin/toast-test" element={<AdminRoute><ToastPlayground /></AdminRoute>} />
 
         <Route path="*" element={<Navigate to={isAuthenticated ? homeRoute : '/login'} replace />} />
       </Route>

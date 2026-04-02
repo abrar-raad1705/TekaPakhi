@@ -330,7 +330,7 @@ export default function UserDetailPage() {
               <div className="border-t border-gray-100 pt-4">
                 <p className={fieldLabelClass}>Phone verification</p>
                 <p className={`text-sm font-semibold ${user.is_phone_verified ? "text-green-700" : "text-red-600"}`}>
-                  {user.is_phone_verified ? "Verified" : "Unverified"}
+                  {user.is_phone_verified ? "VERIFIED" : "UNVERIFIED"}
                 </p>
               </div>
               <div className="grid grid-cols-1 gap-4 border-t border-gray-100 pt-4 sm:grid-cols-2">

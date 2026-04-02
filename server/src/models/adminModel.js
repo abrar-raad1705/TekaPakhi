@@ -73,6 +73,7 @@ const adminModel = {
       `SELECT p.profile_id, p.phone_number, p.full_name, pt.type_name, p.registration_date
        FROM ${DB_SCHEMA}.profiles p
        JOIN ${DB_SCHEMA}.profile_types pt ON p.type_id = pt.type_id
+       WHERE pt.type_name != 'SYSTEM'
        ORDER BY p.registration_date DESC
        LIMIT $1`,
       [count],
@@ -85,7 +86,7 @@ const adminModel = {
   async getUsers({ page = 1, limit = 20, search, typeId, status }) {
     const params = [];
     let paramIdx = 1;
-    let whereExtra = "";
+    let whereExtra = " AND pt.type_name != 'SYSTEM'";
 
     if (search) {
       whereExtra += ` AND (p.phone_number ILIKE $${paramIdx} OR p.full_name ILIKE $${paramIdx})`;
