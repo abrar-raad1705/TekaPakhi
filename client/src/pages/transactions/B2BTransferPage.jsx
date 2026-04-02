@@ -52,6 +52,7 @@ export default function B2BTransferPage() {
   const [lookupError, setLookupError] = useState("");
   const [loadingDistributor, setLoadingDistributor] = useState(isAgent);
   const [b2bSuspendedMsg, setB2bSuspendedMsg] = useState(null);
+  const [stepError, setStepError] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -187,6 +188,7 @@ export default function B2BTransferPage() {
     if (!recipient) return toast.error("Look up an agent first");
 
     setLoading(true);
+    setStepError("");
     try {
       const { data } = await transactionApi.preview("B2B", {
         receiverPhone: form.receiverPhone,
@@ -211,7 +213,13 @@ export default function B2BTransferPage() {
       setStep("review");
       setTimeout(() => pinInputRef.current?.focus(), 100);
     } catch (error) {
-      toast.error(error.response?.data?.message || "Preview failed");
+      const msg = error.response?.data?.message || "Preview failed";
+      const code = error.response?.data?.data?.code;
+      if (code === "RECEIVER_SUSPENDED" || code === "RECEIVER_BLOCKED") {
+        setStepError(msg);
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -221,6 +229,7 @@ export default function B2BTransferPage() {
     if (form.pin.length !== 5) return toast.error("PIN must be 5 digits");
 
     setLoading(true);
+    setStepError("");
     try {
       const { data } = await transactionApi.b2b({
         receiverPhone: form.receiverPhone,
@@ -240,7 +249,8 @@ export default function B2BTransferPage() {
   const amountNum = parseFloat(form.amount);
   const hasValidAmount = Number.isFinite(amountNum) && amountNum > 0;
   const amountExceedsBalance = Number.isFinite(amountNum) && amountNum > walletBalance;
-  const canProceedAmountStep = !loading && hasValidAmount && !amountExceedsBalance;
+  const isBelowMinB2B = Number.isFinite(amountNum) && amountNum > 0 && amountNum < 5000;
+  const canProceedAmountStep = !loading && hasValidAmount && !amountExceedsBalance && !isBelowMinB2B;
 
   if (step === "receipt" && receipt) {
     return <TransactionReceipt receipt={receipt} />;
@@ -465,6 +475,7 @@ export default function B2BTransferPage() {
                       const val = e.target.value;
                       if (/^\d*\.?\d*$/.test(val)) {
                         setForm((p) => ({ ...p, amount: val }));
+                        setStepError("");
                       }
                     }}
                     placeholder="0"
@@ -489,6 +500,12 @@ export default function B2BTransferPage() {
               )}
               {amountExceedsBalance && (
                 <p className="mt-2 text-sm font-medium text-red-500">Insufficient balance</p>
+              )}
+              {isBelowMinB2B && (
+                <p className="mt-2 text-sm font-medium text-red-500">Minimum transfer amount is ৳5,000</p>
+              )}
+              {stepError && (
+                <p className="mt-2 text-sm font-medium text-red-500">{stepError}</p>
               )}
             </div>
 
@@ -544,8 +561,8 @@ export default function B2BTransferPage() {
                 </span>
               </div>
             )}
-            <div className="my-2 h-px bg-gray-100" />
-            <div className="flex items-center justify-between text-lg">
+            <div className="my-2 h-px bg-gray-300" />
+            <div className="flex items-center justify-between text-[15px]">
               <span className="font-bold text-gray-500">Total Debit</span>
               <span className="font-black text-primary-600">{formatBDT(preview.totalDebit)}</span>
             </div>

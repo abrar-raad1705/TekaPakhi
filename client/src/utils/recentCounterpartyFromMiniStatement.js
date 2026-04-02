@@ -21,6 +21,7 @@ export function buildRecentCounterpartyFromMiniStatement(transactions, profileId
       name: name || 'Recipient',
       phone: digits,
       pictureUrl: pictureUrl ?? null,
+      account_status: tx.receiver_account_status,
     });
     if (out.length >= 10) break;
   }

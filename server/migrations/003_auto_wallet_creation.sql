@@ -21,7 +21,7 @@ BEGIN
     );
 
     -- Reset flag (local true ensures it resets anyway, but good for clarity)
-    PERFORM set_config('app.internal_op', 'false', true);
+    -- PERFORM set_config('app.internal_op', 'false', true);
 
     RETURN NEW;
 END;

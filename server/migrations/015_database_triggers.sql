@@ -56,14 +56,21 @@ BEFORE INSERT OR UPDATE OF balance ON wallets
 FOR EACH ROW
 EXECUTE FUNCTION fn_wallet_max_balance_guard();
 
--- 5. OTP Triggers
+-- 5. Wallet Freeze for Inactive Profiles
+DROP TRIGGER IF EXISTS trg_wallet_block_inactive_profile ON wallets;
+CREATE TRIGGER trg_wallet_block_inactive_profile
+BEFORE UPDATE OF balance ON wallets
+FOR EACH ROW
+EXECUTE FUNCTION fn_block_wallet_on_inactive_profile();
+
+-- 6. OTP Triggers
 DROP TRIGGER IF EXISTS trg_otp_auto_expire ON otp_codes;
 CREATE TRIGGER trg_otp_auto_expire
 AFTER INSERT ON otp_codes
 FOR EACH ROW
 EXECUTE FUNCTION fn_otp_auto_expire();
 
--- 6. Auto-Update Timestamp Triggers
+-- 7. Auto-Update Timestamp Triggers
 DROP TRIGGER IF EXISTS trg_auto_updated_at_profiles ON profiles;
 CREATE TRIGGER trg_auto_updated_at_profiles
 BEFORE UPDATE ON profiles
@@ -111,3 +118,10 @@ CREATE TRIGGER trg_auto_updated_at_biller_profiles
 BEFORE UPDATE ON biller_profiles
 FOR EACH ROW
 EXECUTE FUNCTION fn_auto_update_timestamp();
+
+-- 8. B2B Minimum Amount Enforcement
+DROP TRIGGER IF EXISTS trg_b2b_min_amount ON transactions;
+CREATE TRIGGER trg_b2b_min_amount
+BEFORE INSERT ON transactions
+FOR EACH ROW
+EXECUTE FUNCTION fn_enforce_b2b_min_amount();

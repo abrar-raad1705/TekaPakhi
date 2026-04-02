@@ -77,7 +77,7 @@ CREATE TYPE wallet_role AS ENUM ('TREASURY', 'REVENUE', 'ADJUSTMENT');
 CREATE TABLE wallets (
     wallet_id BIGSERIAL PRIMARY KEY,
     profile_id BIGINT UNIQUE NOT NULL REFERENCES profiles(profile_id) ON DELETE RESTRICT,
-    balance DECIMAL(15, 2) DEFAULT 0.00 CHECK (balance >= 0),
+    balance DECIMAL(15, 2) DEFAULT 0.00,
     max_balance DECIMAL(15, 2) DEFAULT 500000.00,
     role wallet_role, -- NULL for normal users
     last_activity_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

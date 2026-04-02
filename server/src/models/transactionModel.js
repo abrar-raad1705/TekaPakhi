@@ -117,7 +117,15 @@ const transactionModel = {
        JOIN ${DB_SCHEMA}.profiles rp ON rw.profile_id = rp.profile_id
        LEFT JOIN ${DB_SCHEMA}.bill_payment_details bpd ON t.transaction_id = bpd.transaction_id
        WHERE t.transaction_id = $1
-         AND (sw.profile_id = $2 OR rw.profile_id = $2)`,
+         AND (
+           sw.profile_id = $2 
+           OR rw.profile_id = $2
+           OR EXISTS (
+             SELECT 1 FROM ${DB_SCHEMA}.ledger_entries le
+             JOIN ${DB_SCHEMA}.wallets w ON le.wallet_id = w.wallet_id
+             WHERE le.transaction_id = t.transaction_id AND w.profile_id = $2
+           )
+         )`,
       [transactionId, profileId]
     );
     return result.rows[0] || null;
@@ -338,7 +346,8 @@ const transactionModel = {
               sp.profile_picture_url AS sender_profile_picture_url,
               rw.profile_id AS receiver_profile_id,
               rp.full_name AS receiver_name, rp.phone_number AS receiver_phone,
-              rp.profile_picture_url AS receiver_profile_picture_url
+              rp.profile_picture_url AS receiver_profile_picture_url,
+              rp.account_status AS receiver_account_status
        FROM ${DB_SCHEMA}.transactions t
        JOIN ${DB_SCHEMA}.transaction_types tt ON t.type_id = tt.type_id
        JOIN ${DB_SCHEMA}.wallets sw ON t.sender_wallet_id = sw.wallet_id

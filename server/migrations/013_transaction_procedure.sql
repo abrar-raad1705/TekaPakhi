@@ -169,7 +169,7 @@ BEGIN
     -- Update transaction record
     UPDATE transactions SET updated_at = CURRENT_TIMESTAMP WHERE transaction_id = v_tx_id;
     
-    -- DISABLE INTERNAL OP FLAG (Explicitly, though 'true' ensures it resets on end of transaction)
-    PERFORM set_config('app.internal_op', 'false', true);
+    -- DISABLE INTERNAL OP FLAG (Removed explicit false reset; local true handles this automatically at end of tx)
+    -- PERFORM set_config('app.internal_op', 'false', true);
 END;
 $$;

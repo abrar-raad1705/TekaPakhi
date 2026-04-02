@@ -9,7 +9,6 @@ import { walletApi } from "../../api/walletApi";
 import { formatBDT } from "../../utils/formatCurrency";
 import { getDashboardTheme } from "../../utils/roleTheme";
 import { TransactionTypeGlyph } from "../../constants/transactionTypeUi";
-import BottomNav from "../../components/layout/BottomNav";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 
 const quickActions = [
@@ -62,7 +61,7 @@ export default function MerchantDashboardPage() {
     }
   };
   return (
-    <div className="min-h-dvh bg-gray-50 pb-20">
+    <div className={`min-h-dvh ${theme.dashboardBgClass} pb-20`}>
       {/* Header */}
       <div className={`${theme.headerClass} px-4 pb-16 pt-6`}>
         <div className="mx-auto max-w-md">
@@ -90,19 +89,21 @@ export default function MerchantDashboardPage() {
       <div className="mx-auto -mt-12 max-w-md px-4">
         {/* KYC Pending Banner */}
         {isPendingKYC && (
-          <div className="mb-4 rounded-xl border border-yellow-200 bg-yellow-50 p-4">
-            <div className="flex items-start gap-3">
-              <ExclamationCircleIcon
-                className="mt-0.5 h-5 w-5 flex-shrink-0 text-yellow-500"
-                strokeWidth={2}
-              />
-              <div>
-                <p className="text-sm font-semibold text-yellow-800">
+          <div className="mb-6 rounded-2xl border-2 border-white bg-white p-5 shadow-2xl shadow-yellow-200/40">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-yellow-50 shadow-sm ring-1 ring-yellow-200/50">
+                <ExclamationCircleIcon
+                  className="h-7 w-7 text-yellow-500"
+                  strokeWidth={2}
+                />
+              </div>
+              <div className="min-w-0 flex-1 py-0.5">
+                <h3 className="text-sm font-black uppercase tracking-[0.05em] text-yellow-900">
                   Verification Pending
-                </p>
-                <p className="mt-0.5 text-xs text-yellow-600">
+                </h3>
+                <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-yellow-800/70">
                   Your merchant account is under review. You'll start receiving
-                  payments once verified by admin.
+                  payments once verified.
                 </p>
               </div>
             </div>
@@ -110,26 +111,28 @@ export default function MerchantDashboardPage() {
         )}
 
         {/* Balance Card */}
-        <div className="mb-6 rounded-2xl bg-white p-5 shadow-lg">
+        <div className={`mb-6 rounded-2xl border-2 border-white bg-white p-5 shadow-2xl ${theme.cardShadowClass}`}>
           {loading ? (
             <LoadingSpinner size="md" className="py-4" />
           ) : (
             <>
               <div className="flex items-center justify-between">
-                <p className="text-sm text-gray-500">Merchant Balance</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Merchant Balance</p>
                 <button
                   onClick={() => setShowBalance(!showBalance)}
-                  className={`text-sm font-medium ${theme.balanceBtnClass}`}
+                  className={`text-sm font-bold ${theme.balanceBtnClass}`}
                 >
                   {showBalance ? "Hide" : "Show"}
                 </button>
               </div>
-              <p className="mt-1 text-3xl font-bold text-gray-900">
+              <p className="mt-1 text-3xl font-bold text-gray-950 tracking-tight">
                 {showBalance ? formatBDT(wallet?.balance || 0) : "৳ * * * * *"}
               </p>
-              <div className="mt-3 flex items-center gap-2 text-xs text-gray-400">
-                <span className={`inline-block h-2 w-2 rounded-full ${theme.statusDotClass}`} />
-                <span>Merchant Account</span>
+              <div className="mt-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                <span className={`inline-block h-2 w-2 rounded-full ${theme.statusDotClass} shadow-sm`} />
+                <span className={theme.statusTextClass}>
+                  Merchant Account
+                </span>
               </div>
             </>
           )}
@@ -137,24 +140,24 @@ export default function MerchantDashboardPage() {
 
         {/* Quick Actions */}
         <div className="mb-6">
-          <h2 className="mb-3 text-sm font-semibold text-gray-700">Services</h2>
+          <h2 className="mb-4 text-[15px] font-extrabold text-gray-900 tracking-tight">Services</h2>
           <div className="grid grid-cols-2 gap-3">
             {quickActions.map((action) => (
               <button
                 key={action.label}
                 disabled={isPendingKYC}
                 onClick={() => !isPendingKYC && navigate(action.to)}
-                className="flex flex-col items-center gap-1.5 rounded-xl bg-white p-3 shadow-sm transition-shadow hover:shadow-md disabled:opacity-40"
+                className={`flex flex-col items-center gap-3 rounded-2xl border-2 border-white bg-white/80 backdrop-blur-sm p-4 shadow-xl ${theme.cardShadowClass} transition-all hover:-translate-y-1 hover:bg-white hover:shadow-2xl active:scale-95 disabled:opacity-40`}
               >
                 <div
-                  className={`flex h-11 w-11 items-center justify-center ${theme.quickActionTileClass}`}
+                  className={`flex h-12 w-12 items-center justify-center ${theme.quickActionTileClass}`}
                 >
                   <TransactionTypeGlyph
                     typeName={action.typeName}
                     className={`h-6 w-6 ${theme.quickActionIconClass}`}
                   />
                 </div>
-                <span className="text-[11px] font-medium text-gray-600">
+                <span className="text-[13px] font-bold text-gray-800 tracking-tight">
                   {action.label}
                 </span>
               </button>
@@ -163,17 +166,17 @@ export default function MerchantDashboardPage() {
         </div>
 
         {/* Receive Payments Info */}
-        <div className="mb-6 rounded-xl bg-white p-5 shadow-sm">
-          <h2 className="mb-2 text-sm font-semibold text-gray-700">
+        <div className={`mb-6 rounded-2xl border-2 border-white bg-white/60 backdrop-blur-sm p-5 shadow-xl ${theme.cardShadowClass}`}>
+          <h2 className="mb-2 text-sm font-black uppercase tracking-wider text-gray-950">
             How to Receive Payments
           </h2>
-          <p className="text-xs text-gray-500">
-            Customers can send you payments by entering your phone number (
-            {user?.phoneNumber}) in the "Payment" section of their app.
+          <p className="text-[13px] font-medium leading-relaxed text-gray-500">
+            Customers can pay you by entering your phone number (
+            <span className="font-bold text-primary-600">{user?.phoneNumber}</span>) in the
+            "Payment" section of their app.
           </p>
         </div>
       </div>
-      <BottomNav />
     </div>
   );
 }

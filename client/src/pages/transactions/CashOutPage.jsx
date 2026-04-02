@@ -38,6 +38,7 @@ export default function CashOutPage() {
   const [loading, setLoading] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
   const pinInputRef = useRef(null);
+  const [stepError, setStepError] = useState("");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [savedRecipients, setSavedRecipients] = useState([]);
@@ -115,6 +116,21 @@ export default function CashOutPage() {
         setRecipient(null);
         return;
       }
+      if (data.data.accountStatus === "PENDING_KYC") {
+        setLookupError("This agent is not yet verified and cannot perform cash out.");
+        setRecipient(null);
+        return;
+      }
+      if (data.data.accountStatus === "SUSPENDED") {
+        setLookupError("This account is suspended and cannot participate in transactions.");
+        setRecipient(null);
+        return;
+      }
+      if (data.data.accountStatus === "BLOCKED") {
+        setLookupError("This account is blocked and cannot participate in transactions.");
+        setRecipient(null);
+        return;
+      }
       setRecipient(data.data);
       setForm((p) => ({ ...p, receiverPhone: phoneToLookup }));
       setSearchQuery("");
@@ -141,6 +157,18 @@ export default function CashOutPage() {
       const { data } = await transactionApi.lookupRecipient(phoneDigits);
       if (data.data.typeName !== "AGENT") {
         setLookupError("This number does not belong to an agent.");
+        return;
+      }
+      if (data.data.accountStatus === "PENDING_KYC") {
+        setLookupError("This agent is not yet verified and cannot perform cash out.");
+        return;
+      }
+      if (data.data.accountStatus === "SUSPENDED") {
+        setLookupError("This account is suspended and cannot participate in transactions.");
+        return;
+      }
+      if (data.data.accountStatus === "BLOCKED") {
+        setLookupError("This account is blocked and cannot participate in transactions.");
         return;
       }
       setRecipient({
@@ -174,6 +202,18 @@ export default function CashOutPage() {
       const { data } = await transactionApi.lookupRecipient(phoneDigits);
       if (data.data.typeName !== "AGENT") {
         setLookupError("This number does not belong to an agent.");
+        return;
+      }
+      if (data.data.accountStatus === "PENDING_KYC") {
+        setLookupError("This agent is not yet verified and cannot perform cash out.");
+        return;
+      }
+      if (data.data.accountStatus === "SUSPENDED") {
+        setLookupError("This account is suspended and cannot participate in transactions.");
+        return;
+      }
+      if (data.data.accountStatus === "BLOCKED") {
+        setLookupError("This account is blocked and cannot participate in transactions.");
         return;
       }
       setRecipient({
@@ -233,6 +273,7 @@ export default function CashOutPage() {
     if (!recipient) return toast.error("Look up an agent first");
 
     setLoading(true);
+    setStepError("");
     try {
       const { data } = await transactionApi.preview("CASH_OUT", {
         receiverPhone: form.receiverPhone,
@@ -242,7 +283,13 @@ export default function CashOutPage() {
       setStep("review");
       setTimeout(() => pinInputRef.current?.focus(), 100);
     } catch (error) {
-      toast.error(error.response?.data?.message || "Preview failed");
+      const msg = error.response?.data?.message || "Preview failed";
+      const code = error.response?.data?.data?.code;
+      if (code === "RECEIVER_SUSPENDED" || code === "RECEIVER_BLOCKED") {
+        setStepError(msg);
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -252,6 +299,7 @@ export default function CashOutPage() {
     if (form.pin.length !== 5) return toast.error("PIN must be 5 digits");
 
     setLoading(true);
+    setStepError("");
     try {
       const { data } = await transactionApi.cashOut({
         receiverPhone: form.receiverPhone,
@@ -494,6 +542,7 @@ export default function CashOutPage() {
                       const val = e.target.value;
                       if (/^\d*\.?\d*$/.test(val)) {
                         setForm((p) => ({ ...p, amount: val }));
+                        setStepError("");
                       }
                     }}
                     placeholder="0"
@@ -510,6 +559,9 @@ export default function CashOutPage() {
               </p>
               {amountExceedsBalance && (
                 <p className="mt-2 text-sm font-medium text-red-500">Insufficient balance</p>
+              )}
+              {stepError && (
+                <p className="mt-2 text-sm font-medium text-red-500">{stepError}</p>
               )}
             </div>
 
@@ -557,8 +609,8 @@ export default function CashOutPage() {
               <span className="font-bold text-gray-500">Transaction Fee (1.85%)</span>
               <span className="font-black text-red-600">+{formatBDT(preview.fee)}</span>
             </div>
-            <div className="my-2 h-px bg-gray-100" />
-            <div className="flex items-center justify-between text-lg">
+            <div className="my-2 h-px bg-gray-300" />
+            <div className="flex items-center justify-between text-[15px]">
               <span className="font-bold text-gray-500">Total Debit</span>
               <span className="font-black text-primary-600">{formatBDT(preview.totalDebit)}</span>
             </div>

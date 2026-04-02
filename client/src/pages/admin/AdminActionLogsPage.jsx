@@ -3,6 +3,14 @@ import { adminApi } from '../../api/adminApi';
 import AdminLayout from '../../components/admin/AdminLayout';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { formatBDT } from '../../utils/formatCurrency';
+import { DatePicker } from '../../components/ui/date-picker';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../components/ui/select";
 
 const ACTION_TYPES = [
   { id: '', label: 'All Actions' },
@@ -76,34 +84,34 @@ export default function AdminActionLogsPage() {
 
         {/* Filters */}
         <div className="flex flex-wrap gap-3 items-end">
-          <div>
+          <div className="w-[200px]">
             <label className="block text-xs font-medium text-gray-500 mb-1">Action</label>
-            <select
-              value={action}
-              onChange={(e) => { setAction(e.target.value); setPage(1); }}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              {ACTION_TYPES.map((t) => (
-                <option key={t.id} value={t.id}>{t.label}</option>
-              ))}
-            </select>
+            <Select value={action} onValueChange={(val) => { setAction(val === 'all' ? '' : val); setPage(1); }}>
+              <SelectTrigger className="w-full bg-white h-[38px]">
+                <SelectValue placeholder="All Actions" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Actions</SelectItem>
+                {ACTION_TYPES.filter(t => t.id !== '').map((t) => (
+                  <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <div>
+          <div className="w-[210px]">
             <label className="block text-xs font-medium text-gray-500 mb-1">From</label>
-            <input
-              type="date"
+            <DatePicker 
               value={startDate}
-              onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              onChange={(val) => { setStartDate(val || ''); setPage(1); }}
+              placeholder="Start Date"
             />
           </div>
-          <div>
+          <div className="w-[210px]">
             <label className="block text-xs font-medium text-gray-500 mb-1">To</label>
-            <input
-              type="date"
+            <DatePicker 
               value={endDate}
-              onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              onChange={(val) => { setEndDate(val || ''); setPage(1); }}
+              placeholder="End Date"
             />
           </div>
         </div>

@@ -335,6 +335,16 @@ const adminService = {
     const target = await profileModel.findById(targetProfileId);
     if (!target) throw new AppError("Target profile not found.", 404);
 
+    // Enforce: cannot load e-money to blocked or suspended accounts
+    const statusRow = await profileModel.getAccountStatus(targetProfileId);
+    const accountStatus = statusRow?.account_status;
+    if (accountStatus === 'BLOCKED') {
+      throw new AppError("Cannot load e-money: this account is blocked.", 403);
+    }
+    if (accountStatus === 'SUSPENDED') {
+      throw new AppError("Cannot load e-money: this account is currently suspended.", 403);
+    }
+
     const treasury = await walletModel.findByRole(WALLET_ROLES.TREASURY);
     if (!treasury) throw new AppError("Treasury wallet not found.", 500);
 
@@ -642,6 +652,9 @@ const adminService = {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+
+      // AUTHORIZE INTERNAL SYSTEM OPERATION
+      await client.query("SELECT set_config('app.internal_op', 'true', true)");
 
       const walletIds = [...new Set(entries.map((e) => e.wallet_id))].sort(
         (a, b) => a - b,

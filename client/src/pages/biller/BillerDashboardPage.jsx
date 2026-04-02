@@ -4,7 +4,6 @@ import { useAuth } from "../../context/AuthContext";
 import { walletApi } from "../../api/walletApi";
 import { formatBDT } from "../../utils/formatCurrency";
 import { getDashboardTheme } from "../../utils/roleTheme";
-import BottomNav from "../../components/layout/BottomNav";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 
 export default function BillerDashboardPage() {
@@ -27,7 +26,7 @@ export default function BillerDashboardPage() {
     }
   };
   return (
-    <div className="min-h-dvh bg-gray-50 pb-20">
+    <div className={`min-h-dvh ${theme.dashboardBgClass} pb-20`}>
       {/* Header */}
       <div className={`${theme.headerClass} px-4 pb-16 pt-6`}>
         <div className="mx-auto max-w-md">
@@ -54,44 +53,46 @@ export default function BillerDashboardPage() {
 
       <div className="mx-auto -mt-12 max-w-md px-4">
         {/* Balance Card */}
-        <div className="mb-6 rounded-2xl bg-white p-5 shadow-lg">
+        <div className={`mb-6 rounded-2xl border-2 border-white bg-white p-5 shadow-2xl ${theme.cardShadowClass}`}>
           {loading ? (
             <LoadingSpinner size="md" className="py-4" />
           ) : (
             <>
               <div className="flex items-center justify-between">
-                <p className="text-sm text-gray-500">Collections Balance</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Collections Balance</p>
                 <button
                   onClick={() => setShowBalance(!showBalance)}
-                  className={`text-sm font-medium ${theme.balanceBtnClass}`}
+                  className={`text-sm font-bold ${theme.balanceBtnClass}`}
                 >
                   {showBalance ? "Hide" : "Show"}
                 </button>
               </div>
-              <p className="mt-1 text-3xl font-bold text-gray-900">
+              <p className="mt-1 text-3xl font-bold text-gray-950 tracking-tight">
                 {showBalance ? formatBDT(wallet?.balance || 0) : "৳ * * * * *"}
               </p>
-              <div className="mt-3 flex items-center gap-2 text-xs text-gray-400">
-                <span className={`inline-block h-2 w-2 rounded-full ${theme.statusDotClass}`} />
-                <span>Biller Account</span>
+              <div className="mt-3 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                <span className={`inline-block h-2 w-2 rounded-full ${theme.statusDotClass} shadow-sm`} />
+                <span className={theme.statusTextClass}>
+                  Biller Account
+                </span>
               </div>
             </>
           )}
         </div>
 
         {/* Info */}
-        <div className="mb-6 rounded-xl bg-white p-5 shadow-sm">
-          <h2 className="mb-2 text-sm font-semibold text-gray-700">
+        <div className={`mb-6 rounded-2xl border-2 border-white bg-white/60 backdrop-blur-sm p-6 shadow-xl ${theme.cardShadowClass} transition-all hover:bg-white hover:shadow-2xl`}>
+          <h2 className="mb-2 text-[15px] font-extrabold text-gray-900 tracking-tight uppercase">
             Bill Collections
           </h2>
-          <p className="text-xs text-gray-500">
+          <p className="text-[13px] font-medium leading-relaxed text-gray-500">
             Customers pay their bills by entering your service number (
-            {user?.phoneNumber}) in the "Pay Bill" section of their app.
-            Payments are credited to your balance automatically.
+            <span className="font-bold text-primary-600">{user?.phoneNumber}</span>) in the
+            "Pay Bill" section of their app. Payments are credited to your balance
+            automatically.
           </p>
         </div>
       </div>
-      <BottomNav />
     </div>
   );
 }

@@ -7,6 +7,13 @@ import AdminLayout from '../../components/admin/AdminLayout';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 import { toast } from 'sonner';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../components/ui/select";
 
 function CopyableTrxId({ value, inline = false }) {
   const [copied, setCopied] = useState(false);
@@ -170,30 +177,32 @@ export default function TransactionMonitorPage() {
           </button>
         </form>
 
-        <div className="relative w-full sm:w-44">
-          <select
-            value={typeId}
-            onChange={(e) => updateParams('typeId', e.target.value)}
-            className="w-full appearance-none rounded-xl border border-gray-200 bg-white pl-4 pr-9 py-2.5 text-sm text-gray-700 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/10 shadow-sm"
-          >
-            {txTypes.map((t) => (
-              <option key={t.id} value={t.id}>{t.label}</option>
-            ))}
-          </select>
-          <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        <div className="w-full sm:w-44">
+          <Select value={typeId} onValueChange={(val) => updateParams('typeId', val === 'all' ? '' : val)}>
+             <SelectTrigger className="w-full bg-white h-[42px] rounded-xl shadow-sm border-gray-200">
+               <SelectValue placeholder="All Types" />
+             </SelectTrigger>
+             <SelectContent>
+               <SelectItem value="all">All Types</SelectItem>
+               {txTypes.filter(t => t.id !== '').map((t) => (
+                 <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>
+               ))}
+             </SelectContent>
+          </Select>
         </div>
 
-        <div className="relative w-full sm:w-44">
-          <select
-            value={status}
-            onChange={(e) => updateParams('status', e.target.value)}
-            className="w-full appearance-none rounded-xl border border-gray-200 bg-white pl-4 pr-9 py-2.5 text-sm text-gray-700 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/10 shadow-sm"
-          >
-            {txStatuses.map((s) => (
-              <option key={s.id} value={s.id}>{s.label}</option>
-            ))}
-          </select>
-          <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+        <div className="w-full sm:w-44">
+          <Select value={status} onValueChange={(val) => updateParams('status', val === 'all' ? '' : val)}>
+             <SelectTrigger className="w-full bg-white h-[42px] rounded-xl shadow-sm border-gray-200">
+               <SelectValue placeholder="All Statuses" />
+             </SelectTrigger>
+             <SelectContent>
+               <SelectItem value="all">All Statuses</SelectItem>
+               {txStatuses.filter(s => s.id !== '').map((s) => (
+                 <SelectItem key={s.id} value={s.id}>{s.label}</SelectItem>
+               ))}
+             </SelectContent>
+          </Select>
         </div>
       </div>
 

@@ -42,6 +42,7 @@ export default function CashInPage() {
 
   const [loadingDistributor, setLoadingDistributor] = useState(isAgent);
   const [b2bSuspendedMsg, setB2bSuspendedMsg] = useState(null);
+  const [stepError, setStepError] = useState("");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [recentRecipients, setRecentRecipients] = useState([]);
@@ -143,6 +144,16 @@ export default function CashInPage() {
         setRecipient(null);
         return;
       }
+      if (profile.accountStatus === "SUSPENDED") {
+        setLookupError("This account is suspended and cannot participate in transactions.");
+        setRecipient(null);
+        return;
+      }
+      if (profile.accountStatus === "BLOCKED") {
+        setLookupError("This account is blocked and cannot participate in transactions.");
+        setRecipient(null);
+        return;
+      }
       setRecipient(profile);
       setForm((p) => ({ ...p, receiverPhone: phoneToLookup }));
       setSearchQuery("");
@@ -158,6 +169,14 @@ export default function CashInPage() {
   };
 
   const handleSelectRecent = (r) => {
+    if (r.account_status === "SUSPENDED") {
+      setLookupError("This account is suspended and cannot participate in transactions.");
+      return;
+    }
+    if (r.account_status === "BLOCKED") {
+      setLookupError("This account is blocked and cannot participate in transactions.");
+      return;
+    }
     setRecipient({
       fullName: r.name,
       profilePictureUrl: r.pictureUrl ?? null,
@@ -193,6 +212,7 @@ export default function CashInPage() {
     if (!recipient) return toast.error("Look up a customer first");
 
     setLoading(true);
+    setStepError("");
     try {
       const { data } = await transactionApi.preview("CASH_IN", {
         receiverPhone: form.receiverPhone,
@@ -202,7 +222,13 @@ export default function CashInPage() {
       setStep("review");
       setTimeout(() => pinInputRef.current?.focus(), 100);
     } catch (error) {
-      toast.error(error.response?.data?.message || "Preview failed");
+      const msg = error.response?.data?.message || "Preview failed";
+      const code = error.response?.data?.data?.code;
+      if (code === "RECEIVER_SUSPENDED" || code === "RECEIVER_BLOCKED") {
+        setStepError(msg);
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -212,6 +238,7 @@ export default function CashInPage() {
     if (form.pin.length !== 5) return toast.error("PIN must be 5 digits");
 
     setLoading(true);
+    setStepError("");
     try {
       const { data } = await transactionApi.cashIn({
         receiverPhone: form.receiverPhone,
@@ -438,6 +465,7 @@ export default function CashInPage() {
                       const val = e.target.value;
                       if (/^\d*\.?\d*$/.test(val)) {
                         setForm((p) => ({ ...p, amount: val }));
+                        setStepError("");
                       }
                     }}
                     placeholder="0"
@@ -454,6 +482,9 @@ export default function CashInPage() {
               </p>
               {amountExceedsBalance && (
                 <p className="mt-2 text-sm font-medium text-red-500">Insufficient balance</p>
+              )}
+              {stepError && (
+                <p className="mt-2 text-sm font-medium text-red-500">{stepError}</p>
               )}
             </div>
 
@@ -501,8 +532,8 @@ export default function CashInPage() {
               <span className="font-bold text-gray-500">Transaction Fee</span>
               <span className="font-black text-gray-900">{formatBDT(preview.fee)}</span>
             </div>
-            <div className="my-2 h-px bg-gray-100" />
-            <div className="flex items-center justify-between text-lg">
+            <div className="my-2 h-px bg-gray-300" />
+            <div className="flex items-center justify-between text-[15px]">
               <span className="font-bold text-gray-500">Total Debit</span>
               <span className="font-black text-primary-600">{formatBDT(preview.totalDebit)}</span>
             </div>

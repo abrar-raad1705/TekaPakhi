@@ -355,7 +355,7 @@ export default function TransactionHistoryPage() {
   }, [goHome, setSiteHeaderOverrides, resetSiteHeaderOverrides]);
 
   return (
-    <div className="relative min-h-dvh bg-[#f4f5f7] pb-8">
+    <div className="relative min-h-dvh bg-[#f4f5f7] pb-24">
       {/* Sticky tabs below global SiteHeader (~56px + border) */}
       <div
         className="sticky z-40 w-full border-b border-slate-200/90 bg-white/95 shadow-sm shadow-slate-200/30 backdrop-blur-md motion-reduce:backdrop-blur-none"

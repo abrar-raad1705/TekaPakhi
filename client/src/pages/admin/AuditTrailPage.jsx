@@ -2,6 +2,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { adminApi } from '../../api/adminApi';
 import AdminLayout from '../../components/admin/AdminLayout';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import { DatePicker } from '../../components/ui/date-picker';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../components/ui/select";
 
 const EVENT_TYPES = [
   { id: '', label: 'All Events' },
@@ -75,46 +83,48 @@ export default function AuditTrailPage() {
 
         {/* Filters */}
         <div className="flex flex-wrap gap-3 items-end">
-          <div>
+          <div className="w-[180px]">
             <label className="block text-xs font-medium text-gray-500 mb-1">Event Type</label>
-            <select
-              value={eventType}
-              onChange={(e) => { setEventType(e.target.value); setPage(1); }}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              {EVENT_TYPES.map((t) => (
-                <option key={t.id} value={t.id}>{t.label}</option>
-              ))}
-            </select>
+            <Select value={eventType} onValueChange={(val) => { setEventType(val === 'all' ? '' : val); setPage(1); }}>
+              <SelectTrigger className="w-full bg-white h-[38px]">
+                <SelectValue placeholder="All Events" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Events</SelectItem>
+                {EVENT_TYPES.filter(t => t.id !== '').map((t) => (
+                  <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <div>
+          <div className="w-[160px]">
             <label className="block text-xs font-medium text-gray-500 mb-1">Actor</label>
-            <select
-              value={actorType}
-              onChange={(e) => { setActorType(e.target.value); setPage(1); }}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              {ACTOR_TYPES.map((t) => (
-                <option key={t.id} value={t.id}>{t.label}</option>
-              ))}
-            </select>
+            <Select value={actorType} onValueChange={(val) => { setActorType(val === 'all' ? '' : val); setPage(1); }}>
+              <SelectTrigger className="w-full bg-white h-[38px]">
+                <SelectValue placeholder="All Actors" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Actors</SelectItem>
+                {ACTOR_TYPES.filter(t => t.id !== '').map((t) => (
+                  <SelectItem key={t.id} value={t.id}>{t.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <div>
+          <div className="w-[210px]">
             <label className="block text-xs font-medium text-gray-500 mb-1">From</label>
-            <input
-              type="date"
+            <DatePicker 
               value={startDate}
-              onChange={(e) => { setStartDate(e.target.value); setPage(1); }}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              onChange={(val) => { setStartDate(val || ''); setPage(1); }}
+              placeholder="Start Date"
             />
           </div>
-          <div>
+          <div className="w-[210px]">
             <label className="block text-xs font-medium text-gray-500 mb-1">To</label>
-            <input
-              type="date"
+            <DatePicker 
               value={endDate}
-              onChange={(e) => { setEndDate(e.target.value); setPage(1); }}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              onChange={(val) => { setEndDate(val || ''); setPage(1); }}
+              placeholder="End Date"
             />
           </div>
         </div>

@@ -31,17 +31,17 @@ import { formatBDT } from "../../utils/formatCurrency";
 const ACCENT = "#2563EB";
 
 const BILLER_TYPES = [
-  { id: "Electricity", label: "Electricity", icon: BoltIcon, color: "bg-amber-100 text-amber-600" },
-  { id: "Gas", label: "Gas", icon: FireIcon, color: "bg-red-100 text-red-600" },
-  { id: "Water", label: "Water", icon: BeakerIcon, color: "bg-blue-100 text-blue-600" },
-  { id: "Internet", label: "Internet", icon: GlobeAltIcon, color: "bg-cyan-100 text-cyan-600" },
-  { id: "Telephone", label: "Telephone", icon: PhoneIcon, color: "bg-green-100 text-green-600" },
-  { id: "TV", label: "TV", icon: TvIcon, color: "bg-indigo-100 text-indigo-600" },
-  { id: "Credit Card", label: "Credit Card", icon: CreditCardIcon, color: "bg-slate-100 text-slate-600" },
-  { id: "Govt. Fees", label: "Govt. Fees", icon: BuildingLibraryIcon, color: "bg-purple-100 text-purple-600" },
-  { id: "Insurance", label: "Insurance", icon: ShieldCheckIcon, color: "bg-emerald-100 text-emerald-600" },
-  { id: "Tracker", label: "Tracker", icon: MapPinIcon, color: "bg-orange-100 text-orange-600" },
-  { id: "Others", label: "Others", icon: EllipsisHorizontalIcon, color: "bg-gray-100 text-gray-600" },
+  { id: "Electricity", label: "Electricity", icon: BoltIcon, baseBg: "bg-[#eef2ff]", baseIcon: "text-[#4f46e5]", activeBg: "bg-[#4f46e5]", activeIcon: "text-white", activeText: "text-[#4f46e5]" },
+  { id: "Gas", label: "Gas", icon: FireIcon, baseBg: "bg-[#fff1f2]", baseIcon: "text-[#e11d48]", activeBg: "bg-[#e11d48]", activeIcon: "text-white", activeText: "text-[#e11d48]" },
+  { id: "Water", label: "Water", icon: BeakerIcon, baseBg: "bg-[#eff6ff]", baseIcon: "text-[#2563eb]", activeBg: "bg-[#2563eb]", activeIcon: "text-white", activeText: "text-[#2563eb]" },
+  { id: "Internet", label: "Internet", icon: GlobeAltIcon, baseBg: "bg-[#f0fdfa]", baseIcon: "text-[#0d9488]", activeBg: "bg-[#0d9488]", activeIcon: "text-white", activeText: "text-[#0d9488]" },
+  { id: "Telephone", label: "Telephone", icon: PhoneIcon, baseBg: "bg-[#ecfdf5]", baseIcon: "text-[#059669]", activeBg: "bg-[#059669]", activeIcon: "text-white", activeText: "text-[#059669]" },
+  { id: "TV", label: "TV", icon: TvIcon, baseBg: "bg-[#f5f3ff]", baseIcon: "text-[#7c3aed]", activeBg: "bg-[#7c3aed]", activeIcon: "text-white", activeText: "text-[#7c3aed]" },
+  { id: "Credit Card", label: "Credit Card", icon: CreditCardIcon, baseBg: "bg-[#f8fafc]", baseIcon: "text-[#475569]", activeBg: "bg-[#475569]", activeIcon: "text-white", activeText: "text-[#475569]" },
+  { id: "Govt. Fees", label: "Govt. Fees", icon: BuildingLibraryIcon, baseBg: "bg-[#faf5ff]", baseIcon: "text-[#9333ea]", activeBg: "bg-[#9333ea]", activeIcon: "text-white", activeText: "text-[#9333ea]" },
+  { id: "Insurance", label: "Insurance", icon: ShieldCheckIcon, baseBg: "bg-[#ecfccb]", baseIcon: "text-[#65a30d]", activeBg: "bg-[#65a30d]", activeIcon: "text-white", activeText: "text-[#65a30d]" },
+  { id: "Tracker", label: "Tracker", icon: MapPinIcon, baseBg: "bg-[#fff7ed]", baseIcon: "text-[#ea580c]", activeBg: "bg-[#ea580c]", activeIcon: "text-white", activeText: "text-[#ea580c]" },
+  { id: "Others", label: "Others", icon: EllipsisHorizontalIcon, baseBg: "bg-[#f1f5f9]", baseIcon: "text-[#64748b]", activeBg: "bg-[#64748b]", activeIcon: "text-white", activeText: "text-[#64748b]" },
 ];
 
 const flowSteps = [
@@ -68,6 +68,7 @@ export default function PayBillPage() {
   const [submitting, setSubmitting] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
   const pinInputRef = useRef(null);
+  const [stepError, setStepError] = useState("");
 
   const [search, setSearch] = useState("");
   const [selectedType, setSelectedType] = useState(null);
@@ -114,6 +115,7 @@ export default function PayBillPage() {
     if (!amount || amount <= 0) return toast.error("Enter a valid amount");
 
     setSubmitting(true);
+    setStepError("");
     try {
       const { data } = await transactionApi.preview("PAY_BILL", {
         receiverPhone: selectedBiller.phone_number,
@@ -123,7 +125,13 @@ export default function PayBillPage() {
       setStep("review");
       setTimeout(() => pinInputRef.current?.focus(), 100);
     } catch (error) {
-      toast.error(error.response?.data?.message || "Preview failed");
+      const msg = error.response?.data?.message || "Preview failed";
+      const code = error.response?.data?.data?.code;
+      if (code === "RECEIVER_SUSPENDED" || code === "RECEIVER_BLOCKED") {
+        setStepError(msg);
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -133,6 +141,7 @@ export default function PayBillPage() {
     if (form.pin.length !== 5) return toast.error("PIN must be 5 digits");
 
     setSubmitting(true);
+    setStepError("");
     try {
       const response = await transactionApi.payBill({
         receiverPhone: selectedBiller.phone_number,
@@ -218,27 +227,29 @@ export default function PayBillPage() {
   };
 
   const renderOrganizationGrid = () => (
-    <div className="h-full rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-sm backdrop-blur-sm sm:p-8">
-      <h3 className="mb-6 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 lg:mb-8">
+    <div className="h-full rounded-[2rem] border border-slate-100 bg-white p-7 sm:p-9">
+      <h3 className="mb-8 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
         Organization types
       </h3>
-      <div className="grid grid-cols-3 gap-x-2 gap-y-6 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-3 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-3">
         <button
           type="button"
           onClick={() => setSelectedType(null)}
-          className={`group flex flex-col items-center gap-2 transition-transform ${!selectedType ? "scale-[1.02]" : "hover:scale-[1.02]"}`}
+          className="group flex flex-col items-center gap-3"
         >
           <div
-            className={`flex h-14 w-14 items-center justify-center rounded-2xl shadow-sm transition-all sm:h-16 sm:w-16 sm:rounded-[1.5rem] ${!selectedType
-                ? "bg-primary-600 text-white shadow-primary-200"
-                : "bg-slate-100 text-slate-500 border border-transparent group-hover:border-slate-100 group-hover:bg-white"
-              }`}
+            className={`flex h-16 w-16 items-center justify-center rounded-[1.25rem] transition-all duration-200 ${
+              !selectedType
+                ? "scale-[1.05] bg-[#3b82f6] text-white"
+                : "bg-slate-50 text-slate-500 group-hover:scale-105 group-hover:bg-slate-100"
+            }`}
           >
-            <GlobeAltIcon className="h-7 w-7 sm:h-8 sm:w-8" strokeWidth={2} />
+            <GlobeAltIcon className="h-7 w-7" strokeWidth={2} />
           </div>
           <span
-            className={`max-w-[5.5rem] text-center text-[10px] font-black leading-tight sm:max-w-none sm:text-[11px] ${!selectedType ? "text-primary-600" : "text-slate-500"
-              }`}
+            className={`text-[12px] font-bold tracking-tight transition-colors ${
+              !selectedType ? "text-[#3b82f6]" : "text-slate-500"
+            }`}
           >
             All
           </span>
@@ -251,19 +262,21 @@ export default function PayBillPage() {
               key={type.id}
               type="button"
               onClick={() => setSelectedType(isActive ? null : type.id)}
-              className={`group flex flex-col items-center gap-2 transition-transform ${isActive ? "scale-[1.02]" : "hover:scale-[1.02]"}`}
+              className="group flex flex-col items-center gap-3"
             >
               <div
-                className={`flex h-14 w-14 items-center justify-center rounded-2xl shadow-sm transition-all sm:h-16 sm:w-16 sm:rounded-[1.5rem] ${isActive
-                    ? "bg-primary-600 text-white shadow-primary-200"
-                    : `${type.color} border border-transparent group-hover:border-slate-100 group-hover:bg-white`
-                  }`}
+                className={`flex h-16 w-16 items-center justify-center rounded-[1.25rem] transition-all duration-200 ${
+                  isActive
+                    ? `scale-[1.05] ${type.activeBg} ${type.activeIcon}`
+                    : `${type.baseBg} ${type.baseIcon} group-hover:scale-105 filter group-hover:brightness-95`
+                }`}
               >
-                <Icon className="h-7 w-7 sm:h-8 sm:w-8" strokeWidth={2} />
+                <Icon className="h-7 w-7" strokeWidth={2.25} />
               </div>
               <span
-                className={`max-w-[5.5rem] text-center text-[10px] font-black leading-tight sm:max-w-none sm:text-[11px] ${isActive ? "text-primary-600" : "text-slate-500"
-                  }`}
+                className={`text-[12px] font-bold tracking-tight transition-colors line-clamp-1 break-all ${
+                  isActive ? type.activeText : "text-slate-500"
+                }`}
               >
                 {type.label}
               </span>
@@ -483,6 +496,7 @@ export default function PayBillPage() {
                           const val = e.target.value;
                           if (/^\d*\.?\d*$/.test(val)) {
                             setForm((p) => ({ ...p, amount: val }));
+                            setStepError("");
                           }
                         }}
                         placeholder="0"
@@ -497,6 +511,9 @@ export default function PayBillPage() {
                   </p>
                   {amountExceedsBalance && (
                     <p className="mt-2 text-sm font-medium text-red-500">Insufficient balance</p>
+                  )}
+                  {stepError && (
+                    <p className="mt-2 text-sm font-medium text-red-500">{stepError}</p>
                   )}
                 </div>
 

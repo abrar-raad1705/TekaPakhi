@@ -1,4 +1,4 @@
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeftIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import logo from "../../assets/icons/logo.svg";
 import { useAuth } from "../../context/AuthContext";
@@ -80,11 +80,13 @@ export default function SiteHeader() {
       >
         {variant === "auth" && (
           <>
-            <img
-              src={logo}
-              alt="TekaPakhi"
-              className="h-8 w-auto object-contain sm:h-9"
-            />
+            <Link to="/">
+              <img
+                src={logo}
+                alt="TekaPakhi"
+                className="h-8 w-auto object-contain sm:h-9"
+              />
+            </Link>
             <button
               type="button"
               onClick={handleAuthClose}
@@ -97,11 +99,13 @@ export default function SiteHeader() {
         )}
 
         {variant === "dashboard" && (
-          <img
-            src={logo}
-            alt="TekaPakhi"
-            className="h-8 w-auto object-contain sm:h-9"
-          />
+          <Link to="/">
+            <img
+              src={logo}
+              alt="TekaPakhi"
+              className="h-8 w-auto object-contain sm:h-9"
+            />
+          </Link>
         )}
 
         {variant === "navigation" && (
@@ -114,11 +118,13 @@ export default function SiteHeader() {
             >
               <ArrowLeftIcon className="h-5 w-5" strokeWidth={2} />
             </button>
-            <img
-              src={logo}
-              alt="TekaPakhi"
-              className="h-8 w-auto object-contain sm:h-9"
-            />
+            <Link to="/">
+              <img
+                src={logo}
+                alt="TekaPakhi"
+                className="h-8 w-auto object-contain sm:h-9"
+              />
+            </Link>
             {showRightMeta ? (
               <div className="ml-auto hidden min-w-0 text-right sm:block">
                 {subtitle ? (

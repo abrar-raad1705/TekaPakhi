@@ -44,6 +44,7 @@ const profileController = {
           fullName: profile.full_name,
           phoneNumber: profile.phone_number,
           typeName: profile.type_name,
+          accountStatus: profile.account_status,
           profilePictureUrl: profile.profile_picture_url ?? null,
         },
       });
@@ -111,10 +112,10 @@ const profileController = {
       const result = await pool.query(
         `SELECT p.profile_id, p.full_name, p.phone_number, p.profile_picture_url,
                 b.service_name, b.biller_type, b.sender_charge_flat,
-                b.sender_charge_percent, b.status
+                b.sender_charge_percent, p.account_status
          FROM ${DB_SCHEMA}.biller_profiles b
          JOIN ${DB_SCHEMA}.profiles p ON b.profile_id = p.profile_id
-         WHERE b.status = 'ACTIVE'
+         WHERE p.account_status = 'ACTIVE'
          ORDER BY b.biller_type, b.service_name`
       );
       res.json({ success: true, data: result.rows });

@@ -37,6 +37,7 @@ export default function DistributorLoadPage() {
         limit: 20,
         search: search || undefined,
         typeId: DISTRIBUTOR_TYPE_ID,
+        status: "ACTIVE",
       });
       setData(res.data.data);
     } catch (err) {

@@ -11,7 +11,7 @@ import {
   UsersIcon,
   WrenchScrewdriverIcon,
 } from "@heroicons/react/24/outline";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate, Link } from "react-router-dom";
 
 const navItems = [
   { to: "/admin", label: "Dashboard", icon: Squares2X2Icon, end: true },
@@ -47,12 +47,15 @@ export default function AdminLayout({ children }) {
       {/* Sidebar */}
       <aside className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-gray-200 bg-white">
         {/* Brand */}
-        <div className="flex h-20 flex-col justify-center border-b border-gray-200 px-6 py-4">
+        <Link 
+          to="/admin" 
+          className="group flex h-20 flex-col justify-center border-b border-gray-200 px-6 py-4 transition-colors hover:bg-gray-50"
+        >
           <img src={logo} alt="TekaPakhi" className="h-8 w-auto self-start" />
-          <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-gray-400">
+          <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-gray-400 group-hover:text-gray-600 transition-colors">
             Admin Panel
           </p>
-        </div>
+        </Link>
 
         {/* Nav */}
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">

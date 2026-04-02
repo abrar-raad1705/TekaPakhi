@@ -227,7 +227,8 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION fn_wallet_no_negative()
 RETURNS TRIGGER AS $$
 BEGIN
-    IF NEW.balance < 0 THEN
+    -- Allow REVENUE wallet to go negative, prevent for others
+    IF NEW.balance < 0 AND NEW.role IS DISTINCT FROM 'REVENUE' THEN
         RAISE EXCEPTION 'Wallet % balance cannot go negative. Attempted balance: %',
             NEW.wallet_id, NEW.balance;
     END IF;
@@ -271,6 +272,51 @@ CREATE OR REPLACE FUNCTION fn_auto_update_timestamp()
 RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 11. Block wallet operations for inactive profiles (BLOCKED / SUSPENDED)
+CREATE OR REPLACE FUNCTION fn_block_wallet_on_inactive_profile()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_status TEXT;
+BEGIN
+    -- Skip system wallets (TREASURY, REVENUE, ADJUSTMENT)
+    IF NEW.role IS NOT NULL THEN
+        RETURN NEW;
+    END IF;
+
+    -- Only check when balance is actually changing
+    IF TG_OP = 'UPDATE' AND OLD.balance IS NOT DISTINCT FROM NEW.balance THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT account_status::text INTO v_status
+    FROM profiles
+    WHERE profile_id = NEW.profile_id;
+
+    IF v_status IN ('BLOCKED', 'SUSPENDED') THEN
+        RAISE EXCEPTION 'Wallet operation denied: account is %. No transactions are allowed on this account.',
+            v_status;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 12. Enforce B2B minimum amount
+CREATE OR REPLACE FUNCTION fn_enforce_b2b_min_amount()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_type_name VARCHAR(50);
+BEGIN
+    SELECT type_name INTO v_type_name FROM transaction_types WHERE type_id = NEW.type_id;
+    
+    IF v_type_name = 'B2B' AND NEW.amount < 5000 THEN
+        RAISE EXCEPTION 'B2B transfer amount must be at least ৳5000.00';
+    END IF;
+    
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;

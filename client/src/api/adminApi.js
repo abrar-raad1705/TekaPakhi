@@ -78,6 +78,10 @@ export const adminApi = {
       `/admin/config/commissions/${profileTypeId}/${txTypeId}`,
     ),
 
+  getSecurityLogs: (params) => adminApiClient.get("/admin/logs/security", { params }),
+  getActionLogs: (params) => adminApiClient.get("/admin/logs/actions", { params }),
+  getAuditLogs: (params) => adminApiClient.get("/admin/logs/audit", { params }),
+
   getTransactionReport: (params) =>
     adminApiClient.get("/admin/reports/transactions", { params }),
   getUserGrowthReport: (params) =>

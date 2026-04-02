@@ -132,6 +132,27 @@ async function assertSenderCanTransact(sender) {
   }
 }
 
+async function assertReceiverCanTransact(receiver) {
+  const statusRow = await profileModel.getAccountStatus(receiver.profile_id);
+  const receiverStatus = statusRow?.account_status;
+
+  if (receiverStatus === 'BLOCKED') {
+    throw new AppError(
+      'This account is blocked and cannot participate in transactions.',
+      403,
+      { code: 'RECEIVER_BLOCKED' },
+    );
+  }
+
+  if (receiverStatus === 'SUSPENDED') {
+    throw new AppError(
+      'This account is suspended and cannot participate in transactions.',
+      403,
+      { code: 'RECEIVER_SUSPENDED' },
+    );
+  }
+}
+
 const transactionService = {
   async execute({ senderProfileId, receiverPhone, amount, typeCode, pin, note, billAccountNumber = null, billContactNumber = null, meta }) {
     // Resolve transaction type
@@ -169,6 +190,7 @@ const transactionService = {
     }
 
     await assertSenderCanTransact(sender);
+    await assertReceiverCanTransact(receiver);
 
     if (typeCode === 'CASH_IN' && sender.type_id === PROFILE_TYPES.AGENT) {
       await assertAgentDistributorLinkForCashIn(sender.profile_id);
@@ -333,6 +355,7 @@ const transactionService = {
     }
 
     await assertSenderCanTransact(sender);
+    await assertReceiverCanTransact(receiver);
 
     if (typeCode === 'CASH_IN' && sender.type_id === PROFILE_TYPES.AGENT) {
       await assertAgentDistributorLinkForCashIn(sender.profile_id);
