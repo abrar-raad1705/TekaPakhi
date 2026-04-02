@@ -14,6 +14,30 @@ const profileController = {
         throw new AppError('No account found with this phone number.', 404);
       }
 
+      // Cash out: customer/merchant paying an agent — block if agent lost distributor (commission chain)
+      const callerType = req.user?.typeName;
+      if (
+        profile.type_name === 'AGENT' &&
+        ['CUSTOMER', 'MERCHANT'].includes(callerType)
+      ) {
+        const statusRow = await profileModel.getAccountStatus(profile.profile_id);
+        if (statusRow?.account_status !== 'ACTIVE') {
+          throw new AppError(
+            'This agent cannot process cash out right now. Please try another agent.',
+            403,
+            { code: 'CASH_OUT_AGENT_UNAVAILABLE' },
+          );
+        }
+        const link = await profileModel.getAgentDistributorId(profile.profile_id);
+        if (!link || link.b2bSuspended) {
+          throw new AppError(
+            'This agent cannot process cash out right now. Please try another agent.',
+            403,
+            { code: 'CASH_OUT_AGENT_UNAVAILABLE' },
+          );
+        }
+      }
+
       res.status(200).json({
         success: true,
         data: {

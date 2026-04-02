@@ -108,7 +108,6 @@ VALUES
 ('Cumilla', 'Comilla Sadar South'),
 ('Cumilla', 'Titas'),
 ('Cox''s Bazar', 'Chakaria'),
-('Cox''s Bazar', '{{198}}''''{{199}}'),
 ('Cox''s Bazar', 'Kutubdia'),
 ('Cox''s Bazar', 'Maheshkhali'),
 ('Cox''s Bazar', 'Ramu'),

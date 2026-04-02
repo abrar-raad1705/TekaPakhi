@@ -101,22 +101,16 @@ const adminModel = {
 
     const offset = (page - 1) * limit;
 
-    // We use COALESCE across subtype tables to get the account status
     const dataQuery = `
       SELECT p.profile_id, p.phone_number, p.full_name, p.email,
              p.profile_picture_url, p.is_phone_verified, p.registration_date, p.type_id,
              pt.type_name, w.balance,
-             COALESCE(cp.status, ap.status, mp.status, dp.status, bp.status)::text AS account_status
+             p.account_status
       FROM ${DB_SCHEMA}.profiles p
       JOIN ${DB_SCHEMA}.profile_types pt ON p.type_id = pt.type_id
       LEFT JOIN ${DB_SCHEMA}.wallets w ON p.profile_id = w.profile_id
-      LEFT JOIN ${DB_SCHEMA}.customer_profiles cp ON p.profile_id = cp.profile_id AND p.type_id = 1
-      LEFT JOIN ${DB_SCHEMA}.agent_profiles ap ON p.profile_id = ap.profile_id AND p.type_id = 2
-      LEFT JOIN ${DB_SCHEMA}.merchant_profiles mp ON p.profile_id = mp.profile_id AND p.type_id = 3
-      LEFT JOIN ${DB_SCHEMA}.distributor_profiles dp ON p.profile_id = dp.profile_id AND p.type_id = 4
-      LEFT JOIN ${DB_SCHEMA}.biller_profiles bp ON p.profile_id = bp.profile_id AND p.type_id = 5
       WHERE 1=1 ${whereExtra}
-      ${status ? `AND COALESCE(cp.status, ap.status, mp.status, dp.status, bp.status)::text = $${paramIdx}` : ""}
+      ${status ? `AND p.account_status::text = $${paramIdx}` : ""}
       ORDER BY p.registration_date DESC
       LIMIT $${status ? paramIdx + 1 : paramIdx} OFFSET $${status ? paramIdx + 2 : paramIdx + 1}`;
 
@@ -128,13 +122,8 @@ const adminModel = {
       SELECT COUNT(*)::int AS total
       FROM ${DB_SCHEMA}.profiles p
       JOIN ${DB_SCHEMA}.profile_types pt ON p.type_id = pt.type_id
-      LEFT JOIN ${DB_SCHEMA}.customer_profiles cp ON p.profile_id = cp.profile_id AND p.type_id = 1
-      LEFT JOIN ${DB_SCHEMA}.agent_profiles ap ON p.profile_id = ap.profile_id AND p.type_id = 2
-      LEFT JOIN ${DB_SCHEMA}.merchant_profiles mp ON p.profile_id = mp.profile_id AND p.type_id = 3
-      LEFT JOIN ${DB_SCHEMA}.distributor_profiles dp ON p.profile_id = dp.profile_id AND p.type_id = 4
-      LEFT JOIN ${DB_SCHEMA}.biller_profiles bp ON p.profile_id = bp.profile_id AND p.type_id = 5
       WHERE 1=1 ${whereExtra}
-      ${status ? `AND COALESCE(cp.status, ap.status, mp.status, dp.status, bp.status)::text = $${paramIdx}` : ""}`;
+      ${status ? `AND p.account_status::text = $${paramIdx}` : ""}`;
 
     const countParams = [...params];
     if (status) countParams.push(status);
@@ -233,7 +222,7 @@ const adminModel = {
       linkedData.areas = areasResult.rows;
 
       const agentsResult = await pool.query(
-        `SELECT p.profile_id, p.full_name, p.phone_number, p.profile_picture_url, ap.agent_code, ap.shop_name, ap.status
+        `SELECT p.profile_id, p.full_name, p.phone_number, p.profile_picture_url, ap.agent_code, ap.shop_name, p.account_status
          FROM ${DB_SCHEMA}.agent_profiles ap
          JOIN ${DB_SCHEMA}.profiles p ON ap.profile_id = p.profile_id
          WHERE ap.distributor_id = $1`,
@@ -252,29 +241,30 @@ const adminModel = {
 
   async updateUserStatus(profileId, typeName, newStatus, client = null) {
     const db = client || pool;
-    const tableMap = {
-      CUSTOMER: "customer_profiles",
-      AGENT: "agent_profiles",
-      MERCHANT: "merchant_profiles",
-      DISTRIBUTOR: "distributor_profiles",
-      BILLER: "biller_profiles",
-    };
-    const table = tableMap[typeName];
-    if (!table) return null;
-
-    // biller_profiles has no approved_date column
-    const hasApprovedDate = typeName !== "BILLER";
-    const approvedClause =
-      newStatus === "ACTIVE" && hasApprovedDate
-        ? ", approved_date = CURRENT_TIMESTAMP"
-        : "";
     const result = await db.query(
-      `UPDATE ${DB_SCHEMA}.${table}
-       SET status = $1 ${approvedClause}
+      `UPDATE ${DB_SCHEMA}.profiles
+       SET account_status = $1
        WHERE profile_id = $2
        RETURNING *`,
       [newStatus, profileId],
     );
+
+    if (newStatus === "ACTIVE") {
+      const subtypeTableMap = {
+        CUSTOMER: "customer_profiles",
+        AGENT: "agent_profiles",
+        MERCHANT: "merchant_profiles",
+        DISTRIBUTOR: "distributor_profiles",
+      };
+      const table = subtypeTableMap[typeName];
+      if (table) {
+        await db.query(
+          `UPDATE ${DB_SCHEMA}.${table} SET approved_date = CURRENT_TIMESTAMP WHERE profile_id = $1`,
+          [profileId],
+        );
+      }
+    }
+
     return result.rows[0] || null;
   },
 

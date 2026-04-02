@@ -25,6 +25,52 @@ const authService = {
     );
   },
 
+  /**
+   * Ensures the profile may still use an existing JWT (BLOCKED / active SUSPENDED → 401).
+   * Clears expired suspensions so the next request proceeds as ACTIVE.
+   * Call from authenticate middleware on every protected request.
+   */
+  async validateSessionAccountStatus(profileId) {
+    const row = await profileModel.getAccountStatus(profileId);
+    if (!row) {
+      throw new AppError("Access denied. Account not found.", 401);
+    }
+
+    const { account_status: accountStatus, suspended_until: suspendedUntil } =
+      row;
+
+    if (accountStatus === "BLOCKED") {
+      throw new AppError(
+        "Your account has been permanently blocked. Contact support.",
+        401,
+        { code: "ACCOUNT_BLOCKED" },
+      );
+    }
+
+    if (accountStatus === "SUSPENDED") {
+      if (suspendedUntil && new Date(suspendedUntil) <= new Date()) {
+        await profileModel.clearSuspension(profileId);
+        return;
+      }
+      const remaining = suspendedUntil
+        ? Math.ceil((new Date(suspendedUntil) - new Date()) / 60000)
+        : null;
+      throw new AppError(
+        remaining
+          ? `Your account is suspended. Try again in ${
+              remaining > 1440
+                ? `${Math.ceil(remaining / 1440)} day(s)`
+                : remaining > 60
+                  ? `${Math.ceil(remaining / 60)} hour(s)`
+                  : `${remaining} minute(s)`
+            }.`
+          : "Your account is suspended. Contact support.",
+        401,
+        { code: "ACCOUNT_SUSPENDED", suspendedUntil },
+      );
+    }
+  },
+
   async register({
     phoneNumber,
     fullName,
@@ -61,6 +107,8 @@ const authService = {
       // Hash the security PIN
       const pinHash = await bcrypt.hash(securityPin, SALT_ROUNDS);
 
+      accountStatus = accountType === "CUSTOMER" ? "ACTIVE" : "PENDING_KYC";
+
       // Create profile (DB trigger auto-creates wallet)
       profile = await profileModel.create(
         {
@@ -68,6 +116,7 @@ const authService = {
           fullName,
           pinHash,
           typeId,
+          accountStatus,
         },
         client
       );
@@ -75,7 +124,6 @@ const authService = {
       // Create the appropriate subtype profile
       if (accountType === "CUSTOMER") {
         await profileModel.createCustomerSubtype(profile.profile_id, client);
-        accountStatus = "ACTIVE";
       } else if (accountType === "AGENT") {
         // Auto-generate agent code
         const agentCode = generateAgentCode();
@@ -87,7 +135,6 @@ const authService = {
           },
           client
         );
-        accountStatus = "PENDING_KYC";
       } else if (accountType === "MERCHANT") {
         // Auto-generate merchant code
         const merchantCode = generateMerchantCode();
@@ -99,7 +146,6 @@ const authService = {
           },
           client
         );
-        accountStatus = "PENDING_KYC";
       }
 
       // Mark phone as verified!
@@ -183,11 +229,39 @@ const authService = {
 
       await profileModel.resetFailedAttempts(profile.profile_id, client);
 
-      // Get account status from subtype table
-      const accountStatus = await profileModel.getAccountStatus(
-        profile.profile_id,
-        profile.type_name,
-      );
+      // Check account status from profiles table (canonical source)
+      let accountStatus = profile.account_status;
+      const suspendedUntil = profile.suspended_until;
+
+      if (accountStatus === "BLOCKED") {
+        await client.query("COMMIT");
+        securityLogService.logEvent({ profileId: profile.profile_id, eventType: 'LOGIN_FAILURE', ...meta, metadata: { reason: 'account_blocked' } });
+        throw new AppError(
+          "Your account has been permanently blocked. Contact support.",
+          403,
+          { code: "ACCOUNT_BLOCKED" },
+        );
+      }
+
+      if (accountStatus === "SUSPENDED") {
+        if (suspendedUntil && new Date(suspendedUntil) <= new Date()) {
+          await profileModel.clearSuspension(profile.profile_id, client);
+          accountStatus = "ACTIVE";
+        } else {
+          await client.query("COMMIT");
+          const remaining = suspendedUntil
+            ? Math.ceil((new Date(suspendedUntil) - new Date()) / 60000)
+            : null;
+          securityLogService.logEvent({ profileId: profile.profile_id, eventType: 'LOGIN_FAILURE', ...meta, metadata: { reason: 'account_suspended', minutesLeft: remaining } });
+          throw new AppError(
+            remaining
+              ? `Your account is suspended. Try again in ${remaining > 1440 ? Math.ceil(remaining / 1440) + " day(s)" : remaining > 60 ? Math.ceil(remaining / 60) + " hour(s)" : remaining + " minute(s)"}.`
+              : "Your account is suspended. Contact support.",
+            403,
+            { code: "ACCOUNT_SUSPENDED", suspendedUntil },
+          );
+        }
+      }
 
       let isPhoneVerified = profile.is_phone_verified;
       let requiresPinSetup = false;
@@ -277,6 +351,9 @@ const authService = {
     } finally {
       client.release();
     }
+    if (profile.type_name === "DISTRIBUTOR") {
+      await profileModel.reassignOrphanedAgentsForReadyDistributor(profileId);
+    }
     return { message: "Your PIN has been set. You can now use the app." };
   },
 
@@ -294,6 +371,9 @@ const authService = {
       }
       await client.query("COMMIT");
       securityLogService.logEvent({ profileId: profile?.profile_id ?? null, eventType: 'OTP_VERIFY', ...meta, metadata: { purpose, phoneNumber } });
+      if (!isCheckOnly && purpose === "VERIFY_PHONE" && profile?.type_name === "DISTRIBUTOR") {
+        await profileModel.reassignOrphanedAgentsForReadyDistributor(profile.profile_id);
+      }
       return { message: "OTP verified successfully." };
     } catch (error) {
       await client.query("ROLLBACK");

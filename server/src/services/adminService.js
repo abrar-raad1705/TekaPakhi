@@ -187,6 +187,7 @@ const adminService = {
             pinHash,
             typeId,
             email: emailNorm,
+            accountStatus: "ACTIVE",
           },
           client,
         );
@@ -213,6 +214,7 @@ const adminService = {
           accountType,
           accountStatus: "ACTIVE",
           temporaryPin: tempPin,
+          reassignedAgents: 0,
         };
       } catch (e) {
         await client.query("ROLLBACK");
@@ -254,6 +256,7 @@ const adminService = {
             pinHash,
             typeId,
             email: emailNorm,
+            accountStatus: "ACTIVE",
           },
           client,
         );
@@ -301,6 +304,7 @@ const adminService = {
         fullName,
         pinHash,
         typeId,
+        accountStatus: "ACTIVE",
       }, client);
       await client.query("COMMIT");
     } catch (error) {
@@ -480,10 +484,9 @@ const adminService = {
     };
   },
 
-  async updateUserStatus(profileId, newStatus, ctx) {
-    // First get the user's type
+  async updateUserStatus(profileId, newStatus, ctx, { suspendedUntil } = {}) {
     const userResult = await pool.query(
-      `SELECT p.profile_id, pt.type_name
+      `SELECT p.profile_id, p.account_status, pt.type_name
        FROM ${DB_SCHEMA}.profiles p
        JOIN ${DB_SCHEMA}.profile_types pt ON p.type_id = pt.type_id
        WHERE p.profile_id = $1`,
@@ -492,43 +495,41 @@ const adminService = {
     if (userResult.rows.length === 0)
       throw new AppError("User not found.", 404);
 
-    const { type_name } = userResult.rows[0];
+    const { type_name, account_status: currentStatus } = userResult.rows[0];
     if (type_name === "SYSTEM")
       throw new AppError("Cannot modify SYSTEM profile status.", 400);
+
+    if (currentStatus === "BLOCKED")
+      throw new AppError("This account is permanently blocked. No further status changes are allowed.", 400);
 
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
 
-      const tableMap = {
-        CUSTOMER: "customer_profiles",
-        AGENT: "agent_profiles",
-        MERCHANT: "merchant_profiles",
-        DISTRIBUTOR: "distributor_profiles",
-        BILLER: "biller_profiles",
-      };
-      const table = tableMap[type_name];
-      if (!table) throw new AppError("Unsupported profile type.", 400);
-
-      const hasApprovedDate = type_name !== "BILLER";
-      const approvedClause =
-        newStatus === "ACTIVE" && hasApprovedDate
-          ? ", approved_date = CURRENT_TIMESTAMP"
-          : "";
-      const updateResult = await client.query(
-        `UPDATE ${DB_SCHEMA}.${table}
-         SET status = $1 ${approvedClause}
-         WHERE profile_id = $2
-         RETURNING *`,
-        [newStatus, profileId],
-      );
-      const updated = updateResult.rows[0];
+      // Update canonical status on profiles table
+      const suspUntil = newStatus === "SUSPENDED" ? (suspendedUntil || null) : null;
+      const updated = await profileModel.updateAccountStatus(profileId, newStatus, suspUntil, client);
       if (!updated)
-        throw new AppError(
-          "Failed to update status. Subtype profile not found.",
-          404,
-        );
+        throw new AppError("Failed to update status.", 404);
 
+      // Set approved_date on subtype table when activating (if applicable)
+      if (newStatus === "ACTIVE") {
+        const subtypeTableMap = {
+          CUSTOMER: "customer_profiles",
+          AGENT: "agent_profiles",
+          MERCHANT: "merchant_profiles",
+          DISTRIBUTOR: "distributor_profiles",
+        };
+        const table = subtypeTableMap[type_name];
+        if (table) {
+          await client.query(
+            `UPDATE ${DB_SCHEMA}.${table} SET approved_date = CURRENT_TIMESTAMP WHERE profile_id = $1`,
+            [profileId],
+          );
+        }
+      }
+
+      // --- AGENT activation: assign to distributor ---
       if (type_name === "AGENT" && newStatus === "ACTIVE") {
         const agentLoc = await client.query(
           `SELECT district, area FROM ${DB_SCHEMA}.agent_profiles WHERE profile_id = $1`,
@@ -545,10 +546,10 @@ const adminService = {
         }
 
         const distributor = await client.query(
-          `SELECT da.profile_id
+          `SELECT da.profile_id, p.is_phone_verified
            FROM ${DB_SCHEMA}.distributor_areas da
-           JOIN ${DB_SCHEMA}.distributor_profiles dp ON dp.profile_id = da.profile_id
-           WHERE da.district = $1 AND da.area = $2 AND dp.status = 'ACTIVE'
+           JOIN ${DB_SCHEMA}.profiles p ON p.profile_id = da.profile_id
+           WHERE da.district = $1 AND da.area = $2 AND p.account_status = 'ACTIVE'
            LIMIT 1`,
           [district, area],
         );
@@ -560,18 +561,46 @@ const adminService = {
           );
         }
 
+        if (!distributor.rows[0].is_phone_verified) {
+          throw new AppError(
+            `The distributor for ${district} / ${area} has not verified their phone number yet. Agent approval requires a verified distributor.`,
+            400,
+          );
+        }
+
         await client.query(
-          `UPDATE ${DB_SCHEMA}.agent_profiles SET distributor_id = $1 WHERE profile_id = $2`,
+          `UPDATE ${DB_SCHEMA}.agent_profiles SET distributor_id = $1, b2b_suspended = FALSE WHERE profile_id = $2`,
           [distributor.rows[0].profile_id, profileId],
+        );
+      }
+
+      // --- DISTRIBUTOR block: release areas + suspend connected agents' B2B ---
+      if (type_name === "DISTRIBUTOR" && newStatus === "BLOCKED") {
+        const connectedAgents = await profileModel.getAgentsByDistributor(profileId, client);
+        for (const agent of connectedAgents) {
+          await profileModel.suspendAgentB2B(agent.profile_id, client);
+        }
+
+        await client.query(
+          `DELETE FROM ${DB_SCHEMA}.distributor_areas WHERE profile_id = $1`,
+          [profileId],
+        );
+      }
+
+      // --- ACTIVE from SUSPENDED: clear suspension fields ---
+      if (newStatus === "ACTIVE" && currentStatus === "SUSPENDED") {
+        await client.query(
+          `UPDATE ${DB_SCHEMA}.agent_profiles SET b2b_suspended = FALSE WHERE profile_id = $1`,
+          [profileId],
         );
       }
 
       await client.query("COMMIT");
 
       adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'UPDATE_USER_STATUS', targetProfileId: profileId, ip: ctx?.ip, metadata: { newStatus, typeName: type_name } });
-      auditLogService.logAudit({ eventType: 'UPDATE_USER_STATUS', actorId: null, actorType: 'ADMIN', summary: `Admin set ${type_name} #${profileId} status to ${updated.status}` });
+      auditLogService.logAudit({ eventType: 'UPDATE_USER_STATUS', actorId: null, actorType: 'ADMIN', summary: `Admin set ${type_name} #${profileId} status to ${newStatus}` });
 
-      return { profileId, typeName: type_name, newStatus: updated.status };
+      return { profileId, typeName: type_name, newStatus };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;

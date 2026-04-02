@@ -11,11 +11,13 @@ const errorHandler = (err, req, res, next) => {
     logger.warn({ statusCode, url: req.originalUrl, message: err.message }, 'Operational server error');
   }
 
-  res.status(statusCode).json({
+  const body = {
     success: false,
     message: message === 'Internal server error' ? err.message : message,
     stack: err.stack,
-  });
+  };
+  if (err.data) body.data = err.data;
+  res.status(statusCode).json(body);
 };
 
 export default errorHandler;

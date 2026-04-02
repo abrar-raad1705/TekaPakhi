@@ -37,23 +37,20 @@ CREATE TABLE profiles (
 -- Customer Profile
 CREATE TABLE customer_profiles (
     profile_id BIGINT PRIMARY KEY REFERENCES profiles(profile_id) ON DELETE CASCADE,
-    approved_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    status profile_status DEFAULT 'ACTIVE'
+    approved_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Distributor Profile
 CREATE TABLE distributor_profiles (
     profile_id BIGINT PRIMARY KEY REFERENCES profiles(profile_id) ON DELETE CASCADE,
     region VARCHAR(100),
-    approved_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    status profile_status DEFAULT 'ACTIVE'
+    approved_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Biller Profile
 CREATE TABLE biller_profiles (
     profile_id BIGINT PRIMARY KEY REFERENCES profiles(profile_id) ON DELETE CASCADE,
-    service_name VARCHAR(100) NOT NULL,
-    status profile_status DEFAULT 'ACTIVE'
+    service_name VARCHAR(100) NOT NULL
 );
 
 -- Agent Profile
@@ -62,8 +59,7 @@ CREATE TABLE agent_profiles (
     agent_code VARCHAR(20) UNIQUE NOT NULL,
     shop_name VARCHAR(100) NOT NULL,
     shop_address TEXT,
-    approved_date TIMESTAMP WITH TIME ZONE,
-    status profile_status DEFAULT 'PENDING_KYC'
+    approved_date TIMESTAMP WITH TIME ZONE
 );
 
 -- Merchant Profile
@@ -72,8 +68,7 @@ CREATE TABLE merchant_profiles (
     merchant_code VARCHAR(20) UNIQUE NOT NULL,
     business_name VARCHAR(100) NOT NULL,
     business_type VARCHAR(50),
-    approved_date TIMESTAMP WITH TIME ZONE,
-    status profile_status DEFAULT 'PENDING_KYC'
+    approved_date TIMESTAMP WITH TIME ZONE
 );
 
 -- 4. Wallets
@@ -87,8 +82,6 @@ CREATE TABLE wallets (
     role wallet_role, -- NULL for normal users
     last_activity_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
-
-
 
 -- 5. CONTACTS
 CREATE TABLE saved_recipients (

@@ -34,6 +34,16 @@ api.interceptors.response.use(
 
     if (error.response?.status === 401 && !originalRequest?._retry && !skipRedirect) {
       originalRequest._retry = true;
+      const code = error.response?.data?.data?.code;
+      if (code === 'ACCOUNT_BLOCKED' || code === 'ACCOUNT_SUSPENDED') {
+        sessionStorage.setItem(
+          'sessionTerminated',
+          JSON.stringify({
+            code,
+            message: error.response?.data?.message || '',
+          }),
+        );
+      }
       localStorage.removeItem('accessToken');
       localStorage.removeItem('user');
       window.location.href = '/login';

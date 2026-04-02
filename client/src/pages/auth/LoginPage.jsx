@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { authApi } from "../../api/authApi";
@@ -15,6 +15,30 @@ export default function LoginPage() {
 
   const { login, loading } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("sessionTerminated");
+      if (!raw) return;
+      sessionStorage.removeItem("sessionTerminated");
+      const { code, message } = JSON.parse(raw);
+      if (code === "ACCOUNT_BLOCKED") {
+        setGlobalError({
+          message:
+            message ||
+            "Your session ended because this account has been permanently blocked. Contact support for assistance.",
+        });
+      } else if (code === "ACCOUNT_SUSPENDED") {
+        setGlobalError({
+          message:
+            message ||
+            "Your session ended because this account is suspended.",
+        });
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const handleSubmit = async (e) => {
     if (e) e.preventDefault();
@@ -68,21 +92,33 @@ export default function LoginPage() {
       };
       navigate(routeMap[profile.typeName] || "/dashboard", { replace: true });
     } else {
-      const match = result.message.match(/(\d+)/);
-      const attempts = match ? match[1] : null;
+      const errorCode = result.data?.code;
 
-      if (attempts) {
+      if (errorCode === "ACCOUNT_BLOCKED") {
         setGlobalError({
-          message: `Incorrect phone number or PIN. ${attempts} attempt(s) remaining.`,
-          actionLink: "/forgot-pin",
-          actionText: "Reset PIN",
+          message: "Your account has been permanently blocked. Contact support for assistance.",
+        });
+      } else if (errorCode === "ACCOUNT_SUSPENDED") {
+        setGlobalError({
+          message: result.message || "Your account is suspended.",
         });
       } else {
-        setGlobalError({
-          message: result.message || "Invalid credentials",
-          actionLink: "/forgot-pin",
-          actionText: "Reset PIN",
-        });
+        const match = result.message.match(/(\d+)/);
+        const attempts = match ? match[1] : null;
+
+        if (attempts) {
+          setGlobalError({
+            message: `Incorrect phone number or PIN. ${attempts} attempt(s) remaining.`,
+            actionLink: "/forgot-pin",
+            actionText: "Reset PIN",
+          });
+        } else {
+          setGlobalError({
+            message: result.message || "Invalid credentials",
+            actionLink: "/forgot-pin",
+            actionText: "Reset PIN",
+          });
+        }
       }
     }
   };

@@ -30,6 +30,7 @@ const flowSteps = [
 
 export default function CashInPage() {
   const { user } = useAuth();
+  const isAgent = user?.typeName === "AGENT";
   const [step, setStep] = useState("recipient");
   const [form, setForm] = useState({ receiverPhone: "", amount: "", note: "", pin: "" });
   const [recipient, setRecipient] = useState(null);
@@ -38,6 +39,9 @@ export default function CashInPage() {
   const [loading, setLoading] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
   const pinInputRef = useRef(null);
+
+  const [loadingDistributor, setLoadingDistributor] = useState(isAgent);
+  const [b2bSuspendedMsg, setB2bSuspendedMsg] = useState(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [recentRecipients, setRecentRecipients] = useState([]);
@@ -57,6 +61,29 @@ export default function CashInPage() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (!isAgent) return;
+    (async () => {
+      try {
+        await transactionApi.getB2BDistributor();
+        setB2bSuspendedMsg(null);
+      } catch (e) {
+        const code = e.response?.data?.data?.code;
+        if (code === "B2B_SUSPENDED") {
+          setB2bSuspendedMsg(
+            e.response?.data?.message ||
+              "Your distributor account has been blocked. Cash In is temporarily unavailable until a new distributor is assigned to your area.",
+          );
+        } else {
+          console.error("Failed to load distributor link for cash in", e);
+          toast.error("Failed to verify distributor link");
+        }
+      } finally {
+        setLoadingDistributor(false);
+      }
+    })();
+  }, [isAgent]);
 
   const fetchSavedCustomersForNicknames = async () => {
     setLoadingContacts(true);
@@ -208,6 +235,42 @@ export default function CashInPage() {
 
   if (step === "receipt" && receipt) {
     return <TransactionReceipt receipt={receipt} />;
+  }
+
+  if (isAgent && loadingDistributor) {
+    return (
+      <TransactionFlowLayout
+        icon={PlusCircleIcon}
+        title="Cash In"
+        subtitle="Verifying your distributor link..."
+        steps={flowSteps}
+        currentStepKey={step}
+      >
+        <div className="flex justify-center py-16">
+          <LoadingSpinner size="lg" />
+        </div>
+      </TransactionFlowLayout>
+    );
+  }
+
+  if (isAgent && b2bSuspendedMsg) {
+    return (
+      <TransactionFlowLayout
+        icon={PlusCircleIcon}
+        title="Cash In"
+        subtitle="Add funds to a customer wallet. For agents: verify the customer phone and the cash received."
+        steps={flowSteps}
+        currentStepKey={step}
+      >
+        <div className="flex flex-col items-center gap-4 px-4 py-12 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-50">
+            <LockClosedIcon className="h-7 w-7 text-amber-600" />
+          </div>
+          <h3 className="text-lg font-bold text-gray-900">Cash In unavailable</h3>
+          <p className="max-w-sm text-sm leading-relaxed text-gray-600">{b2bSuspendedMsg}</p>
+        </div>
+      </TransactionFlowLayout>
+    );
   }
 
   return (

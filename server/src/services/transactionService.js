@@ -41,6 +41,38 @@ const ROLE_RULES = {
   B2B:         { sender: [PROFILE_TYPES.DISTRIBUTOR, PROFILE_TYPES.AGENT], receiver: [PROFILE_TYPES.AGENT, PROFILE_TYPES.DISTRIBUTOR] },
 };
 
+/** Agent must have an active distributor link for commission-bearing ops (cash in / cash out). */
+async function assertAgentDistributorLinkForCashIn(agentProfileId) {
+  const link = await profileModel.getAgentDistributorId(agentProfileId);
+  if (!link || link.b2bSuspended) {
+    throw new AppError(
+      'Your distributor account has been blocked. Cash In is temporarily unavailable until a new distributor is assigned to your area.',
+      403,
+      { code: 'B2B_SUSPENDED' },
+    );
+  }
+}
+
+/** Customer/Merchant cash out: receiving agent must be active and not orphaned from a blocked distributor. */
+async function assertReceiverAgentEligibleForCashOut(receiver) {
+  const statusRow = await profileModel.getAccountStatus(receiver.profile_id);
+  if (statusRow?.account_status !== 'ACTIVE') {
+    throw new AppError(
+      'This agent cannot process cash out right now. Please try another agent or visit a different location.',
+      403,
+      { code: 'CASH_OUT_AGENT_UNAVAILABLE' },
+    );
+  }
+  const link = await profileModel.getAgentDistributorId(receiver.profile_id);
+  if (!link || link.b2bSuspended) {
+    throw new AppError(
+      'This agent cannot process cash out right now because their distributor link is suspended. Please try another agent or visit a different location.',
+      403,
+      { code: 'CASH_OUT_AGENT_UNAVAILABLE' },
+    );
+  }
+}
+
 async function assertB2BReceiverAllowed(sender, receiver) {
   if (
     sender.type_id === PROFILE_TYPES.DISTRIBUTOR &&
@@ -63,8 +95,15 @@ async function assertB2BReceiverAllowed(sender, receiver) {
     sender.type_id === PROFILE_TYPES.AGENT &&
     receiver.type_id === PROFILE_TYPES.DISTRIBUTOR
   ) {
-    const connectedDistributorId = await profileModel.getAgentDistributorId(sender.profile_id);
-    if (!connectedDistributorId || connectedDistributorId !== receiver.profile_id) {
+    const result = await profileModel.getAgentDistributorId(sender.profile_id);
+    if (!result || result.b2bSuspended) {
+      throw new AppError(
+        'Your distributor account has been blocked. B2B transfers are temporarily unavailable until a new distributor is assigned to your area.',
+        403,
+        { code: 'B2B_SUSPENDED' },
+      );
+    }
+    if (!result.distributorId || result.distributorId !== receiver.profile_id) {
       throw new AppError(
         'You can only transfer float to your connected distributor.',
         403,
@@ -75,10 +114,8 @@ async function assertB2BReceiverAllowed(sender, receiver) {
 }
 
 async function assertSenderCanTransact(sender) {
-  const senderStatus = await profileModel.getAccountStatus(
-    sender.profile_id,
-    sender.type_name,
-  );
+  const statusRow = await profileModel.getAccountStatus(sender.profile_id);
+  const senderStatus = statusRow?.account_status;
 
   if (senderStatus === 'PENDING_KYC') {
     throw new AppError(
@@ -132,6 +169,15 @@ const transactionService = {
     }
 
     await assertSenderCanTransact(sender);
+
+    if (typeCode === 'CASH_IN' && sender.type_id === PROFILE_TYPES.AGENT) {
+      await assertAgentDistributorLinkForCashIn(sender.profile_id);
+    }
+
+    if (typeCode === 'CASH_OUT' && receiver.type_id === PROFILE_TYPES.AGENT) {
+      await assertReceiverAgentEligibleForCashOut(receiver);
+    }
+
     // Verify PIN (with brute force protection)
     await authService.verifyTransactionPin(senderProfileId, pin, meta);
 
@@ -288,6 +334,14 @@ const transactionService = {
 
     await assertSenderCanTransact(sender);
 
+    if (typeCode === 'CASH_IN' && sender.type_id === PROFILE_TYPES.AGENT) {
+      await assertAgentDistributorLinkForCashIn(sender.profile_id);
+    }
+
+    if (typeCode === 'CASH_OUT' && receiver.type_id === PROFILE_TYPES.AGENT) {
+      await assertReceiverAgentEligibleForCashOut(receiver);
+    }
+
     // Tiered fee for SEND_MONEY, biller-specific for PAY_BILL, standard for others
     let fee;
     if (typeCode === 'SEND_MONEY') {
@@ -395,7 +449,14 @@ const transactionService = {
 
     const distributor = await profileModel.getConnectedDistributorForAgent(profileId);
     if (!distributor) {
-      throw new AppError('No connected distributor found for your agent account.', 404);
+      throw new AppError('No connected distributor found for your agent account.', 404, { code: 'B2B_SUSPENDED' });
+    }
+    if (distributor.b2bSuspended) {
+      throw new AppError(
+        'Your distributor account has been blocked. B2B transfers are temporarily unavailable until a new distributor is assigned to your area.',
+        403,
+        { code: 'B2B_SUSPENDED' },
+      );
     }
     return distributor;
   },

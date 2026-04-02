@@ -61,7 +61,8 @@ const adminController = {
 
   async updateUserStatus(req, res, next) {
     try {
-      const data = await adminService.updateUserStatus(req.params.id, req.validatedBody.status, adminCtx(req));
+      const { status, suspendedUntil } = req.validatedBody;
+      const data = await adminService.updateUserStatus(req.params.id, status, adminCtx(req), { suspendedUntil });
       res.json({ success: true, data, message: `User status updated to ${data.newStatus}.` });
     } catch (error) {
       next(error);

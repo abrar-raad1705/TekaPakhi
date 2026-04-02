@@ -1,13 +1,15 @@
 import jwt from 'jsonwebtoken';
 import env from '../config/env.js';
 import AppError from '../utils/AppError.js';
+import authService from '../services/authService.js';
 
 /**
  * JWT Authentication Middleware
  * Extracts and verifies the Bearer token from Authorization header
  * Attaches decoded user info to req.user
+ * Re-validates account status so suspend/block by admin invalidates the session on next request
  */
-const authenticate = (req, res, next) => {
+const authenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -24,6 +26,8 @@ const authenticate = (req, res, next) => {
       typeId: decoded.typeId,
       typeName: decoded.typeName,
     };
+
+    await authService.validateSessionAccountStatus(decoded.profileId);
 
     next();
   } catch (error) {

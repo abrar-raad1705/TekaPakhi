@@ -45,8 +45,8 @@ export const adminApi = {
   getUsers: (params) => adminApiClient.get("/admin/users", { params }),
   createProfile: (data) => adminApiClient.post("/admin/users", data),
   getUserDetail: (id) => adminApiClient.get(`/admin/users/${id}`),
-  updateUserStatus: (id, status) =>
-    adminApiClient.patch(`/admin/users/${id}/status`, { status }),
+  updateUserStatus: (id, status, suspendedUntil) =>
+    adminApiClient.patch(`/admin/users/${id}/status`, { status, ...(suspendedUntil ? { suspendedUntil } : {}) }),
   loadWallet: (id, amount) =>
     adminApiClient.post(`/admin/users/${id}/load-wallet`, { amount }),
   updateWalletLimit: (id, maxBalance) =>

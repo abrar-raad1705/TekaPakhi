@@ -22,3 +22,4 @@ SET search_path TO teka;
 \i 014_database_functions.sql
 \i 015_database_triggers.sql
 \i 016_database_indexes.sql
+\i 017_account_status_on_profiles.sql

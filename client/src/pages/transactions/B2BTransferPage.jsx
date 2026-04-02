@@ -51,6 +51,7 @@ export default function B2BTransferPage() {
   const [loadingAgents, setLoadingAgents] = useState(false);
   const [lookupError, setLookupError] = useState("");
   const [loadingDistributor, setLoadingDistributor] = useState(isAgent);
+  const [b2bSuspendedMsg, setB2bSuspendedMsg] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -78,8 +79,16 @@ export default function B2BTransferPage() {
         });
         setForm((p) => ({ ...p, receiverPhone: d.target_phone }));
       } catch (e) {
-        console.error("Failed to load connected distributor", e);
-        toast.error("Failed to load connected distributor");
+        const code = e.response?.data?.data?.code;
+        if (code === "B2B_SUSPENDED") {
+          setB2bSuspendedMsg(
+            e.response?.data?.message ||
+            "Your distributor account has been blocked. B2B transfers are temporarily unavailable until a new distributor is assigned to your area."
+          );
+        } else {
+          console.error("Failed to load connected distributor", e);
+          toast.error("Failed to load connected distributor");
+        }
       } finally {
         setLoadingDistributor(false);
       }
@@ -248,6 +257,28 @@ export default function B2BTransferPage() {
       >
         <div className="flex justify-center py-16">
           <LoadingSpinner size="lg" />
+        </div>
+      </TransactionFlowLayout>
+    );
+  }
+
+  if (isAgent && b2bSuspendedMsg) {
+    return (
+      <TransactionFlowLayout
+        icon={ArrowPathIcon}
+        title="B2B Float Transfer"
+        subtitle="Transfer float to your connected distributor."
+        steps={flowSteps}
+        currentStepKey={step}
+      >
+        <div className="flex flex-col items-center gap-4 py-12 px-4 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-50">
+            <LockClosedIcon className="h-7 w-7 text-amber-600" />
+          </div>
+          <h3 className="text-lg font-bold text-gray-900">B2B Transfer Unavailable</h3>
+          <p className="max-w-sm text-sm text-gray-600 leading-relaxed">
+            {b2bSuspendedMsg}
+          </p>
         </div>
       </TransactionFlowLayout>
     );

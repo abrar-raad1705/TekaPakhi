@@ -15,6 +15,7 @@ export const userListQuerySchema = z.object({
 
 export const updateStatusSchema = z.object({
   status: z.enum(['ACTIVE', 'SUSPENDED', 'BLOCKED']),
+  suspendedUntil: z.string().datetime({ offset: true }).optional(),
 });
 
 export const pinResetGrantSchema = z.object({

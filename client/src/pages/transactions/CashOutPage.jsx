@@ -129,28 +129,70 @@ export default function CashOutPage() {
     }
   };
 
-  const handleSelectContact = (contact) => {
-    setRecipient({
-      fullName: contact.target_name || contact.nickname,
-      profilePictureUrl: contact.target_profile_picture_url ?? null,
-      typeName: "AGENT",
-    });
-    setForm((p) => ({ ...p, receiverPhone: contact.target_phone }));
-    setSearchQuery("");
+  const handleSelectContact = async (contact) => {
+    const phoneDigits = String(contact.target_phone || "").replace(/\D/g, "");
+    if (!/^01[3-9][0-9]{8}$/.test(phoneDigits)) {
+      setLookupError("Invalid phone for this contact.");
+      return;
+    }
+    setLoading(true);
     setLookupError("");
-    setStep("amount");
+    try {
+      const { data } = await transactionApi.lookupRecipient(phoneDigits);
+      if (data.data.typeName !== "AGENT") {
+        setLookupError("This number does not belong to an agent.");
+        return;
+      }
+      setRecipient({
+        fullName: data.data.fullName,
+        profilePictureUrl: data.data.profilePictureUrl ?? null,
+        typeName: "AGENT",
+      });
+      setForm((p) => ({ ...p, receiverPhone: phoneDigits }));
+      setSearchQuery("");
+      setStep("amount");
+    } catch (error) {
+      setLookupError(
+        error.response?.data?.message ||
+          "Unable to use this agent for cash out.",
+      );
+      setRecipient(null);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSelectRecent = (r) => {
-    setRecipient({
-      fullName: r.name,
-      profilePictureUrl: r.pictureUrl ?? null,
-      typeName: "AGENT",
-    });
-    setForm((p) => ({ ...p, receiverPhone: r.phone }));
-    setSearchQuery("");
+  const handleSelectRecent = async (r) => {
+    const phoneDigits = String(r.phone || "").replace(/\D/g, "");
+    if (!/^01[3-9][0-9]{8}$/.test(phoneDigits)) {
+      setLookupError("Invalid phone for this contact.");
+      return;
+    }
+    setLoading(true);
     setLookupError("");
-    setStep("amount");
+    try {
+      const { data } = await transactionApi.lookupRecipient(phoneDigits);
+      if (data.data.typeName !== "AGENT") {
+        setLookupError("This number does not belong to an agent.");
+        return;
+      }
+      setRecipient({
+        fullName: data.data.fullName,
+        profilePictureUrl: data.data.profilePictureUrl ?? null,
+        typeName: "AGENT",
+      });
+      setForm((p) => ({ ...p, receiverPhone: phoneDigits }));
+      setSearchQuery("");
+      setStep("amount");
+    } catch (error) {
+      setLookupError(
+        error.response?.data?.message ||
+          "Unable to use this agent for cash out.",
+      );
+      setRecipient(null);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const searchTrimmed = searchQuery.trim();
