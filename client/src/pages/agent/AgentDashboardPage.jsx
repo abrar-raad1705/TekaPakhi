@@ -83,28 +83,31 @@ export default function AgentDashboardPage() {
       <div className="mx-auto -mt-12 max-w-md px-4">
         {/* KYC Pending Banner */}
         {isPendingKYC && (
-          <div className="group relative mb-6 overflow-hidden rounded-2xl border-2 border-white bg-gradient-to-br from-amber-50 to-orange-50/50 p-5 shadow-xl shadow-amber-200/40 transition-all hover:shadow-2xl">
-            {/* Subtle background glow */}
+          <div className="group relative mb-6 overflow-hidden rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm transition-all hover:shadow-md">
+
+            {/* subtle glow (more controlled) */}
             <div
-              className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-amber-200/20 blur-2xl transition-all group-hover:bg-amber-300/30"
+              className="absolute -right-6 -top-6 h-28 w-28 rounded-full bg-amber-200/30 blur-2xl opacity-60"
               aria-hidden
             />
 
             <div className="relative flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-amber-200/50">
+
+              {/* icon */}
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100">
                 <ExclamationCircleIcon
-                  className="h-7 w-7 text-amber-500"
+                  className="h-6 w-6 text-amber-600"
                   strokeWidth={2}
                 />
               </div>
-              <div className="min-w-0 flex-1 py-0.5">
-                <h3 className="text-sm font-black uppercase tracking-[0.05em] text-amber-900">
-                  Account Under Review
+
+              {/* text */}
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-semibold text-gray-900">
+                  Verification in progress
                 </h3>
-                <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-amber-800/70">
-                  We&apos;re currently verifying your agent credentials.
-                  You&apos;ll receive a notification once your account is fully
-                  activated.
+                <p className="mt-1 text-sm leading-relaxed text-gray-600">
+                  We’re reviewing your agent credentials. You’ll be notified once your account is ready.
                 </p>
               </div>
             </div>

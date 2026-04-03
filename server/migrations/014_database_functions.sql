@@ -152,6 +152,99 @@ BEGIN
 END;
 $$;
 
+-- 2.5 to Validate Transaction Preflight
+CREATE OR REPLACE FUNCTION fn_validate_transaction_preflight(
+    p_sender_profile_id BIGINT,
+    p_receiver_profile_id BIGINT,
+    p_type_id INT,
+    p_amount DECIMAL
+)
+RETURNS TEXT
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_type_name VARCHAR(50);
+    v_sender_type_id INT;
+    v_sender_status TEXT;
+    v_receiver_type_id INT;
+    v_receiver_status TEXT;
+    v_limit_error TEXT;
+BEGIN
+    -- 1. Identity & Existence
+    IF p_sender_profile_id = p_receiver_profile_id THEN
+        RETURN 'You cannot send money to yourself.';
+    END IF;
+
+    -- Resolve profiles
+    SELECT type_id, account_status::text INTO v_sender_type_id, v_sender_status
+    FROM profiles WHERE profile_id = p_sender_profile_id;
+    
+    SELECT type_id, account_status::text INTO v_receiver_type_id, v_receiver_status
+    FROM profiles WHERE profile_id = p_receiver_profile_id;
+
+    IF v_sender_status IS NULL THEN RETURN 'Sender profile not found.'; END IF;
+    IF v_receiver_status IS NULL THEN RETURN 'Receiver profile not found.'; END IF;
+
+    -- 2. Status Validation
+    IF v_sender_status != 'ACTIVE' THEN
+        RETURN 'Your account is ' || v_sender_status || '. Transactions are prohibited.';
+    END IF;
+    IF v_receiver_status != 'ACTIVE' THEN
+        RETURN 'Recipient account is ' || v_receiver_status || '. Transactions are prohibited.';
+    END IF;
+
+    -- 3. Role Validation
+    SELECT type_name INTO v_type_name FROM transaction_types WHERE type_id = p_type_id;
+
+    IF v_type_name = 'SEND_MONEY' THEN
+        IF NOT (v_sender_type_id IN (1, 3) AND v_receiver_type_id = 1) THEN
+            RETURN 'Account type incompatible for Send Money.';
+        END IF;
+    ELSIF v_type_name = 'CASH_IN' THEN
+        IF NOT (v_sender_type_id = 2 AND v_receiver_type_id = 1) THEN
+            RETURN 'Only Agents can perform Cash In to Customers.';
+        END IF;
+    ELSIF v_type_name = 'CASH_OUT' THEN
+        -- Standard: Customer (1) or Merchant (3) to Agent (2)
+        -- ADDED: Biller (5) to Agent (2)
+        IF NOT (v_sender_type_id IN (1, 3, 5) AND v_receiver_type_id = 2) THEN
+            RETURN 'Account type incompatible for Cash Out.';
+        END IF;
+    ELSIF v_type_name = 'PAYMENT' THEN
+        IF NOT (v_sender_type_id IN (1, 3) AND v_receiver_type_id = 3) THEN
+            RETURN 'Account type incompatible for Payment.';
+        END IF;
+    ELSIF v_type_name = 'PAY_BILL' THEN
+         IF v_receiver_type_id != 5 THEN
+            RETURN 'Recipient must be a valid Biller for Pay Bill.';
+        END IF;
+    ELSIF v_type_name = 'B2B' THEN
+        IF NOT (v_sender_type_id IN (4, 2) AND v_receiver_type_id IN (2, 4)) THEN
+            RETURN 'Account type incompatible for B2B.';
+        END IF;
+        
+        -- Connection check
+        IF v_sender_type_id = 4 AND v_receiver_type_id = 2 THEN -- DISTRIBUTOR to AGENT
+            IF NOT EXISTS (SELECT 1 FROM agent_profiles WHERE profile_id = p_receiver_profile_id AND distributor_id = p_sender_profile_id) THEN
+                RETURN 'You can only transfer float to agents connected to your distributor account.';
+            END IF;
+        ELSIF v_sender_type_id = 2 AND v_receiver_type_id = 4 THEN -- AGENT to DISTRIBUTOR
+            IF NOT EXISTS (SELECT 1 FROM agent_profiles WHERE profile_id = p_sender_profile_id AND distributor_id = p_receiver_profile_id) THEN
+                RETURN 'You can only transfer float to your connected distributor.';
+            END IF;
+        END IF;
+    END IF;
+
+    -- 4. Limit Validation
+    v_limit_error := fn_check_transaction_limits(p_sender_profile_id, p_type_id, p_amount);
+    IF v_limit_error IS NOT NULL THEN
+        RETURN v_limit_error;
+    END IF;
+
+    RETURN NULL; -- ALL OK
+END;
+$$;
+
 -- 3. Security enforcement function
 CREATE OR REPLACE FUNCTION fn_enforce_internal_only()
 RETURNS TRIGGER AS $$

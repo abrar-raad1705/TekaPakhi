@@ -8,7 +8,7 @@ import { useAuth } from '../../context/AuthContext';
  */
 export default function ShellLayout() {
   const { pathname } = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   if (pathname.startsWith('/admin')) {
     return <Outlet />;
@@ -18,7 +18,7 @@ export default function ShellLayout() {
     <>
       <SiteHeader />
       <Outlet />
-      {isAuthenticated && <BottomNav />}
+      {isAuthenticated && user?.isPhoneVerified && !user?.requiresPinSetup && <BottomNav />}
     </>
   );
 }

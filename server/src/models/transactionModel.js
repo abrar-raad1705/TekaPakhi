@@ -302,38 +302,6 @@ const transactionModel = {
     return result.rows[0];
   },
 
-  /**
-   * Get the monthly Send Money total for a profile (pool-based, no client needed).
-   * Used for tiered fee calculation outside of an atomic transaction (e.g. preview).
-   */
-  async getMonthlyTotal(profileId, typeId) {
-    const result = await pool.query(
-      `SELECT COALESCE(SUM(t.amount), 0)::numeric AS total_amount
-       FROM ${DB_SCHEMA}.transactions t
-       JOIN ${DB_SCHEMA}.wallets w ON t.sender_wallet_id = w.wallet_id
-       WHERE w.profile_id = $1 AND t.type_id = $2
-         AND t.status = 'COMPLETED'
-         AND t.transaction_time >= date_trunc('month', CURRENT_DATE)`,
-      [profileId, typeId]
-    );
-    return parseFloat(result.rows[0].total_amount);
-  },
-
-  /**
-   * Get the monthly Send Money total within a transaction client (for execute).
-   */
-  async getMonthlyTotalForUpdate(client, profileId, typeId) {
-    const result = await client.query(
-      `SELECT COALESCE(SUM(t.amount), 0)::numeric AS total_amount
-       FROM ${DB_SCHEMA}.transactions t
-       JOIN ${DB_SCHEMA}.wallets w ON t.sender_wallet_id = w.wallet_id
-       WHERE w.profile_id = $1 AND t.type_id = $2
-         AND t.status = 'COMPLETED'
-         AND t.transaction_time >= date_trunc('month', CURRENT_DATE)`,
-      [profileId, typeId]
-    );
-    return parseFloat(result.rows[0].total_amount);
-  },
 
   /**
    * Get last N transactions for mini statement

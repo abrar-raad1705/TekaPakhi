@@ -1,5 +1,9 @@
 import { useState, useEffect } from "react";
-import { ArrowRightEndOnRectangleIcon } from "@heroicons/react/24/outline";
+import { Link } from "react-router-dom";
+import { 
+  ArrowRightEndOnRectangleIcon, 
+  ArrowUpRightIcon 
+} from "@heroicons/react/24/outline";
 import { useAuth } from "../../context/AuthContext";
 import { walletApi } from "../../api/walletApi";
 import { formatBDT } from "../../utils/formatCurrency";
@@ -91,6 +95,29 @@ export default function BillerDashboardPage() {
             "Pay Bill" section of their app. Payments are credited to your balance
             automatically.
           </p>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 gap-4">
+          <Link
+            to="/transaction/CASH_OUT"
+            className={`group relative flex items-center justify-between overflow-hidden rounded-2xl border-2 border-white bg-white p-5 shadow-lg ${theme.cardShadowClass} transition-all hover:scale-[1.02] hover:shadow-2xl active:scale-95`}
+          >
+            <div className="flex items-center gap-4">
+              <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${theme.iconBgClass} ${theme.iconTextClass} shadow-inner`}>
+                <ArrowUpRightIcon className="h-6 w-6" strokeWidth={2.5} />
+              </div>
+              <div>
+                <h3 className="text-[15px] font-bold text-gray-900">Cash Out</h3>
+                <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wider">Withdraw Funds via Agent</p>
+              </div>
+            </div>
+            <div className={`rounded-full p-2 ${theme.iconBgAltClass} ${theme.iconTextAltClass} opacity-0 transition-all group-hover:opacity-100`}>
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+          </Link>
         </div>
       </div>
     </div>
