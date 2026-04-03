@@ -65,7 +65,7 @@ export default function AdminDashboardPage() {
             type="button"
             onClick={() => {
               localStorage.removeItem('adminToken');
-              navigate('/root', { replace: true });
+              navigate('/admin/login', { replace: true });
             }}
             className="mt-6 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
           >

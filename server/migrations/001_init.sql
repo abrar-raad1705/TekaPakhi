@@ -31,29 +31,26 @@ CREATE TABLE profiles (
     CONSTRAINT check_bd_phone CHECK (phone_number ~ '^01[3-9][0-9]{8}$')
 );
 
-CREATE INDEX idx_profile_phone ON profiles(phone_number);
+
 
 -- 3. PROFILE SUBTYPES (Inheritance via Shared PK)
 -- Customer Profile
 CREATE TABLE customer_profiles (
     profile_id BIGINT PRIMARY KEY REFERENCES profiles(profile_id) ON DELETE CASCADE,
-    approved_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    status profile_status DEFAULT 'ACTIVE'
+    approved_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Distributor Profile
 CREATE TABLE distributor_profiles (
     profile_id BIGINT PRIMARY KEY REFERENCES profiles(profile_id) ON DELETE CASCADE,
     region VARCHAR(100),
-    approved_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    status profile_status DEFAULT 'ACTIVE'
+    approved_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Biller Profile
 CREATE TABLE biller_profiles (
     profile_id BIGINT PRIMARY KEY REFERENCES profiles(profile_id) ON DELETE CASCADE,
-    service_name VARCHAR(100) NOT NULL,
-    status profile_status DEFAULT 'ACTIVE'
+    service_name VARCHAR(100) NOT NULL
 );
 
 -- Agent Profile
@@ -62,8 +59,7 @@ CREATE TABLE agent_profiles (
     agent_code VARCHAR(20) UNIQUE NOT NULL,
     shop_name VARCHAR(100) NOT NULL,
     shop_address TEXT,
-    approved_date TIMESTAMP WITH TIME ZONE,
-    status profile_status DEFAULT 'PENDING_KYC'
+    approved_date TIMESTAMP WITH TIME ZONE
 );
 
 -- Merchant Profile
@@ -72,8 +68,7 @@ CREATE TABLE merchant_profiles (
     merchant_code VARCHAR(20) UNIQUE NOT NULL,
     business_name VARCHAR(100) NOT NULL,
     business_type VARCHAR(50),
-    approved_date TIMESTAMP WITH TIME ZONE,
-    status profile_status DEFAULT 'PENDING_KYC'
+    approved_date TIMESTAMP WITH TIME ZONE
 );
 
 -- 4. Wallets
@@ -82,15 +77,11 @@ CREATE TYPE wallet_role AS ENUM ('TREASURY', 'REVENUE', 'ADJUSTMENT');
 CREATE TABLE wallets (
     wallet_id BIGSERIAL PRIMARY KEY,
     profile_id BIGINT UNIQUE NOT NULL REFERENCES profiles(profile_id) ON DELETE RESTRICT,
-    balance DECIMAL(15, 2) DEFAULT 0.00 CHECK (balance >= 0),
+    balance DECIMAL(15, 2) DEFAULT 0.00,
     max_balance DECIMAL(15, 2) DEFAULT 500000.00,
     role wallet_role, -- NULL for normal users
     last_activity_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE UNIQUE INDEX unique_wallet_role  
-ON wallets(role)  
-WHERE role IS NOT NULL;
 
 -- 5. CONTACTS
 CREATE TABLE saved_recipients (
@@ -160,8 +151,7 @@ CREATE TABLE transactions (
     CONSTRAINT check_different_wallets CHECK (sender_wallet_id != receiver_wallet_id)
 );
 
-CREATE INDEX idx_txn_sender ON transactions(sender_wallet_id);
-CREATE INDEX idx_txn_receiver ON transactions(receiver_wallet_id);
+
 
 -- Double-entry ledger
 CREATE TYPE ledger_entry_type AS ENUM ('DEBIT', 'CREDIT');
@@ -176,9 +166,7 @@ CREATE TABLE ledger_entries (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_ledger_transaction ON ledger_entries(transaction_id);
-CREATE INDEX idx_ledger_wallet ON ledger_entries(wallet_id);
-CREATE INDEX idx_ledger_wallet_type ON ledger_entries(wallet_id, entry_type);
+
 
 --OTP codes table
 CREATE TABLE otp_codes (
@@ -192,6 +180,3 @@ CREATE TABLE otp_codes (
 
     CONSTRAINT check_otp_phone CHECK (phone_number ~ '^01[3-9][0-9]{8}$')
 );
-
-CREATE INDEX IF NOT EXISTS idx_otp_phone ON otp_codes(phone_number);
-CREATE INDEX IF NOT EXISTS idx_otp_expires ON otp_codes(expires_at);

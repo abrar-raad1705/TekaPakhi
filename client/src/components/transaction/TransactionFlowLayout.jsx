@@ -1,3 +1,5 @@
+import { CheckIcon } from "@heroicons/react/24/outline";
+
 /**
  * Shared shell for transaction flows (matches Send Money): gradient page, sticky aside, main card.
  */
@@ -56,11 +58,17 @@ export default function TransactionFlowLayout({
                                       : "bg-slate-100 text-slate-400"
                                 }`}
                               >
-                                {done && !active ? "✓" : i + 1}
+                                {done && !active ? (
+                                  <CheckIcon className="h-5 w-5" strokeWidth={2.5} />
+                                ) : (
+                                  i + 1
+                                )}
                               </span>
                               {i < steps.length - 1 ? (
                                 <span
-                                  className="my-1.5 block min-h-[2rem] w-px grow bg-slate-200"
+                                  className={`my-1.5 block min-h-[2rem] w-px grow transition-colors duration-500 ${
+                                    done ? "bg-emerald-500" : "bg-slate-200"
+                                  }`}
                                   aria-hidden
                                 />
                               ) : null}

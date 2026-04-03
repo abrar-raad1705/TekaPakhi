@@ -28,6 +28,3 @@ ALTER TABLE agent_profiles
   ADD COLUMN IF NOT EXISTS distributor_id BIGINT
     REFERENCES distributor_profiles(profile_id)
     ON DELETE SET NULL;
-
-CREATE INDEX IF NOT EXISTS idx_agent_profiles_distributor 
-  ON agent_profiles(distributor_id);

@@ -5,8 +5,7 @@ CREATE TABLE IF NOT EXISTS locations (
     UNIQUE(district, area)
 );
 
-CREATE INDEX IF NOT EXISTS idx_locations_district ON locations(district);
-CREATE INDEX IF NOT EXISTS idx_locations_area ON locations(area);
+
 
 -- Seed data
 INSERT INTO locations (district, area)
@@ -109,7 +108,6 @@ VALUES
 ('Cumilla', 'Comilla Sadar South'),
 ('Cumilla', 'Titas'),
 ('Cox''s Bazar', 'Chakaria'),
-('Cox''s Bazar', '{{198}}''''{{199}}'),
 ('Cox''s Bazar', 'Kutubdia'),
 ('Cox''s Bazar', 'Maheshkhali'),
 ('Cox''s Bazar', 'Ramu'),

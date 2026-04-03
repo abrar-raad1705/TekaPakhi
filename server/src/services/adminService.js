@@ -10,13 +10,7 @@ import walletModel from "../models/walletModel.js";
 import ledgerModel from "../models/ledgerModel.js";
 import ledgerService from "./ledgerService.js";
 import locationModel from "../models/locationModel.js";
-import adminActionLogService from "./adminActionLogService.js";
 import auditLogService from "./auditLogService.js";
-
-function maskPhone(phone) {
-  if (!phone || phone.length < 6) return phone;
-  return phone.slice(0, 3) + '****' + phone.slice(-3);
-}
 
 const SALT_ROUNDS = 12;
 
@@ -106,9 +100,8 @@ const adminService = {
     if (!row) throw new AppError("User not found.", 404);
 
     const action = granted ? 'GRANT_PIN_RESET' : 'REVOKE_PIN_RESET';
-    adminActionLogService.logAction({ adminId: ctx?.adminId, action, targetProfileId: profileId, ip: ctx?.ip });
     const verb = granted ? 'granted one-time PIN reset to' : 'revoked PIN reset grant for';
-    auditLogService.logAudit({ eventType: action, actorId: null, actorType: 'ADMIN', summary: `Admin ${verb} ${profile.type_name} ${maskPhone(profile.phone_number)}` });
+    auditLogService.logAudit({ eventType: action, actorId: null, actorType: 'ADMIN', summary: `Admin ${verb} ${profile.type_name} ${profile.phone_number}` });
 
     return {
       profileId: Number(profileId),
@@ -187,6 +180,7 @@ const adminService = {
             pinHash,
             typeId,
             email: emailNorm,
+            accountStatus: "ACTIVE",
           },
           client,
         );
@@ -203,8 +197,7 @@ const adminService = {
 
         await client.query("COMMIT");
 
-        adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'CREATE_PROFILE', targetProfileId: profile.profile_id, ip: ctx?.ip, metadata: { accountType } });
-        auditLogService.logAudit({ eventType: 'CREATE_PROFILE', actorId: null, actorType: 'ADMIN', summary: `Admin created ${accountType} profile ${maskPhone(profile.phone_number)}` });
+        auditLogService.logAudit({ eventType: 'CREATE_PROFILE', actorId: null, actorType: 'ADMIN', summary: `Admin created ${accountType} profile for ${profile.phone_number}` });
 
         return {
           profileId: profile.profile_id,
@@ -213,6 +206,7 @@ const adminService = {
           accountType,
           accountStatus: "ACTIVE",
           temporaryPin: tempPin,
+          reassignedAgents: 0,
         };
       } catch (e) {
         await client.query("ROLLBACK");
@@ -254,6 +248,7 @@ const adminService = {
             pinHash,
             typeId,
             email: emailNorm,
+            accountStatus: "ACTIVE",
           },
           client,
         );
@@ -271,8 +266,7 @@ const adminService = {
 
         await client.query("COMMIT");
 
-        adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'CREATE_PROFILE', targetProfileId: profile.profile_id, ip: ctx?.ip, metadata: { accountType } });
-        auditLogService.logAudit({ eventType: 'CREATE_PROFILE', actorId: null, actorType: 'ADMIN', summary: `Admin created ${accountType} profile ${maskPhone(profile.phone_number)}` });
+        auditLogService.logAudit({ eventType: 'CREATE_PROFILE', actorId: null, actorType: 'ADMIN', summary: `Admin created ${accountType} profile for ${profile.phone_number}` });
 
         return {
           profileId: profile.profile_id,
@@ -301,6 +295,7 @@ const adminService = {
         fullName,
         pinHash,
         typeId,
+        accountStatus: "ACTIVE",
       }, client);
       await client.query("COMMIT");
     } catch (error) {
@@ -310,8 +305,7 @@ const adminService = {
       client.release();
     }
 
-    adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'CREATE_PROFILE', targetProfileId: profile.profile_id, ip: ctx?.ip, metadata: { accountType } });
-    auditLogService.logAudit({ eventType: 'CREATE_PROFILE', actorId: null, actorType: 'ADMIN', summary: `Admin created ${accountType} profile ${maskPhone(profile.phone_number)}` });
+    auditLogService.logAudit({ eventType: 'CREATE_PROFILE', actorId: null, actorType: 'ADMIN', summary: `Admin created ${accountType} profile for ${profile.phone_number}` });
 
     return {
       profileId: profile.profile_id,
@@ -331,12 +325,25 @@ const adminService = {
     const target = await profileModel.findById(targetProfileId);
     if (!target) throw new AppError("Target profile not found.", 404);
 
+    // Enforce: cannot load e-money to blocked or suspended accounts
+    const statusRow = await profileModel.getAccountStatus(targetProfileId);
+    const accountStatus = statusRow?.account_status;
+    if (accountStatus === 'BLOCKED') {
+      throw new AppError("Cannot load e-money: this account is blocked.", 403);
+    }
+    if (accountStatus === 'SUSPENDED') {
+      throw new AppError("Cannot load e-money: this account is currently suspended.", 403);
+    }
+
     const treasury = await walletModel.findByRole(WALLET_ROLES.TREASURY);
     if (!treasury) throw new AppError("Treasury wallet not found.", 500);
 
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
+
+      // AUTHORIZE INTERNAL SYSTEM OPERATION
+      await client.query("SELECT set_config('app.internal_op', 'true', true)");
 
       const twRes = await client.query(
         `SELECT wallet_id FROM ${DB_SCHEMA}.wallets WHERE profile_id = $1`,
@@ -379,7 +386,7 @@ const adminService = {
               amount,
               treasuryWallet.wallet_id,
               targetWallet.wallet_id,
-              `ADMIN_LOAD: ৳${amount} loaded by admin`,
+              `ADMIN_LOAD | +৳${amount}`,
             ],
           ),
         );
@@ -406,8 +413,7 @@ const adminService = {
 
       await client.query("COMMIT");
 
-      adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'LOAD_WALLET', targetProfileId, amount, ip: ctx?.ip, metadata: { transactionRef: txRef } });
-      auditLogService.logAudit({ eventType: 'LOAD_WALLET', actorId: null, actorType: 'ADMIN', summary: `Admin loaded ৳${amount} to ${target.type_name ?? 'user'} ${maskPhone(target.phone_number)}`, relatedTransactionId: transactionId });
+      auditLogService.logAudit({ eventType: 'LOAD_WALLET', actorId: null, actorType: 'ADMIN', summary: `Admin loaded ৳${amount} to ${target.type_name ?? 'User'} ${target.phone_number}`, relatedTransactionId: transactionId });
 
       return {
         transactionRef: txRef,
@@ -450,6 +456,10 @@ const adminService = {
     let updated;
     try {
       await client.query("BEGIN");
+      
+      // AUTHORIZE INTERNAL SYSTEM OPERATION
+      await client.query("SELECT set_config('app.internal_op', 'true', true)");
+
       updated = await walletModel.updateMaxBalanceByProfileId(
         profileId,
         num,
@@ -464,7 +474,6 @@ const adminService = {
       client.release();
     }
 
-    adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'UPDATE_WALLET_LIMIT', targetProfileId: profileId, ip: ctx?.ip, metadata: { oldLimit, newLimit: num } });
 
     return {
       profileId,
@@ -473,10 +482,9 @@ const adminService = {
     };
   },
 
-  async updateUserStatus(profileId, newStatus, ctx) {
-    // First get the user's type
+  async updateUserStatus(profileId, newStatus, ctx, { suspendedUntil } = {}) {
     const userResult = await pool.query(
-      `SELECT p.profile_id, pt.type_name
+      `SELECT p.profile_id, p.account_status, p.phone_number, pt.type_name
        FROM ${DB_SCHEMA}.profiles p
        JOIN ${DB_SCHEMA}.profile_types pt ON p.type_id = pt.type_id
        WHERE p.profile_id = $1`,
@@ -485,43 +493,41 @@ const adminService = {
     if (userResult.rows.length === 0)
       throw new AppError("User not found.", 404);
 
-    const { type_name } = userResult.rows[0];
+    const { type_name, account_status: currentStatus, phone_number } = userResult.rows[0];
     if (type_name === "SYSTEM")
       throw new AppError("Cannot modify SYSTEM profile status.", 400);
+
+    if (currentStatus === "BLOCKED")
+      throw new AppError("This account is permanently blocked. No further status changes are allowed.", 400);
 
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
 
-      const tableMap = {
-        CUSTOMER: "customer_profiles",
-        AGENT: "agent_profiles",
-        MERCHANT: "merchant_profiles",
-        DISTRIBUTOR: "distributor_profiles",
-        BILLER: "biller_profiles",
-      };
-      const table = tableMap[type_name];
-      if (!table) throw new AppError("Unsupported profile type.", 400);
-
-      const hasApprovedDate = type_name !== "BILLER";
-      const approvedClause =
-        newStatus === "ACTIVE" && hasApprovedDate
-          ? ", approved_date = CURRENT_TIMESTAMP"
-          : "";
-      const updateResult = await client.query(
-        `UPDATE ${DB_SCHEMA}.${table}
-         SET status = $1 ${approvedClause}
-         WHERE profile_id = $2
-         RETURNING *`,
-        [newStatus, profileId],
-      );
-      const updated = updateResult.rows[0];
+      // Update canonical status on profiles table
+      const suspUntil = newStatus === "SUSPENDED" ? (suspendedUntil || null) : null;
+      const updated = await profileModel.updateAccountStatus(profileId, newStatus, suspUntil, client);
       if (!updated)
-        throw new AppError(
-          "Failed to update status. Subtype profile not found.",
-          404,
-        );
+        throw new AppError("Failed to update status.", 404);
 
+      // Set approved_date on subtype table when activating (if applicable)
+      if (newStatus === "ACTIVE") {
+        const subtypeTableMap = {
+          CUSTOMER: "customer_profiles",
+          AGENT: "agent_profiles",
+          MERCHANT: "merchant_profiles",
+          DISTRIBUTOR: "distributor_profiles",
+        };
+        const table = subtypeTableMap[type_name];
+        if (table) {
+          await client.query(
+            `UPDATE ${DB_SCHEMA}.${table} SET approved_date = CURRENT_TIMESTAMP WHERE profile_id = $1`,
+            [profileId],
+          );
+        }
+      }
+
+      // --- AGENT activation: assign to distributor ---
       if (type_name === "AGENT" && newStatus === "ACTIVE") {
         const agentLoc = await client.query(
           `SELECT district, area FROM ${DB_SCHEMA}.agent_profiles WHERE profile_id = $1`,
@@ -538,10 +544,10 @@ const adminService = {
         }
 
         const distributor = await client.query(
-          `SELECT da.profile_id
+          `SELECT da.profile_id, p.is_phone_verified
            FROM ${DB_SCHEMA}.distributor_areas da
-           JOIN ${DB_SCHEMA}.distributor_profiles dp ON dp.profile_id = da.profile_id
-           WHERE da.district = $1 AND da.area = $2 AND dp.status = 'ACTIVE'
+           JOIN ${DB_SCHEMA}.profiles p ON p.profile_id = da.profile_id
+           WHERE da.district = $1 AND da.area = $2 AND p.account_status = 'ACTIVE'
            LIMIT 1`,
           [district, area],
         );
@@ -553,18 +559,45 @@ const adminService = {
           );
         }
 
+        if (!distributor.rows[0].is_phone_verified) {
+          throw new AppError(
+            `The distributor for ${district} / ${area} has not verified their phone number yet. Agent approval requires a verified distributor.`,
+            400,
+          );
+        }
+
         await client.query(
-          `UPDATE ${DB_SCHEMA}.agent_profiles SET distributor_id = $1 WHERE profile_id = $2`,
+          `UPDATE ${DB_SCHEMA}.agent_profiles SET distributor_id = $1, b2b_suspended = FALSE WHERE profile_id = $2`,
           [distributor.rows[0].profile_id, profileId],
+        );
+      }
+
+      // --- DISTRIBUTOR block: release areas + suspend connected agents' B2B ---
+      if (type_name === "DISTRIBUTOR" && newStatus === "BLOCKED") {
+        const connectedAgents = await profileModel.getAgentsByDistributor(profileId, client);
+        for (const agent of connectedAgents) {
+          await profileModel.suspendAgentB2B(agent.profile_id, client);
+        }
+
+        await client.query(
+          `DELETE FROM ${DB_SCHEMA}.distributor_areas WHERE profile_id = $1`,
+          [profileId],
+        );
+      }
+
+      // --- ACTIVE from SUSPENDED: clear suspension fields ---
+      if (newStatus === "ACTIVE" && currentStatus === "SUSPENDED") {
+        await client.query(
+          `UPDATE ${DB_SCHEMA}.agent_profiles SET b2b_suspended = FALSE WHERE profile_id = $1`,
+          [profileId],
         );
       }
 
       await client.query("COMMIT");
 
-      adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'UPDATE_USER_STATUS', targetProfileId: profileId, ip: ctx?.ip, metadata: { newStatus, typeName: type_name } });
-      auditLogService.logAudit({ eventType: 'UPDATE_USER_STATUS', actorId: null, actorType: 'ADMIN', summary: `Admin set ${type_name} #${profileId} status to ${updated.status}` });
+      auditLogService.logAudit({ eventType: 'UPDATE_USER_STATUS', actorId: null, actorType: 'ADMIN', summary: `Admin changed ${type_name} ${phone_number} status to ${newStatus}` });
 
-      return { profileId, typeName: type_name, newStatus: updated.status };
+      return { profileId, typeName: type_name, newStatus };
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
@@ -577,10 +610,24 @@ const adminService = {
     return adminModel.getAllTransactions(filters);
   },
 
+  async getTransactionDetail(transactionId) {
+    const detail = await adminModel.getTransactionDetail(transactionId);
+    if (!detail) throw new AppError("Transaction not found.", 404);
+    return detail;
+  },
+
   // ── Transaction Reversal ─────────────────────────────────────
 
   /**
-   * Reverse a completed transaction by inverting all ledger lines (and wallet balances).
+   * Reverse a completed transaction by routing all legs through the Adjustment wallet.
+   *
+   * For each original ledger entry:
+   *   - Original CREDIT on wallet X → DEBIT X, CREDIT Adjustment
+   *   - Original DEBIT  on wallet X → CREDIT X, DEBIT Adjustment
+   *
+   * Original CREDITs are processed first so the Adjustment wallet accumulates
+   * a positive balance before it is debited (ensuring no insufficient-balance errors).
+   * After all legs, the Adjustment wallet nets to zero (pure pass-through).
    */
   async reverseTransaction(transactionId, ctx) {
     const original = await adminModel.getTransactionForReversal(transactionId);
@@ -588,6 +635,27 @@ const adminService = {
     if (original.status !== "COMPLETED") {
       throw new AppError(
         `Cannot reverse a transaction with status: ${original.status}`,
+        400,
+      );
+    }
+    // System wallets used for guards or reversal legs
+    const treasuryWallet = await walletModel.findByRole(WALLET_ROLES.TREASURY);
+    const adjustmentWallet = await walletModel.findByRole(WALLET_ROLES.ADJUSTMENT);
+    const revenueWallet = await walletModel.findByRole(WALLET_ROLES.REVENUE);
+
+    if (!adjustmentWallet) throw new AppError("Adjustment wallet not found.", 500);
+
+    if (original.type_name === "CASH_OUT") {
+      throw new AppError(
+        "Cannot reverse a Cash Out transaction.",
+        400,
+      );
+    }
+    
+    // Block CASH_IN reversals only if they originate from Treasury (Admin Load)
+    if (original.type_name === "CASH_IN" && treasuryWallet && original.sender_wallet_id === treasuryWallet.wallet_id) {
+      throw new AppError(
+        "Cannot reverse a Cash In (Admin Load) transaction.",
         400,
       );
     }
@@ -607,32 +675,18 @@ const adminService = {
     try {
       await client.query("BEGIN");
 
-      const walletIds = [...new Set(entries.map((e) => e.wallet_id))].sort(
-        (a, b) => a - b,
-      );
+      // AUTHORIZE INTERNAL SYSTEM OPERATION
+      await client.query("SELECT set_config('app.internal_op', 'true', true)");
+
+      // Lock all involved wallets (original + adjustment) in sorted order
+      const walletIds = [
+        ...new Set([...entries.map((e) => e.wallet_id), adjustmentWallet.wallet_id]),
+      ].sort((a, b) => a - b);
       for (const wid of walletIds) {
         await walletModel.findByWalletIdForUpdate(client, wid);
       }
 
-      const reversalBalances = new Map();
-      for (const e of entries) {
-        const amt = parseFloat(e.amount);
-        if (e.entry_type === "DEBIT") {
-          const r = await walletModel.credit(client, e.wallet_id, amt);
-          reversalBalances.set(`${e.wallet_id}_${e.id}`, { before_balance: r.before_balance, after_balance: r.after_balance });
-        } else {
-          try {
-            const r = await walletModel.debit(client, e.wallet_id, amt);
-            reversalBalances.set(`${e.wallet_id}_${e.id}`, { before_balance: r.before_balance, after_balance: r.after_balance });
-          } catch {
-            throw new AppError(
-              `Cannot reverse: insufficient balance on wallet ${e.wallet_id} to undo credit of ৳${amt.toFixed(2)}.`,
-              400,
-            );
-          }
-        }
-      }
-
+      // Create reversal transaction record
       let txRef;
       let reversalTxId;
       try {
@@ -668,21 +722,80 @@ const adminService = {
         throw e;
       }
 
-      for (const e of entries) {
+      // Sort: process original CREDITs first (→ debits on original wallets, credits on adjustment)
+      // then original DEBITs (→ credits on original wallets, debits on adjustment)
+      // This ensures adjustment accumulates balance before it's debited.
+      const sortedEntries = [...entries].sort((a, b) => {
+        if (a.entry_type === "CREDIT" && b.entry_type === "DEBIT") return -1;
+        if (a.entry_type === "DEBIT" && b.entry_type === "CREDIT") return 1;
+        return 0;
+      });
+
+      for (const e of sortedEntries) {
         const amt = parseFloat(e.amount);
-        const inv = e.entry_type === "DEBIT" ? "CREDIT" : "DEBIT";
-        const bal = reversalBalances.get(`${e.wallet_id}_${e.id}`) || {};
-        await ledgerModel.createLedgerEntry(client, {
-          transactionId: reversalTxId,
-          walletId: e.wallet_id,
-          entryType: inv,
-          amount: amt,
-          description: `Reversal Entry - Original Txn #${transactionId}`,
-          beforeBalance: bal.before_balance,
-          afterBalance: bal.after_balance,
-        });
+        const isDebit = e.entry_type === "DEBIT";
+
+        if (isDebit) {
+          // Original was DEBIT on wallet → CREDIT wallet, DEBIT Adjustment
+          const walletResult = await walletModel.credit(client, e.wallet_id, amt);
+          await ledgerModel.createLedgerEntry(client, {
+            transactionId: reversalTxId,
+            walletId: e.wallet_id,
+            entryType: "CREDIT",
+            amount: amt,
+            description: `Reversal: refund (ref: ${original.transaction_ref})`,
+            beforeBalance: walletResult.before_balance,
+            afterBalance: walletResult.after_balance,
+          });
+
+          const adjResult = await walletModel.debit(client, adjustmentWallet.wallet_id, amt);
+          await ledgerModel.createLedgerEntry(client, {
+            transactionId: reversalTxId,
+            walletId: adjustmentWallet.wallet_id,
+            entryType: "DEBIT",
+            amount: amt,
+            description: `Reversal: adjustment pass-through (ref: ${original.transaction_ref})`,
+            beforeBalance: adjResult.before_balance,
+            afterBalance: adjResult.after_balance,
+          });
+        } else {
+          // Original was CREDIT on wallet → DEBIT wallet, CREDIT Adjustment
+          // Revenue wallet (wallet 2) is allowed to go negative during reversals
+          const isRevenueWallet = revenueWallet && e.wallet_id === revenueWallet.wallet_id;
+          try {
+            const walletResult = isRevenueWallet
+              ? await walletModel.debitUnchecked(client, e.wallet_id, amt)
+              : await walletModel.debit(client, e.wallet_id, amt);
+            await ledgerModel.createLedgerEntry(client, {
+              transactionId: reversalTxId,
+              walletId: e.wallet_id,
+              entryType: "DEBIT",
+              amount: amt,
+              description: `Reversal: recover (ref: ${original.transaction_ref})`,
+              beforeBalance: walletResult.before_balance,
+              afterBalance: walletResult.after_balance,
+            });
+          } catch {
+            throw new AppError(
+              `Cannot reverse: insufficient balance on wallet ${e.wallet_id} to undo credit of ৳${amt.toFixed(2)}.`,
+              400,
+            );
+          }
+
+          const adjResult = await walletModel.credit(client, adjustmentWallet.wallet_id, amt);
+          await ledgerModel.createLedgerEntry(client, {
+            transactionId: reversalTxId,
+            walletId: adjustmentWallet.wallet_id,
+            entryType: "CREDIT",
+            amount: amt,
+            description: `Reversal: adjustment pass-through (Original Txn #${transactionId})`,
+            beforeBalance: adjResult.before_balance,
+            afterBalance: adjResult.after_balance,
+          });
+        }
       }
 
+      // Mark original transaction as REVERSED
       await client.query(
         `UPDATE ${DB_SCHEMA}.transactions SET status = 'REVERSED' WHERE transaction_id = $1`,
         [transactionId],
@@ -690,8 +803,7 @@ const adminService = {
 
       await client.query("COMMIT");
 
-      adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'REVERSE_TRANSACTION', ip: ctx?.ip, amount, metadata: { originalTransactionId: transactionId, reversalTransactionId: reversalTxId, reversalRef: txRef } });
-      auditLogService.logAudit({ eventType: 'REVERSE_TRANSACTION', actorId: null, actorType: 'ADMIN', summary: `Admin reversed transaction #${transactionId} (৳${amount})`, relatedTransactionId: reversalTxId });
+      auditLogService.logAudit({ eventType: 'REVERSE_TRANSACTION', actorId: null, actorType: 'ADMIN', summary: `Admin reversed transaction (ref: ${original.transaction_ref}) (৳${amount})`, relatedTransactionId: reversalTxId });
 
       return {
         originalTransactionId: transactionId,
@@ -729,7 +841,6 @@ const adminService = {
     if (!result)
       throw new AppError("Transaction type not found or no valid fields.", 404);
 
-    adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'UPDATE_TRANSACTION_TYPE', targetEntity: 'transaction_type', ip: ctx?.ip, metadata: { typeId, changes: filtered } });
 
     return result;
   },
@@ -740,7 +851,6 @@ const adminService = {
 
   async upsertTransactionLimit(data, ctx) {
     const result = await adminModel.upsertTransactionLimit(data);
-    adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'UPSERT_LIMIT', targetEntity: 'transaction_limit', ip: ctx?.ip, metadata: data });
     return result;
   },
 
@@ -750,7 +860,6 @@ const adminService = {
       transactionTypeId,
     );
     if (!result) throw new AppError("Limit not found.", 404);
-    adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'DELETE_LIMIT', targetEntity: 'transaction_limit', ip: ctx?.ip, metadata: { profileTypeId, transactionTypeId } });
     return result;
   },
 
@@ -760,7 +869,6 @@ const adminService = {
 
   async upsertCommissionPolicy(data, ctx) {
     const result = await adminModel.upsertCommissionPolicy(data);
-    adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'UPSERT_COMMISSION', targetEntity: 'commission_policy', ip: ctx?.ip, metadata: data });
     return result;
   },
 
@@ -770,7 +878,6 @@ const adminService = {
       transactionTypeId,
     );
     if (!result) throw new AppError("Policy not found.", 404);
-    adminActionLogService.logAction({ adminId: ctx?.adminId, action: 'DELETE_COMMISSION', targetEntity: 'commission_policy', ip: ctx?.ip, metadata: { profileTypeId, transactionTypeId } });
     return result;
   },
 

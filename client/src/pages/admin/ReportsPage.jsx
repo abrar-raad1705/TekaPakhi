@@ -4,6 +4,14 @@ import { formatBDT } from "../../utils/formatCurrency";
 import AdminLayout from "../../components/admin/AdminLayout";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import { toast } from "sonner";
+import { DatePicker } from "../../components/ui/date-picker";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../components/ui/select";
 
 export default function ReportsPage() {
   const [reportType, setReportType] = useState("transactions");
@@ -65,60 +73,57 @@ export default function ReportsPage() {
 
       {/* Controls */}
       <div className="mb-6 flex flex-wrap items-end gap-4 rounded-xl border border-gray-200 bg-white p-5">
-        <div>
+        <div className="w-[180px]">
           <label className="mb-1 block text-xs font-medium text-gray-500">
             Report Type
           </label>
-          <select
-            value={reportType}
-            onChange={(e) => {
-              setReportType(e.target.value);
-              setData(null);
-            }}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none"
-          >
-            <option value="transactions">Transaction Volume</option>
-            <option value="users">User Growth</option>
-          </select>
+          <Select value={reportType} onValueChange={(val) => { setReportType(val); setData(null); }}>
+             <SelectTrigger className="w-full bg-white h-[38px]">
+               <SelectValue placeholder="Report Type" />
+             </SelectTrigger>
+             <SelectContent>
+               <SelectItem value="transactions">Transaction Volume</SelectItem>
+               <SelectItem value="users">User Growth</SelectItem>
+             </SelectContent>
+          </Select>
         </div>
 
-        <div>
+        <div className="w-[210px]">
           <label className="mb-1 block text-xs font-medium text-gray-500">
             From
           </label>
-          <input
-            type="date"
+          <DatePicker 
             value={fromDate}
-            onChange={(e) => setFromDate(e.target.value)}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none"
+            onChange={(val) => setFromDate(val || '')}
+            placeholder="Start Date"
           />
         </div>
 
-        <div>
+        <div className="w-[210px]">
           <label className="mb-1 block text-xs font-medium text-gray-500">
             To
           </label>
-          <input
-            type="date"
+          <DatePicker 
             value={toDate}
-            onChange={(e) => setToDate(e.target.value)}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none"
+            onChange={(val) => setToDate(val || '')}
+            placeholder="End Date"
           />
         </div>
 
-        <div>
+        <div className="w-[150px]">
           <label className="mb-1 block text-xs font-medium text-gray-500">
             Group By
           </label>
-          <select
-            value={groupBy}
-            onChange={(e) => setGroupBy(e.target.value)}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none"
-          >
-            <option value="day">Day</option>
-            <option value="week">Week</option>
-            <option value="month">Month</option>
-          </select>
+          <Select value={groupBy} onValueChange={(val) => setGroupBy(val)}>
+             <SelectTrigger className="w-full bg-white h-[38px]">
+               <SelectValue placeholder="Group By" />
+             </SelectTrigger>
+             <SelectContent>
+               <SelectItem value="day">Day</SelectItem>
+               <SelectItem value="week">Week</SelectItem>
+               <SelectItem value="month">Month</SelectItem>
+             </SelectContent>
+          </Select>
         </div>
 
         <button

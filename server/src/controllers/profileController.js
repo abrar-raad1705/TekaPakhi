@@ -14,12 +14,37 @@ const profileController = {
         throw new AppError('No account found with this phone number.', 404);
       }
 
+      // Cash out: customer/merchant paying an agent — block if agent lost distributor (commission chain)
+      const callerType = req.user?.typeName;
+      if (
+        profile.type_name === 'AGENT' &&
+        ['CUSTOMER', 'MERCHANT'].includes(callerType)
+      ) {
+        const statusRow = await profileModel.getAccountStatus(profile.profile_id);
+        if (statusRow?.account_status !== 'ACTIVE') {
+          throw new AppError(
+            'This agent cannot process cash out right now. Please try another agent.',
+            403,
+            { code: 'CASH_OUT_AGENT_UNAVAILABLE' },
+          );
+        }
+        const link = await profileModel.getAgentDistributorId(profile.profile_id);
+        if (!link || link.b2bSuspended) {
+          throw new AppError(
+            'This agent cannot process cash out right now. Please try another agent.',
+            403,
+            { code: 'CASH_OUT_AGENT_UNAVAILABLE' },
+          );
+        }
+      }
+
       res.status(200).json({
         success: true,
         data: {
           fullName: profile.full_name,
           phoneNumber: profile.phone_number,
           typeName: profile.type_name,
+          accountStatus: profile.account_status,
           profilePictureUrl: profile.profile_picture_url ?? null,
         },
       });
@@ -87,10 +112,10 @@ const profileController = {
       const result = await pool.query(
         `SELECT p.profile_id, p.full_name, p.phone_number, p.profile_picture_url,
                 b.service_name, b.biller_type, b.sender_charge_flat,
-                b.sender_charge_percent, b.status
+                b.sender_charge_percent, p.account_status
          FROM ${DB_SCHEMA}.biller_profiles b
          JOIN ${DB_SCHEMA}.profiles p ON b.profile_id = p.profile_id
-         WHERE b.status = 'ACTIVE'
+         WHERE p.account_status = 'ACTIVE'
          ORDER BY b.biller_type, b.service_name`
       );
       res.json({ success: true, data: result.rows });

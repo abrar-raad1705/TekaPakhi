@@ -51,6 +51,9 @@ export default function TransactionDetailPanel({ tx, user, onClose }) {
     ? { name: tx.receiver_name, phone: formatPhone(tx.receiver_phone) }
     : { name: tx.sender_name, phone: formatPhone(tx.sender_phone) };
 
+  const canDownloadReceipt =
+    tx.status !== "REVERSED" && !tx.original_transaction_id;
+
   const copyTransactionRef = useCallback(async () => {
     if (!tx?.transaction_ref) return;
     try {
@@ -126,19 +129,21 @@ export default function TransactionDetailPanel({ tx, user, onClose }) {
           {/* Actions */}
           <div className="flex items-center gap-2">
             {/* Download */}
-            <button
-              type="button"
-              onClick={handleDownloadPdf}
-              disabled={pdfLoading}
-              title="Download Receipt"
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-primary-600 transition-all duration-200 hover:bg-primary-50 hover:scale-105 hover:shadow-sm hover: disabled:opacity-50"
-            >
-              {pdfLoading ? (
-                <LoadingSpinner size="sm" />
-              ) : (
-                <ArrowDownTrayIcon className="h-5 w-5" strokeWidth={2} />
-              )}
-            </button>
+            {canDownloadReceipt && (
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                disabled={pdfLoading}
+                title="Download Receipt"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-primary-600 transition-all duration-200 hover:bg-primary-50 hover:scale-105 hover:shadow-sm hover: disabled:opacity-50"
+              >
+                {pdfLoading ? (
+                  <LoadingSpinner size="sm" />
+                ) : (
+                  <ArrowDownTrayIcon className="h-5 w-5" strokeWidth={2} />
+                )}
+              </button>
+            )}
 
             {/* Close (X) */}
             <button

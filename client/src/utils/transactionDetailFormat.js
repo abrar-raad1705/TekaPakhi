@@ -6,6 +6,7 @@ export const typeLabels = {
   PAY_BILL: "Pay Bill",
   B2B: "B2B Transfer",
   COMMISSION: "Commission",
+  REVERSAL: "Reversal",
 };
 
 export function formatTaka(n) {
@@ -32,6 +33,9 @@ export function formatReceiptTime(iso) {
 }
 
 export function headerTitle(tx, isSender) {
+  if (tx.original_transaction_id) {
+    return isSender ? "Reversal Out" : "Reversal In";
+  }
   if (tx.type_name === "SEND_MONEY") {
     return isSender ? "Send Money" : "Received Money";
   }

@@ -3,7 +3,7 @@ import env from '../config/env.js';
 import AppError from '../utils/AppError.js';
 
 /**
- * Verifies JWT issued by POST /api/v1/root/login (role: ADMIN).
+ * Verifies JWT issued by POST /api/v1/admin/login (role: ADMIN).
  */
 const adminAuthenticate = (req, res, next) => {
   try {

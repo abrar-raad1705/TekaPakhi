@@ -26,3 +26,5 @@ Thumbs.db
 
 # uploads
 server/uploads/
+
+.cursor/

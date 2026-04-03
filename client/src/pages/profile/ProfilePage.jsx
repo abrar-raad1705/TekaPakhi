@@ -62,7 +62,7 @@ export default function ProfilePage() {
     : null;
 
   return (
-    <div className="flex min-h-dvh flex-col bg-white overflow-x-hidden pb-10 animate-in fade-in duration-500">
+    <div className="flex min-h-dvh flex-col bg-white overflow-x-hidden pb-24 animate-in fade-in duration-500">
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8 md:py-16">
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-12">
 

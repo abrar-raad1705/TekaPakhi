@@ -51,6 +51,8 @@ export default function B2BTransferPage() {
   const [loadingAgents, setLoadingAgents] = useState(false);
   const [lookupError, setLookupError] = useState("");
   const [loadingDistributor, setLoadingDistributor] = useState(isAgent);
+  const [b2bSuspendedMsg, setB2bSuspendedMsg] = useState(null);
+  const [stepError, setStepError] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -78,8 +80,16 @@ export default function B2BTransferPage() {
         });
         setForm((p) => ({ ...p, receiverPhone: d.target_phone }));
       } catch (e) {
-        console.error("Failed to load connected distributor", e);
-        toast.error("Failed to load connected distributor");
+        const code = e.response?.data?.data?.code;
+        if (code === "B2B_SUSPENDED") {
+          setB2bSuspendedMsg(
+            e.response?.data?.message ||
+            "Your distributor account has been blocked. B2B transfers are temporarily unavailable until a new distributor is assigned to your area."
+          );
+        } else {
+          console.error("Failed to load connected distributor", e);
+          toast.error("Failed to load connected distributor");
+        }
       } finally {
         setLoadingDistributor(false);
       }
@@ -178,6 +188,7 @@ export default function B2BTransferPage() {
     if (!recipient) return toast.error("Look up an agent first");
 
     setLoading(true);
+    setStepError("");
     try {
       const { data } = await transactionApi.preview("B2B", {
         receiverPhone: form.receiverPhone,
@@ -202,7 +213,13 @@ export default function B2BTransferPage() {
       setStep("review");
       setTimeout(() => pinInputRef.current?.focus(), 100);
     } catch (error) {
-      toast.error(error.response?.data?.message || "Preview failed");
+      const msg = error.response?.data?.message || "Preview failed";
+      const code = error.response?.data?.data?.code;
+      if (code === "RECEIVER_SUSPENDED" || code === "RECEIVER_BLOCKED") {
+        setStepError(msg);
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -212,6 +229,7 @@ export default function B2BTransferPage() {
     if (form.pin.length !== 5) return toast.error("PIN must be 5 digits");
 
     setLoading(true);
+    setStepError("");
     try {
       const { data } = await transactionApi.b2b({
         receiverPhone: form.receiverPhone,
@@ -231,7 +249,8 @@ export default function B2BTransferPage() {
   const amountNum = parseFloat(form.amount);
   const hasValidAmount = Number.isFinite(amountNum) && amountNum > 0;
   const amountExceedsBalance = Number.isFinite(amountNum) && amountNum > walletBalance;
-  const canProceedAmountStep = !loading && hasValidAmount && !amountExceedsBalance;
+  const isBelowMinB2B = Number.isFinite(amountNum) && amountNum > 0 && amountNum < 5000;
+  const canProceedAmountStep = !loading && hasValidAmount && !amountExceedsBalance && !isBelowMinB2B;
 
   if (step === "receipt" && receipt) {
     return <TransactionReceipt receipt={receipt} />;
@@ -248,6 +267,28 @@ export default function B2BTransferPage() {
       >
         <div className="flex justify-center py-16">
           <LoadingSpinner size="lg" />
+        </div>
+      </TransactionFlowLayout>
+    );
+  }
+
+  if (isAgent && b2bSuspendedMsg) {
+    return (
+      <TransactionFlowLayout
+        icon={ArrowPathIcon}
+        title="B2B Float Transfer"
+        subtitle="Transfer float to your connected distributor."
+        steps={flowSteps}
+        currentStepKey={step}
+      >
+        <div className="flex flex-col items-center gap-4 py-12 px-4 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-50">
+            <LockClosedIcon className="h-7 w-7 text-amber-600" />
+          </div>
+          <h3 className="text-lg font-bold text-gray-900">B2B Transfer Unavailable</h3>
+          <p className="max-w-sm text-sm text-gray-600 leading-relaxed">
+            {b2bSuspendedMsg}
+          </p>
         </div>
       </TransactionFlowLayout>
     );
@@ -434,6 +475,7 @@ export default function B2BTransferPage() {
                       const val = e.target.value;
                       if (/^\d*\.?\d*$/.test(val)) {
                         setForm((p) => ({ ...p, amount: val }));
+                        setStepError("");
                       }
                     }}
                     placeholder="0"
@@ -458,6 +500,12 @@ export default function B2BTransferPage() {
               )}
               {amountExceedsBalance && (
                 <p className="mt-2 text-sm font-medium text-red-500">Insufficient balance</p>
+              )}
+              {isBelowMinB2B && (
+                <p className="mt-2 text-sm font-medium text-red-500">Minimum transfer amount is ৳5,000</p>
+              )}
+              {stepError && (
+                <p className="mt-2 text-sm font-medium text-red-500">{stepError}</p>
               )}
             </div>
 
@@ -513,8 +561,8 @@ export default function B2BTransferPage() {
                 </span>
               </div>
             )}
-            <div className="my-2 h-px bg-gray-100" />
-            <div className="flex items-center justify-between text-lg">
+            <div className="my-2 h-px bg-gray-300" />
+            <div className="flex items-center justify-between text-[15px]">
               <span className="font-bold text-gray-500">Total Debit</span>
               <span className="font-black text-primary-600">{formatBDT(preview.totalDebit)}</span>
             </div>

@@ -73,6 +73,7 @@ const adminModel = {
       `SELECT p.profile_id, p.phone_number, p.full_name, pt.type_name, p.registration_date
        FROM ${DB_SCHEMA}.profiles p
        JOIN ${DB_SCHEMA}.profile_types pt ON p.type_id = pt.type_id
+       WHERE pt.type_name != 'SYSTEM'
        ORDER BY p.registration_date DESC
        LIMIT $1`,
       [count],
@@ -85,7 +86,7 @@ const adminModel = {
   async getUsers({ page = 1, limit = 20, search, typeId, status }) {
     const params = [];
     let paramIdx = 1;
-    let whereExtra = "";
+    let whereExtra = " AND pt.type_name != 'SYSTEM'";
 
     if (search) {
       whereExtra += ` AND (p.phone_number ILIKE $${paramIdx} OR p.full_name ILIKE $${paramIdx})`;
@@ -100,22 +101,16 @@ const adminModel = {
 
     const offset = (page - 1) * limit;
 
-    // We use COALESCE across subtype tables to get the account status
     const dataQuery = `
       SELECT p.profile_id, p.phone_number, p.full_name, p.email,
              p.profile_picture_url, p.is_phone_verified, p.registration_date, p.type_id,
              pt.type_name, w.balance,
-             COALESCE(cp.status, ap.status, mp.status, dp.status, bp.status)::text AS account_status
+             p.account_status
       FROM ${DB_SCHEMA}.profiles p
       JOIN ${DB_SCHEMA}.profile_types pt ON p.type_id = pt.type_id
       LEFT JOIN ${DB_SCHEMA}.wallets w ON p.profile_id = w.profile_id
-      LEFT JOIN ${DB_SCHEMA}.customer_profiles cp ON p.profile_id = cp.profile_id AND p.type_id = 1
-      LEFT JOIN ${DB_SCHEMA}.agent_profiles ap ON p.profile_id = ap.profile_id AND p.type_id = 2
-      LEFT JOIN ${DB_SCHEMA}.merchant_profiles mp ON p.profile_id = mp.profile_id AND p.type_id = 3
-      LEFT JOIN ${DB_SCHEMA}.distributor_profiles dp ON p.profile_id = dp.profile_id AND p.type_id = 4
-      LEFT JOIN ${DB_SCHEMA}.biller_profiles bp ON p.profile_id = bp.profile_id AND p.type_id = 5
       WHERE 1=1 ${whereExtra}
-      ${status ? `AND COALESCE(cp.status, ap.status, mp.status, dp.status, bp.status)::text = $${paramIdx}` : ""}
+      ${status ? `AND p.account_status::text = $${paramIdx}` : ""}
       ORDER BY p.registration_date DESC
       LIMIT $${status ? paramIdx + 1 : paramIdx} OFFSET $${status ? paramIdx + 2 : paramIdx + 1}`;
 
@@ -127,13 +122,8 @@ const adminModel = {
       SELECT COUNT(*)::int AS total
       FROM ${DB_SCHEMA}.profiles p
       JOIN ${DB_SCHEMA}.profile_types pt ON p.type_id = pt.type_id
-      LEFT JOIN ${DB_SCHEMA}.customer_profiles cp ON p.profile_id = cp.profile_id AND p.type_id = 1
-      LEFT JOIN ${DB_SCHEMA}.agent_profiles ap ON p.profile_id = ap.profile_id AND p.type_id = 2
-      LEFT JOIN ${DB_SCHEMA}.merchant_profiles mp ON p.profile_id = mp.profile_id AND p.type_id = 3
-      LEFT JOIN ${DB_SCHEMA}.distributor_profiles dp ON p.profile_id = dp.profile_id AND p.type_id = 4
-      LEFT JOIN ${DB_SCHEMA}.biller_profiles bp ON p.profile_id = bp.profile_id AND p.type_id = 5
       WHERE 1=1 ${whereExtra}
-      ${status ? `AND COALESCE(cp.status, ap.status, mp.status, dp.status, bp.status)::text = $${paramIdx}` : ""}`;
+      ${status ? `AND p.account_status::text = $${paramIdx}` : ""}`;
 
     const countParams = [...params];
     if (status) countParams.push(status);
@@ -232,7 +222,7 @@ const adminModel = {
       linkedData.areas = areasResult.rows;
 
       const agentsResult = await pool.query(
-        `SELECT p.profile_id, p.full_name, p.phone_number, p.profile_picture_url, ap.agent_code, ap.shop_name, ap.status
+        `SELECT p.profile_id, p.full_name, p.phone_number, p.profile_picture_url, ap.agent_code, ap.shop_name, p.account_status
          FROM ${DB_SCHEMA}.agent_profiles ap
          JOIN ${DB_SCHEMA}.profiles p ON ap.profile_id = p.profile_id
          WHERE ap.distributor_id = $1`,
@@ -251,29 +241,30 @@ const adminModel = {
 
   async updateUserStatus(profileId, typeName, newStatus, client = null) {
     const db = client || pool;
-    const tableMap = {
-      CUSTOMER: "customer_profiles",
-      AGENT: "agent_profiles",
-      MERCHANT: "merchant_profiles",
-      DISTRIBUTOR: "distributor_profiles",
-      BILLER: "biller_profiles",
-    };
-    const table = tableMap[typeName];
-    if (!table) return null;
-
-    // biller_profiles has no approved_date column
-    const hasApprovedDate = typeName !== "BILLER";
-    const approvedClause =
-      newStatus === "ACTIVE" && hasApprovedDate
-        ? ", approved_date = CURRENT_TIMESTAMP"
-        : "";
     const result = await db.query(
-      `UPDATE ${DB_SCHEMA}.${table}
-       SET status = $1 ${approvedClause}
+      `UPDATE ${DB_SCHEMA}.profiles
+       SET account_status = $1
        WHERE profile_id = $2
        RETURNING *`,
       [newStatus, profileId],
     );
+
+    if (newStatus === "ACTIVE") {
+      const subtypeTableMap = {
+        CUSTOMER: "customer_profiles",
+        AGENT: "agent_profiles",
+        MERCHANT: "merchant_profiles",
+        DISTRIBUTOR: "distributor_profiles",
+      };
+      const table = subtypeTableMap[typeName];
+      if (table) {
+        await db.query(
+          `UPDATE ${DB_SCHEMA}.${table} SET approved_date = CURRENT_TIMESTAMP WHERE profile_id = $1`,
+          [profileId],
+        );
+      }
+    }
+
     return result.rows[0] || null;
   },
 
@@ -361,6 +352,71 @@ const adminModel = {
       page,
       limit,
       totalPages: Math.ceil(countResult.rows[0].total / limit),
+    };
+  },
+
+  async getTransactionDetail(transactionId) {
+    const [headerRes, auditRes, ledgerRes] = await Promise.all([
+      // 1. Transaction header with sender/receiver details
+      pool.query(
+        `SELECT t.transaction_id, t.transaction_ref, t.amount, t.fee_amount, t.status,
+                t.transaction_time, t.user_note, t.original_transaction_id,
+                tt.type_name,
+                orig_t.transaction_ref AS original_transaction_ref,
+                t.sender_wallet_id, t.receiver_wallet_id,
+                sp.profile_id AS sender_profile_id, sp.full_name AS sender_name,
+                sp.phone_number AS sender_phone, spt.type_name AS sender_type,
+                rp.profile_id AS receiver_profile_id, rp.full_name AS receiver_name,
+                rp.phone_number AS receiver_phone, rpt.type_name AS receiver_type
+         FROM ${DB_SCHEMA}.transactions t
+         JOIN ${DB_SCHEMA}.transaction_types tt ON t.type_id = tt.type_id
+         JOIN ${DB_SCHEMA}.wallets sw ON t.sender_wallet_id = sw.wallet_id
+         JOIN ${DB_SCHEMA}.profiles sp ON sw.profile_id = sp.profile_id
+         JOIN ${DB_SCHEMA}.profile_types spt ON sp.type_id = spt.type_id
+         JOIN ${DB_SCHEMA}.wallets rw ON t.receiver_wallet_id = rw.wallet_id
+         JOIN ${DB_SCHEMA}.profiles rp ON rw.profile_id = rp.profile_id
+         JOIN ${DB_SCHEMA}.profile_types rpt ON rp.type_id = rpt.type_id
+         LEFT JOIN ${DB_SCHEMA}.transactions orig_t ON t.original_transaction_id = orig_t.transaction_id
+         WHERE t.transaction_id = $1`,
+        [transactionId],
+      ),
+
+      // 2. Audit logs referencing this transaction
+      pool.query(
+        `SELECT al.id AS audit_id, al.event_type, al.actor_id, al.actor_type,
+                al.summary, al.details, al.created_at,
+                p.full_name AS actor_name, p.phone_number AS actor_phone
+         FROM ${DB_SCHEMA}.audit_logs al
+         LEFT JOIN ${DB_SCHEMA}.profiles p ON al.actor_id = p.profile_id
+         WHERE al.related_transaction_id = $1
+         ORDER BY al.created_at ASC`,
+        [transactionId],
+      ),
+
+      // 3. Ledger entries with profile name for each wallet
+      pool.query(
+        `SELECT le.id, le.entry_type, le.amount, le.description,
+                le.before_balance, le.after_balance, le.created_at,
+                le.wallet_id,
+                p.full_name AS wallet_owner_name, p.phone_number AS wallet_owner_phone,
+                pt.type_name AS wallet_owner_type,
+                w.role AS wallet_role
+         FROM ${DB_SCHEMA}.ledger_entries le
+         JOIN ${DB_SCHEMA}.wallets w ON le.wallet_id = w.wallet_id
+         JOIN ${DB_SCHEMA}.profiles p ON w.profile_id = p.profile_id
+         JOIN ${DB_SCHEMA}.profile_types pt ON p.type_id = pt.type_id
+         WHERE le.transaction_id = $1
+         ORDER BY le.id ASC`,
+        [transactionId],
+      ),
+    ]);
+
+    if (headerRes.rows.length === 0) return null;
+
+    return {
+      transaction: headerRes.rows[0],
+      auditLogs: auditRes.rows,
+      ledgerEntries: ledgerRes.rows,
     };
   },
 

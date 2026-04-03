@@ -27,7 +27,7 @@ function normalizeSessionUser(profile) {
     requiresPinSetup:
       (profile.type_name === 'DISTRIBUTOR' || profile.type_name === 'BILLER') &&
       subtypeData?.pending_pin_setup === true,
-    accountStatus: subtypeData?.status || ACTIVE_ACCOUNT_STATUS,
+    accountStatus: profile.account_status || subtypeData?.status || ACTIVE_ACCOUNT_STATUS,
     profilePictureUrl: profile.profile_picture_url ?? null,
   };
 }
@@ -71,7 +71,8 @@ export function AuthProvider({ children }) {
       return { success: true, data: data.data };
     } catch (error) {
       const message = error.response?.data?.message || 'Login failed';
-      return { success: false, message };
+      const errorData = error.response?.data?.data || null;
+      return { success: false, message, data: errorData };
     } finally {
       setLoading(false);
     }

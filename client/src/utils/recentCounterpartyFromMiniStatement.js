@@ -8,6 +8,9 @@ export function buildRecentCounterpartyFromMiniStatement(transactions, profileId
   const out = [];
   for (const tx of transactions || []) {
     if (tx.type_name !== typeName) continue;
+    // Reversals swap sender/receiver vs the original payment; skip so we don't list
+    // customers as "recent merchants" (or agents as recent cash-out contacts, etc.).
+    if (tx.original_transaction_id) continue;
     if (String(tx.sender_profile_id) !== pid) continue;
     const name = tx.receiver_name;
     const phoneRaw = tx.receiver_phone;
@@ -21,6 +24,7 @@ export function buildRecentCounterpartyFromMiniStatement(transactions, profileId
       name: name || 'Recipient',
       phone: digits,
       pictureUrl: pictureUrl ?? null,
+      account_status: tx.receiver_account_status,
     });
     if (out.length >= 10) break;
   }

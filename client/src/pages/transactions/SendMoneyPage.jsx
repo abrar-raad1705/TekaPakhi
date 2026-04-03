@@ -30,6 +30,7 @@ function buildRecentSendMoneyRecipients(transactions, profileId) {
   const out = [];
   for (const tx of transactions || []) {
     if (tx.type_name !== 'SEND_MONEY') continue;
+    if (tx.original_transaction_id) continue;
     const isSender = String(tx.sender_profile_id) === pid;
     const name = isSender ? tx.receiver_name : tx.sender_name;
     const phoneRaw = isSender ? tx.receiver_phone : tx.sender_phone;
@@ -76,6 +77,7 @@ export default function SendMoneyPage() {
   const [receipt, setReceipt] = useState(null);
   const [loading, setLoading] = useState(false);
   const pinInputRef = useRef(null);
+  const [stepError, setStepError] = useState('');
 
   const getInvalidRecipientMessage = (typeName) =>
     typeName
@@ -140,6 +142,10 @@ export default function SendMoneyPage() {
       toast.error('Invalid phone in link');
       return;
     }
+    if (digits === user?.phoneNumber) {
+      setLookupError('You cannot send money to yourself');
+      return;
+    }
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -148,6 +154,14 @@ export default function SendMoneyPage() {
         if (data.data.typeName !== SEND_MONEY_RECEIVER_TYPE) {
           if (cancelled) return;
           setLookupError(getInvalidRecipientMessage(data.data.typeName));
+          return;
+        }
+        if (data.data.accountStatus === 'SUSPENDED') {
+          setLookupError('This account is suspended and cannot participate in transactions.');
+          return;
+        }
+        if (data.data.accountStatus === 'BLOCKED') {
+          setLookupError('This account is blocked and cannot participate in transactions.');
           return;
         }
         if (cancelled) return;
@@ -177,11 +191,23 @@ export default function SendMoneyPage() {
       setLookupError('Enter a valid 11-digit mobile number to look up');
       return;
     }
+    if (phoneToLookup === user?.phoneNumber) {
+      setLookupError('You cannot send money to yourself');
+      return;
+    }
     setLoading(true);
     try {
       const { data } = await transactionApi.lookupRecipient(phoneToLookup);
       if (data.data.typeName !== SEND_MONEY_RECEIVER_TYPE) {
         setLookupError(getInvalidRecipientMessage(data.data.typeName));
+        return;
+      }
+      if (data.data.accountStatus === 'SUSPENDED') {
+        setLookupError('This account is suspended and cannot participate in transactions.');
+        return;
+      }
+      if (data.data.accountStatus === 'BLOCKED') {
+        setLookupError('This account is blocked and cannot participate in transactions.');
         return;
       }
       setRecipient({
@@ -226,6 +252,7 @@ export default function SendMoneyPage() {
     if (!baseAmount || baseAmount <= 0) return toast.error('Enter a valid amount');
 
     setLoading(true);
+    setStepError("");
     try {
       const { data } = await transactionApi.preview('SEND_MONEY', {
         receiverPhone: form.receiverPhone,
@@ -238,7 +265,19 @@ export default function SendMoneyPage() {
         if (pinInputRef.current) pinInputRef.current.focus();
       }, 100);
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Preview failed');
+      const msg = error.response?.data?.message || 'Preview failed';
+      const code = error.response?.data?.data?.code;
+
+      if (
+        code === 'RECEIVER_SUSPENDED' ||
+        code === 'RECEIVER_BLOCKED' ||
+        msg.toLowerCase().includes('self') ||
+        msg.toLowerCase().includes('yourself')
+      ) {
+        setStepError(msg);
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -248,6 +287,7 @@ export default function SendMoneyPage() {
     if (form.pin.length !== 5) return toast.error('PIN must be 5 digits');
 
     setLoading(true);
+    setStepError("");
     try {
       const { data } = await transactionApi.sendMoney({
         receiverPhone: form.receiverPhone,
@@ -538,6 +578,7 @@ export default function SendMoneyPage() {
                               // allow only numbers + decimal
                               if (/^\d*\.?\d*$/.test(val)) {
                                 setForm(p => ({ ...p, amount: val }));
+                                setStepError("");
                               }
                             }}
                             placeholder="0"
@@ -561,6 +602,11 @@ export default function SendMoneyPage() {
                       {amountExceedsBalance && (
                         <p className="mt-2 text-sm text-red-500 font-medium">
                           Insufficient balance
+                        </p>
+                      )}
+                      {stepError && (
+                        <p className="mt-2 text-sm text-red-500 font-medium">
+                          {stepError}
                         </p>
                       )}
                     </div>

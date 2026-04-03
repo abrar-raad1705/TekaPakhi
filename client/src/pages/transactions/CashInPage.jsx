@@ -30,6 +30,7 @@ const flowSteps = [
 
 export default function CashInPage() {
   const { user } = useAuth();
+  const isAgent = user?.typeName === "AGENT";
   const [step, setStep] = useState("recipient");
   const [form, setForm] = useState({ receiverPhone: "", amount: "", note: "", pin: "" });
   const [recipient, setRecipient] = useState(null);
@@ -38,6 +39,10 @@ export default function CashInPage() {
   const [loading, setLoading] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
   const pinInputRef = useRef(null);
+
+  const [loadingDistributor, setLoadingDistributor] = useState(isAgent);
+  const [b2bSuspendedMsg, setB2bSuspendedMsg] = useState(null);
+  const [stepError, setStepError] = useState("");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [recentRecipients, setRecentRecipients] = useState([]);
@@ -57,6 +62,29 @@ export default function CashInPage() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (!isAgent) return;
+    (async () => {
+      try {
+        await transactionApi.getB2BDistributor();
+        setB2bSuspendedMsg(null);
+      } catch (e) {
+        const code = e.response?.data?.data?.code;
+        if (code === "B2B_SUSPENDED") {
+          setB2bSuspendedMsg(
+            e.response?.data?.message ||
+              "Your distributor account has been blocked. Cash In is temporarily unavailable until a new distributor is assigned to your area.",
+          );
+        } else {
+          console.error("Failed to load distributor link for cash in", e);
+          toast.error("Failed to verify distributor link");
+        }
+      } finally {
+        setLoadingDistributor(false);
+      }
+    })();
+  }, [isAgent]);
 
   const fetchSavedCustomersForNicknames = async () => {
     setLoadingContacts(true);
@@ -116,6 +144,16 @@ export default function CashInPage() {
         setRecipient(null);
         return;
       }
+      if (profile.accountStatus === "SUSPENDED") {
+        setLookupError("This account is suspended and cannot participate in transactions.");
+        setRecipient(null);
+        return;
+      }
+      if (profile.accountStatus === "BLOCKED") {
+        setLookupError("This account is blocked and cannot participate in transactions.");
+        setRecipient(null);
+        return;
+      }
       setRecipient(profile);
       setForm((p) => ({ ...p, receiverPhone: phoneToLookup }));
       setSearchQuery("");
@@ -131,6 +169,14 @@ export default function CashInPage() {
   };
 
   const handleSelectRecent = (r) => {
+    if (r.account_status === "SUSPENDED") {
+      setLookupError("This account is suspended and cannot participate in transactions.");
+      return;
+    }
+    if (r.account_status === "BLOCKED") {
+      setLookupError("This account is blocked and cannot participate in transactions.");
+      return;
+    }
     setRecipient({
       fullName: r.name,
       profilePictureUrl: r.pictureUrl ?? null,
@@ -166,6 +212,7 @@ export default function CashInPage() {
     if (!recipient) return toast.error("Look up a customer first");
 
     setLoading(true);
+    setStepError("");
     try {
       const { data } = await transactionApi.preview("CASH_IN", {
         receiverPhone: form.receiverPhone,
@@ -175,7 +222,13 @@ export default function CashInPage() {
       setStep("review");
       setTimeout(() => pinInputRef.current?.focus(), 100);
     } catch (error) {
-      toast.error(error.response?.data?.message || "Preview failed");
+      const msg = error.response?.data?.message || "Preview failed";
+      const code = error.response?.data?.data?.code;
+      if (code === "RECEIVER_SUSPENDED" || code === "RECEIVER_BLOCKED") {
+        setStepError(msg);
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -185,6 +238,7 @@ export default function CashInPage() {
     if (form.pin.length !== 5) return toast.error("PIN must be 5 digits");
 
     setLoading(true);
+    setStepError("");
     try {
       const { data } = await transactionApi.cashIn({
         receiverPhone: form.receiverPhone,
@@ -208,6 +262,42 @@ export default function CashInPage() {
 
   if (step === "receipt" && receipt) {
     return <TransactionReceipt receipt={receipt} />;
+  }
+
+  if (isAgent && loadingDistributor) {
+    return (
+      <TransactionFlowLayout
+        icon={PlusCircleIcon}
+        title="Cash In"
+        subtitle="Verifying your distributor link..."
+        steps={flowSteps}
+        currentStepKey={step}
+      >
+        <div className="flex justify-center py-16">
+          <LoadingSpinner size="lg" />
+        </div>
+      </TransactionFlowLayout>
+    );
+  }
+
+  if (isAgent && b2bSuspendedMsg) {
+    return (
+      <TransactionFlowLayout
+        icon={PlusCircleIcon}
+        title="Cash In"
+        subtitle="Add funds to a customer wallet. For agents: verify the customer phone and the cash received."
+        steps={flowSteps}
+        currentStepKey={step}
+      >
+        <div className="flex flex-col items-center gap-4 px-4 py-12 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-50">
+            <LockClosedIcon className="h-7 w-7 text-amber-600" />
+          </div>
+          <h3 className="text-lg font-bold text-gray-900">Cash In unavailable</h3>
+          <p className="max-w-sm text-sm leading-relaxed text-gray-600">{b2bSuspendedMsg}</p>
+        </div>
+      </TransactionFlowLayout>
+    );
   }
 
   return (
@@ -375,6 +465,7 @@ export default function CashInPage() {
                       const val = e.target.value;
                       if (/^\d*\.?\d*$/.test(val)) {
                         setForm((p) => ({ ...p, amount: val }));
+                        setStepError("");
                       }
                     }}
                     placeholder="0"
@@ -391,6 +482,9 @@ export default function CashInPage() {
               </p>
               {amountExceedsBalance && (
                 <p className="mt-2 text-sm font-medium text-red-500">Insufficient balance</p>
+              )}
+              {stepError && (
+                <p className="mt-2 text-sm font-medium text-red-500">{stepError}</p>
               )}
             </div>
 
@@ -438,8 +532,8 @@ export default function CashInPage() {
               <span className="font-bold text-gray-500">Transaction Fee</span>
               <span className="font-black text-gray-900">{formatBDT(preview.fee)}</span>
             </div>
-            <div className="my-2 h-px bg-gray-100" />
-            <div className="flex items-center justify-between text-lg">
+            <div className="my-2 h-px bg-gray-300" />
+            <div className="flex items-center justify-between text-[15px]">
               <span className="font-bold text-gray-500">Total Debit</span>
               <span className="font-black text-primary-600">{formatBDT(preview.totalDebit)}</span>
             </div>

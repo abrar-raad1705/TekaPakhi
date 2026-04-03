@@ -197,7 +197,20 @@ export default function TransactionReceipt({ receipt, onDone }) {
               <div className="grid sm:grid-cols-2 sm:divide-x sm:divide-slate-100">
                 <div className="bg-gradient-to-br from-primary-600 to-primary-700 p-8 text-white sm:p-10">
                   <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/75">Amount sent</p>
-                  <p className="mt-3 text-4xl font-black tracking-tight sm:text-5xl">{formatBDT(receipt.amount)}</p>
+                  {(() => {
+                    const formatted = formatBDT(receipt.amount);
+                    const len = formatted.length;
+                    // Scale font: short amounts stay big (3rem), long amounts shrink (min 1.4rem)
+                    const fontSize = len <= 8 ? '3rem' : len <= 11 ? '2.4rem' : len <= 14 ? '1.9rem' : '1.5rem';
+                    return (
+                      <p
+                        className="mt-3 font-black tracking-tight leading-tight"
+                        style={{ fontSize, whiteSpace: 'nowrap' }}
+                      >
+                        {formatted}
+                      </p>
+                    );
+                  })()}
                   <p className="mt-6 text-sm font-medium text-white/85">
                     <span className="text-white/75">Ref</span>{' '}
                     <button
@@ -223,7 +236,7 @@ export default function TransactionReceipt({ receipt, onDone }) {
                   <div className="mt-6 space-y-2 border-t border-slate-100 pt-6 text-sm">
                     <div className="flex justify-between gap-4">
                       <span className="font-medium text-slate-500">Fee</span>
-                      <span className="font-bold text-slate-900">{formatBDT(receipt.fee)}</span>
+                      <span className="font-bold text-slate-900">{formatBDT(receipt.fee ?? 0)}</span>
                     </div>
                     <div className="flex justify-between gap-4">
                       <span className="font-medium text-slate-500">Total debit</span>

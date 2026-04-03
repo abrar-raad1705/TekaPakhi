@@ -7,14 +7,10 @@ import profileModel from "../models/profileModel.js";
 import otpService from "./otpService.js";
 import { generateAgentCode, generateMerchantCode } from "../utils/helpers.js";
 import { PROFILE_TYPES, PIN_RESET_RESTRICTED_TYPE_NAMES } from "../utils/constants.js";
-import securityLogService from "./securityLogService.js";
 
 const SALT_ROUNDS = 12;
 
 const authService = {
-  /**
-   * Generate a JWT access token
-   */
   generateAccessToken(profile) {
     return jwt.sign(
       {
@@ -29,12 +25,51 @@ const authService = {
   },
 
   /**
-   * Register a new account (Customer, Agent, or Merchant)
-   * Flow: validate → hash PIN → create profile → create subtype → send OTP
-   *
-   * - Customers are set to ACTIVE immediately
-   * - Agents & Merchants are set to PENDING_KYC (need admin approval to transact)
+   * Ensures the profile may still use an existing JWT (BLOCKED / active SUSPENDED → 401).
+   * Clears expired suspensions so the next request proceeds as ACTIVE.
+   * Call from authenticate middleware on every protected request.
    */
+  async validateSessionAccountStatus(profileId) {
+    const row = await profileModel.getAccountStatus(profileId);
+    if (!row) {
+      throw new AppError("Access denied. Account not found.", 401);
+    }
+
+    const { account_status: accountStatus, suspended_until: suspendedUntil } =
+      row;
+
+    if (accountStatus === "BLOCKED") {
+      throw new AppError(
+        "Your account has been permanently blocked. Contact support.",
+        401,
+        { code: "ACCOUNT_BLOCKED" },
+      );
+    }
+
+    if (accountStatus === "SUSPENDED") {
+      if (suspendedUntil && new Date(suspendedUntil) <= new Date()) {
+        await profileModel.clearSuspension(profileId);
+        return;
+      }
+      const remaining = suspendedUntil
+        ? Math.ceil((new Date(suspendedUntil) - new Date()) / 60000)
+        : null;
+      throw new AppError(
+        remaining
+          ? `Your account is suspended. Try again in ${
+              remaining > 1440
+                ? `${Math.ceil(remaining / 1440)} day(s)`
+                : remaining > 60
+                  ? `${Math.ceil(remaining / 60)} hour(s)`
+                  : `${remaining} minute(s)`
+            }.`
+          : "Your account is suspended. Contact support.",
+        401,
+        { code: "ACCOUNT_SUSPENDED", suspendedUntil },
+      );
+    }
+  },
+
   async register({
     phoneNumber,
     fullName,
@@ -71,6 +106,8 @@ const authService = {
       // Hash the security PIN
       const pinHash = await bcrypt.hash(securityPin, SALT_ROUNDS);
 
+      accountStatus = accountType === "CUSTOMER" ? "ACTIVE" : "PENDING_KYC";
+
       // Create profile (DB trigger auto-creates wallet)
       profile = await profileModel.create(
         {
@@ -78,6 +115,7 @@ const authService = {
           fullName,
           pinHash,
           typeId,
+          accountStatus,
         },
         client
       );
@@ -85,7 +123,6 @@ const authService = {
       // Create the appropriate subtype profile
       if (accountType === "CUSTOMER") {
         await profileModel.createCustomerSubtype(profile.profile_id, client);
-        accountStatus = "ACTIVE";
       } else if (accountType === "AGENT") {
         // Auto-generate agent code
         const agentCode = generateAgentCode();
@@ -97,7 +134,6 @@ const authService = {
           },
           client
         );
-        accountStatus = "PENDING_KYC";
       } else if (accountType === "MERCHANT") {
         // Auto-generate merchant code
         const merchantCode = generateMerchantCode();
@@ -109,7 +145,6 @@ const authService = {
           },
           client
         );
-        accountStatus = "PENDING_KYC";
       }
 
       // Mark phone as verified!
@@ -138,14 +173,10 @@ const authService = {
     };
   },
 
-  /**
-   * Login with phone + PIN
-   * Flow: find profile → check lock → verify PIN → generate access token
-   */
+
   async login({ phoneNumber, securityPin, meta }) {
     const profile = await profileModel.findByPhone(phoneNumber);
     if (!profile) {
-      securityLogService.logEvent({ profileId: null, eventType: 'LOGIN_FAILURE', ...meta, metadata: { phoneNumber, reason: 'unknown_phone' } });
       throw new AppError("Invalid phone number or PIN.", 401);
     }
 
@@ -153,7 +184,6 @@ const authService = {
       const minutesLeft = Math.ceil(
         (new Date(profile.locked_until) - new Date()) / 60000,
       );
-      securityLogService.logEvent({ profileId: profile.profile_id, eventType: 'LOGIN_FAILURE', ...meta, metadata: { reason: 'account_locked', minutesLeft } });
       throw new AppError(
         `Account is temporarily locked. Try again in ${minutesLeft} minute(s).`,
         423,
@@ -179,7 +209,6 @@ const authService = {
           );
           await profileModel.lockAccount(profile.profile_id, lockUntil, client);
           await client.query("COMMIT");
-          securityLogService.logEvent({ profileId: profile.profile_id, eventType: 'ACCOUNT_LOCK', ...meta, metadata: { reason: 'max_pin_attempts', lockUntil } });
           throw new AppError(
             `Too many failed attempts. Account locked for ${env.PIN_LOCK_DURATION_MINUTES} minutes.`,
             423,
@@ -187,7 +216,6 @@ const authService = {
         }
 
         await client.query("COMMIT");
-        securityLogService.logEvent({ profileId: profile.profile_id, eventType: 'LOGIN_FAILURE', ...meta, metadata: { failedAttempts: failed_pin_attempts } });
         throw new AppError(
           `Invalid phone number or PIN. ${env.MAX_PIN_ATTEMPTS - failed_pin_attempts} attempt(s) remaining.`,
           401,
@@ -196,11 +224,37 @@ const authService = {
 
       await profileModel.resetFailedAttempts(profile.profile_id, client);
 
-      // Get account status from subtype table
-      const accountStatus = await profileModel.getAccountStatus(
-        profile.profile_id,
-        profile.type_name,
-      );
+      // Check account status from profiles table (canonical source)
+      let accountStatus = profile.account_status;
+      const suspendedUntil = profile.suspended_until;
+
+      if (accountStatus === "BLOCKED") {
+        await client.query("COMMIT");
+        throw new AppError(
+          "Your account has been permanently blocked. Contact support.",
+          403,
+          { code: "ACCOUNT_BLOCKED" },
+        );
+      }
+
+      if (accountStatus === "SUSPENDED") {
+        if (suspendedUntil && new Date(suspendedUntil) <= new Date()) {
+          await profileModel.clearSuspension(profile.profile_id, client);
+          accountStatus = "ACTIVE";
+        } else {
+          await client.query("COMMIT");
+          const remaining = suspendedUntil
+            ? Math.ceil((new Date(suspendedUntil) - new Date()) / 60000)
+            : null;
+          throw new AppError(
+            remaining
+              ? `Your account is suspended. Try again in ${remaining > 1440 ? Math.ceil(remaining / 1440) + " day(s)" : remaining > 60 ? Math.ceil(remaining / 60) + " hour(s)" : remaining + " minute(s)"}.`
+              : "Your account is suspended. Contact support.",
+            403,
+            { code: "ACCOUNT_SUSPENDED", suspendedUntil },
+          );
+        }
+      }
 
       let isPhoneVerified = profile.is_phone_verified;
       let requiresPinSetup = false;
@@ -223,7 +277,6 @@ const authService = {
 
       await client.query("COMMIT");
 
-      securityLogService.logEvent({ profileId: profile.profile_id, eventType: 'LOGIN_SUCCESS', ...meta });
 
       const accessToken = this.generateAccessToken(profile);
 
@@ -290,6 +343,9 @@ const authService = {
     } finally {
       client.release();
     }
+    if (profile.type_name === "DISTRIBUTOR") {
+      await profileModel.reassignOrphanedAgentsForReadyDistributor(profileId);
+    }
     return { message: "Your PIN has been set. You can now use the app." };
   },
 
@@ -306,7 +362,9 @@ const authService = {
         await profileModel.setPhoneVerified(phoneNumber, client);
       }
       await client.query("COMMIT");
-      securityLogService.logEvent({ profileId: profile?.profile_id ?? null, eventType: 'OTP_VERIFY', ...meta, metadata: { purpose, phoneNumber } });
+      if (!isCheckOnly && purpose === "VERIFY_PHONE" && profile?.type_name === "DISTRIBUTOR") {
+        await profileModel.reassignOrphanedAgentsForReadyDistributor(profile.profile_id);
+      }
       return { message: "OTP verified successfully." };
     } catch (error) {
       await client.query("ROLLBACK");
@@ -346,7 +404,6 @@ const authService = {
     }
 
     const otpResult = await otpService.sendOTP(phoneNumber, purpose);
-    securityLogService.logEvent({ profileId: profile?.profile_id ?? null, eventType: 'OTP_REQUEST', ...meta, metadata: { purpose, phoneNumber } });
     return {
       message: "OTP sent successfully.",
       ...otpResult,
@@ -392,7 +449,6 @@ const authService = {
       client.release();
     }
 
-    securityLogService.logEvent({ profileId: profile.profile_id, eventType: 'PIN_RESET', ...meta, metadata: { adminGranted: wasAdminGranted } });
     return { message: "PIN reset successful. Please login with your new PIN." };
   },
 
@@ -407,7 +463,7 @@ const authService = {
 
     const isPinValid = await bcrypt.compare(oldPin, profile.security_pin_hash);
     if (!isPinValid) {
-      throw new AppError("Current PIN is incorrect.", 401);
+      throw new AppError("Current PIN is incorrect.", 403);
     }
 
     const pinHash = await bcrypt.hash(newPin, SALT_ROUNDS);
@@ -424,14 +480,9 @@ const authService = {
       client.release();
     }
 
-    securityLogService.logEvent({ profileId, eventType: 'PIN_CHANGE', ...meta });
     return { message: "PIN changed successfully." };
   },
 
-  /**
-   * Verify transaction PIN (reusable for any PIN-gated action)
-   * Includes brute force protection (lock after MAX_PIN_ATTEMPTS)
-   */
   async verifyTransactionPin(profileId, pin, meta) {
     const profile = await profileModel.findById(profileId);
     if (!profile) {
@@ -464,7 +515,6 @@ const authService = {
           );
           await profileModel.lockAccount(profileId, lockUntil, client);
           await client.query("COMMIT");
-          securityLogService.logEvent({ profileId, eventType: 'ACCOUNT_LOCK', ...meta, metadata: { reason: 'max_txn_pin_attempts', lockUntil } });
           throw new AppError(
             `Too many failed attempts. Account locked for ${env.PIN_LOCK_DURATION_MINUTES} minutes.`,
             423,
@@ -472,10 +522,9 @@ const authService = {
         }
 
         await client.query("COMMIT");
-        securityLogService.logEvent({ profileId, eventType: 'TXN_PIN_FAILURE', ...meta, metadata: { failedAttempts: failed_pin_attempts } });
         throw new AppError(
           `Invalid PIN. ${env.MAX_PIN_ATTEMPTS - failed_pin_attempts} attempt(s) remaining.`,
-          401,
+          403,
         );
       }
 

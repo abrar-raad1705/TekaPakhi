@@ -4,7 +4,7 @@ DO $$ BEGIN
     'Electricity','Gas','Water','Internet','Telephone',
     'TV','Credit Card','Govt. Fees','Insurance','Tracker','Others'
   );
-EXCEPTION WHEN duplicate_object THEN NULL;
+  EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
 -- 2. Add new columns to biller_profiles
@@ -14,7 +14,7 @@ ALTER TABLE biller_profiles
   ADD COLUMN IF NOT EXISTS sender_charge_percent DECIMAL(5,2) NOT NULL DEFAULT 0.00,
   ADD COLUMN IF NOT EXISTS pending_pin_setup BOOLEAN NOT NULL DEFAULT TRUE;
 
--- 3. Update existing biller_profiles and transactions
+-- 3. Update existing biller_profiles
 ALTER TABLE biller_profiles 
   DROP COLUMN IF EXISTS category,
   DROP COLUMN IF EXISTS biller_code;
@@ -25,5 +25,3 @@ CREATE TABLE bill_payment_details (
     bill_account_number VARCHAR(50) NOT NULL,
     bill_contact_number VARCHAR(15) NOT NULL
 );
-
-

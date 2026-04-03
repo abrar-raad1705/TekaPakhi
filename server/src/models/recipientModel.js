@@ -5,6 +5,7 @@ const recipientModel = {
     const result = await pool.query(
       `SELECT sr.*, p.full_name AS target_name, p.phone_number AS target_phone,
               p.profile_picture_url AS target_profile_picture_url,
+              p.account_status,
               pt.type_name AS target_type
        FROM ${DB_SCHEMA}.saved_recipients sr
        JOIN ${DB_SCHEMA}.profiles p ON sr.target_profile_id = p.profile_id

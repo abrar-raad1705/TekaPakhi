@@ -1,4 +1,5 @@
 import pool, { DB_SCHEMA } from "../config/db.js";
+import { PROFILE_TYPES } from "../utils/constants.js";
 
 const profileModel = {
   /**
@@ -51,7 +52,7 @@ const profileModel = {
          ON sr.saver_profile_id = $1
         AND sr.target_profile_id = p.profile_id
        WHERE ap.distributor_id = $1
-         AND ap.status = 'ACTIVE'
+         AND p.account_status = 'ACTIVE'
        ORDER BY
          LOWER(COALESCE(NULLIF(TRIM(sr.nickname), ''), p.full_name)),
          LOWER(p.full_name),
@@ -63,14 +64,18 @@ const profileModel = {
 
   async getAgentDistributorId(agentProfileId) {
     const result = await pool.query(
-      `SELECT distributor_id
-       FROM ${DB_SCHEMA}.agent_profiles
-       WHERE profile_id = $1
-         AND status = 'ACTIVE'
+      `SELECT ap.distributor_id, ap.b2b_suspended
+       FROM ${DB_SCHEMA}.agent_profiles ap
+       JOIN ${DB_SCHEMA}.profiles p ON p.profile_id = ap.profile_id
+       WHERE ap.profile_id = $1
+         AND p.account_status = 'ACTIVE'
        LIMIT 1`,
       [agentProfileId],
     );
-    return result.rows[0]?.distributor_id || null;
+    const row = result.rows[0];
+    if (!row) return null;
+    if (row.b2b_suspended) return { distributorId: null, b2bSuspended: true };
+    return { distributorId: row.distributor_id, b2bSuspended: false };
   },
 
   async getConnectedDistributorForAgent(agentProfileId) {
@@ -81,25 +86,32 @@ const profileModel = {
          p.phone_number AS target_phone,
          p.profile_picture_url AS target_profile_picture_url,
          w.balance AS target_balance,
-         w.max_balance AS target_max_balance
+         w.max_balance AS target_max_balance,
+         ap.b2b_suspended
        FROM ${DB_SCHEMA}.agent_profiles ap
-       JOIN ${DB_SCHEMA}.profiles p ON p.profile_id = ap.distributor_id
-       JOIN ${DB_SCHEMA}.wallets w ON w.profile_id = p.profile_id
+       JOIN ${DB_SCHEMA}.profiles agent_p ON agent_p.profile_id = ap.profile_id
+       LEFT JOIN ${DB_SCHEMA}.profiles p ON p.profile_id = ap.distributor_id
+       LEFT JOIN ${DB_SCHEMA}.wallets w ON w.profile_id = p.profile_id
        WHERE ap.profile_id = $1
-         AND ap.status = 'ACTIVE'
+         AND agent_p.account_status = 'ACTIVE'
        LIMIT 1`,
       [agentProfileId],
     );
-    return result.rows[0] || null;
+    const row = result.rows[0];
+    if (!row) return null;
+    if (row.b2b_suspended || !row.profile_id) return { b2bSuspended: true };
+    return row;
   },
 
   async isAgentConnectedToDistributor(distributorProfileId, agentProfileId) {
     const result = await pool.query(
       `SELECT 1
-       FROM ${DB_SCHEMA}.agent_profiles
-       WHERE distributor_id = $1
-         AND profile_id = $2
-         AND status = 'ACTIVE'
+       FROM ${DB_SCHEMA}.agent_profiles ap
+       JOIN ${DB_SCHEMA}.profiles p ON p.profile_id = ap.profile_id
+       WHERE ap.distributor_id = $1
+         AND ap.profile_id = $2
+         AND p.account_status = 'ACTIVE'
+         AND ap.b2b_suspended = FALSE
        LIMIT 1`,
       [distributorProfileId, agentProfileId],
     );
@@ -138,30 +150,31 @@ const profileModel = {
 
   /**
    * Create a new profile
-   * Note: DB trigger auto-creates a wallet after insert
+   * Note: DB trigger auto-creates a wallet after insert.
+   * accountStatus is required (no DB default): CUSTOMER/DISTRIBUTOR/BILLER = 'ACTIVE', AGENT/MERCHANT = 'PENDING_KYC'.
    */
   async create(
-    { phoneNumber, fullName, pinHash, typeId = 1, email = null },
+    { phoneNumber, fullName, pinHash, typeId = 1, email = null, accountStatus },
     client = null,
   ) {
     const db = client || pool;
     const result = await db.query(
-      `INSERT INTO ${DB_SCHEMA}.profiles (phone_number, full_name, security_pin_hash, type_id, email)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING profile_id, phone_number, full_name, email, is_phone_verified, registration_date, type_id`,
-      [phoneNumber, fullName, pinHash, typeId, email || null],
+      `INSERT INTO ${DB_SCHEMA}.profiles (phone_number, full_name, security_pin_hash, type_id, email, account_status)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING profile_id, phone_number, full_name, email, is_phone_verified, registration_date, type_id, account_status`,
+      [phoneNumber, fullName, pinHash, typeId, email || null, accountStatus],
     );
     return result.rows[0];
   },
 
   /**
-   * Create customer subtype profile (set to ACTIVE immediately)
+   * Create customer subtype profile
    */
   async createCustomerSubtype(profileId, client = null) {
     const db = client || pool;
     const result = await db.query(
-      `INSERT INTO ${DB_SCHEMA}.customer_profiles (profile_id, status, approved_date)
-       VALUES ($1, 'ACTIVE', CURRENT_TIMESTAMP)
+      `INSERT INTO ${DB_SCHEMA}.customer_profiles (profile_id, approved_date)
+       VALUES ($1, CURRENT_TIMESTAMP)
        RETURNING *`,
       [profileId],
     );
@@ -169,7 +182,7 @@ const profileModel = {
   },
 
   /**
-   * Create agent subtype profile (PENDING_KYC — needs admin approval)
+   * Create agent subtype profile (status is on profiles.account_status, set by caller)
    */
   async createAgentSubtype(
     profileId,
@@ -178,8 +191,8 @@ const profileModel = {
   ) {
     const db = client || pool;
     const result = await db.query(
-      `INSERT INTO ${DB_SCHEMA}.agent_profiles (profile_id, agent_code, shop_name, shop_address, district, area, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'PENDING_KYC')
+      `INSERT INTO ${DB_SCHEMA}.agent_profiles (profile_id, agent_code, shop_name, shop_address, district, area)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
       [
         profileId,
@@ -194,7 +207,7 @@ const profileModel = {
   },
 
   /**
-   * Create merchant subtype profile (PENDING_KYC — needs admin approval)
+   * Create merchant subtype profile (status is on profiles.account_status, set by caller)
    */
   async createMerchantSubtype(
     profileId,
@@ -203,8 +216,8 @@ const profileModel = {
   ) {
     const db = client || pool;
     const result = await db.query(
-      `INSERT INTO ${DB_SCHEMA}.merchant_profiles (profile_id, merchant_code, shop_name, shop_address, district, area, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'PENDING_KYC')
+      `INSERT INTO ${DB_SCHEMA}.merchant_profiles (profile_id, merchant_code, shop_name, shop_address, district, area)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
       [
         profileId,
@@ -229,8 +242,8 @@ const profileModel = {
     const db = client || pool;
     const result = await db.query(
       `INSERT INTO ${DB_SCHEMA}.distributor_profiles
-         (profile_id, business_name, additional_info, status, created_at, pending_pin_setup)
-       VALUES ($1, $2, $3, 'ACTIVE', CURRENT_TIMESTAMP, TRUE)
+         (profile_id, business_name, additional_info, created_at, pending_pin_setup)
+       VALUES ($1, $2, $3, CURRENT_TIMESTAMP, TRUE)
        RETURNING *`,
       [profileId, businessName, additionalInfo || null],
     );
@@ -244,7 +257,7 @@ const profileModel = {
   },
 
   /**
-   * Create biller subtype profile (ACTIVE — admin-created, temp PIN)
+   * Create biller subtype profile (status is on profiles.account_status, set by caller)
    */
   async createBillerSubtype(
     profileId,
@@ -254,8 +267,8 @@ const profileModel = {
     const db = client || pool;
     const result = await db.query(
       `INSERT INTO ${DB_SCHEMA}.biller_profiles
-         (profile_id, service_name, biller_type, sender_charge_flat, sender_charge_percent, status, pending_pin_setup)
-       VALUES ($1, $2, $3::${DB_SCHEMA}.biller_type, $4, $5, 'ACTIVE', TRUE)
+         (profile_id, service_name, biller_type, sender_charge_flat, sender_charge_percent, pending_pin_setup)
+       VALUES ($1, $2, $3::${DB_SCHEMA}.biller_type, $4, $5, TRUE)
        RETURNING *`,
       [
         profileId,
@@ -269,24 +282,133 @@ const profileModel = {
   },
 
   /**
-   * Get account status from the appropriate subtype table
+   * Get account status from profiles table (canonical source).
    */
-  async getAccountStatus(profileId, typeName) {
-    const tableMap = {
-      CUSTOMER: "customer_profiles",
-      AGENT: "agent_profiles",
-      MERCHANT: "merchant_profiles",
-      DISTRIBUTOR: "distributor_profiles",
-      BILLER: "biller_profiles",
-    };
-    const table = tableMap[typeName];
-    if (!table) return "ACTIVE"; // SYSTEM profiles are always active
-
+  async getAccountStatus(profileId) {
     const result = await pool.query(
-      `SELECT status FROM ${DB_SCHEMA}.${table} WHERE profile_id = $1`,
+      `SELECT account_status, suspended_until FROM ${DB_SCHEMA}.profiles WHERE profile_id = $1`,
       [profileId],
     );
-    return result.rows[0]?.status || null;
+    return result.rows[0] || null;
+  },
+
+  /**
+   * Update account status on profiles table.
+   * suspendedUntil should be an ISO timestamp for SUSPENDED, or null otherwise.
+   */
+  async updateAccountStatus(profileId, status, suspendedUntil = null, client = null) {
+    const db = client || pool;
+    const result = await db.query(
+      `UPDATE ${DB_SCHEMA}.profiles
+       SET account_status = $1, suspended_until = $2
+       WHERE profile_id = $3
+       RETURNING profile_id, account_status, suspended_until`,
+      [status, suspendedUntil, profileId],
+    );
+    return result.rows[0] || null;
+  },
+
+  /**
+   * Auto-clear an expired suspension back to ACTIVE.
+   */
+  async clearSuspension(profileId, client = null) {
+    const db = client || pool;
+    const result = await db.query(
+      `UPDATE ${DB_SCHEMA}.profiles
+       SET account_status = 'ACTIVE', suspended_until = NULL
+       WHERE profile_id = $1
+       RETURNING profile_id, account_status`,
+      [profileId],
+    );
+    return result.rows[0] || null;
+  },
+
+  /**
+   * Set b2b_suspended = TRUE and clear distributor_id for an agent (used when their distributor is blocked).
+   */
+  async suspendAgentB2B(agentProfileId, client = null) {
+    const db = client || pool;
+    await db.query(
+      `UPDATE ${DB_SCHEMA}.agent_profiles
+       SET distributor_id = NULL, b2b_suspended = TRUE
+       WHERE profile_id = $1`,
+      [agentProfileId],
+    );
+  },
+
+  /**
+   * Clear b2b_suspended and assign a new distributor for an agent.
+   */
+  async unsuspendAgentB2B(agentProfileId, newDistributorId, client = null) {
+    const db = client || pool;
+    await db.query(
+      `UPDATE ${DB_SCHEMA}.agent_profiles
+       SET distributor_id = $1, b2b_suspended = FALSE
+       WHERE profile_id = $2`,
+      [newDistributorId, agentProfileId],
+    );
+  },
+
+  /**
+   * Find ACTIVE agents in a given area that have b2b_suspended = TRUE (orphaned by a blocked distributor).
+   */
+  async getOrphanedAgentsByArea(district, area, client = null) {
+    const db = client || pool;
+    const result = await db.query(
+      `SELECT ap.profile_id
+       FROM ${DB_SCHEMA}.agent_profiles ap
+       JOIN ${DB_SCHEMA}.profiles p ON p.profile_id = ap.profile_id
+       WHERE ap.district = $1 AND ap.area = $2
+         AND ap.b2b_suspended = TRUE
+         AND p.account_status = 'ACTIVE'`,
+      [district, area],
+    );
+    return result.rows;
+  },
+
+  /**
+   * Get all agents connected to a distributor (for cascading block effects).
+   */
+  async getAgentsByDistributor(distributorProfileId, client = null) {
+    const db = client || pool;
+    const result = await db.query(
+      `SELECT profile_id FROM ${DB_SCHEMA}.agent_profiles WHERE distributor_id = $1`,
+      [distributorProfileId],
+    );
+    return result.rows;
+  },
+
+  /**
+   * After distributor phone is verified and PIN setup is complete, attach orphaned agents
+   * in their service areas. Safe to call repeatedly (idempotent per agent).
+   */
+  async reassignOrphanedAgentsForReadyDistributor(profileId, client = null) {
+    const db = client || pool;
+    const ready = await db.query(
+      `SELECT 1
+       FROM ${DB_SCHEMA}.profiles p
+       JOIN ${DB_SCHEMA}.distributor_profiles dp ON dp.profile_id = p.profile_id
+       WHERE p.profile_id = $1
+         AND p.type_id = $2
+         AND p.is_phone_verified = TRUE
+         AND dp.pending_pin_setup = FALSE`,
+      [profileId, PROFILE_TYPES.DISTRIBUTOR],
+    );
+    if (ready.rowCount === 0) return 0;
+
+    const areasRes = await db.query(
+      `SELECT district, area FROM ${DB_SCHEMA}.distributor_areas WHERE profile_id = $1`,
+      [profileId],
+    );
+    let total = 0;
+    for (const { district, area } of areasRes.rows) {
+      const orphaned = await this.getOrphanedAgentsByArea(district, area, client);
+      for (const agent of orphaned) {
+        await this.unsuspendAgentB2B(agent.profile_id, profileId, client);
+        total += 1;
+      }
+    }
+    return total;
   },
 
   /**

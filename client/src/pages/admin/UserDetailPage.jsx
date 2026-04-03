@@ -6,6 +6,7 @@ import { formatBDT } from "../../utils/formatCurrency";
 import AdminLayout from "../../components/admin/AdminLayout";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import ConfirmationModal from "../../components/common/ConfirmationModal";
+import SuspendDurationModal from "../../components/admin/SuspendDurationModal";
 import ProfileAvatar from "../../components/common/ProfileAvatar";
 import { XMarkIcon, MapPinIcon } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
@@ -130,7 +131,8 @@ export default function UserDetailPage() {
 
   // Status confirmation state
   const [modal, setModal] = useState({ isOpen: false, type: null, payload: null });
-  
+  const [suspendModalOpen, setSuspendModalOpen] = useState(false);
+
   // Fintech Modals
   const [distModalOpen, setDistModalOpen] = useState(false);
   const [agentModalOpen, setAgentModalOpen] = useState(false);
@@ -222,6 +224,10 @@ export default function UserDetailPage() {
   };
 
   const handleStatusChangeBtn = (newStatus) => {
+    if (newStatus === "SUSPENDED") {
+      setSuspendModalOpen(true);
+      return;
+    }
     setModal({
       isOpen: true,
       type: 'STATUS',
@@ -229,14 +235,28 @@ export default function UserDetailPage() {
     });
   };
 
+  const handleSuspendConfirm = (suspendedUntil) => {
+    setSuspendModalOpen(false);
+    setModal({
+      isOpen: true,
+      type: "STATUS",
+      payload: "SUSPENDED",
+      suspendedUntil: suspendedUntil,
+    });
+  };
+
   const confirmStatusChange = async () => {
     const newStatus = modal.payload;
+    const suspendedUntil = modal.suspendedUntil;
     closeModal();
     setUpdating(true);
     try {
-      await adminApi.updateUserStatus(id, newStatus);
-      toast.success(`Status updated to ${newStatus}.`);
-      // Refresh
+      await adminApi.updateUserStatus(id, newStatus, suspendedUntil);
+      toast.success(
+        newStatus === "SUSPENDED"
+          ? "Account suspended successfully."
+          : `Status updated to ${newStatus}.`
+      );
       const res = await adminApi.getUserDetail(id);
       setUser(res.data.data);
     } catch (err) {
@@ -262,7 +282,7 @@ export default function UserDetailPage() {
     );
   }
 
-  const currentStatus = user.subtypeData?.status || "N/A";
+  const currentStatus = user.account_status || user.subtypeData?.status || "N/A";
   const accent = getProfileTypeAdmin(user.type_name);
   const balanceNum = user.balance != null ? parseFloat(user.balance) : 0;
   const parsedWalletLimit = parseFloat(walletLimitInput);
@@ -330,7 +350,7 @@ export default function UserDetailPage() {
               <div className="border-t border-gray-100 pt-4">
                 <p className={fieldLabelClass}>Phone verification</p>
                 <p className={`text-sm font-semibold ${user.is_phone_verified ? "text-green-700" : "text-red-600"}`}>
-                  {user.is_phone_verified ? "Verified" : "Unverified"}
+                  {user.is_phone_verified ? "VERIFIED" : "UNVERIFIED"}
                 </p>
               </div>
               <div className="grid grid-cols-1 gap-4 border-t border-gray-100 pt-4 sm:grid-cols-2">
@@ -610,7 +630,7 @@ export default function UserDetailPage() {
                         );
                         setEditingWalletLimit(true);
                       }}
-                      className="shrink-0 rounded-xl bg-primary-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-primary-700 transition-all uppercase tracking-tight"
+                      className="shrink-0 rounded-xl border border-primary-700 bg-primary-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-primary-700 transition-all uppercase tracking-tight"
                     >
                       Update limit
                     </button>
@@ -702,7 +722,7 @@ export default function UserDetailPage() {
                   type="button"
                   disabled={pinGrantSaving}
                   onClick={handleAuthorizeBtn}
-                  className="rounded-xl bg-primary-600 px-4 py-2 text-[11px] font-black uppercase tracking-wider text-white transition-all hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50"
+                  className="rounded-xl border border-primary-700 bg-primary-600 px-4 py-2 text-[11px] font-black uppercase tracking-wider text-white transition-all hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50"
                 >
                   {pinGrantSaving ? "..." : "Authorize"}
                 </button>
@@ -711,7 +731,7 @@ export default function UserDetailPage() {
                   type="button"
                   disabled={pinGrantSaving}
                   onClick={() => handlePinResetGrant(false)}
-                  className="rounded-xl bg-primary-600 px-4 py-2 text-[11px] font-black uppercase tracking-wider text-white transition-all hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50"
+                  className="rounded-xl border border-primary-700 bg-primary-600 px-4 py-2 text-[11px] font-black uppercase tracking-wider text-white transition-all hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50"
                 >
                   {pinGrantSaving ? "..." : "Revoke"}
                 </button>
@@ -726,7 +746,8 @@ export default function UserDetailPage() {
               <span
                 className={`rounded-lg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide border ${
                   currentStatus === 'ACTIVE' ? 'bg-green-50 text-green-700 border-green-100' :
-                  currentStatus === 'SUSPENDED' ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                  currentStatus === 'PENDING_KYC' ? 'bg-amber-50 text-amber-800 border-amber-100' :
+                  currentStatus === 'SUSPENDED' ? 'bg-orange-50 text-orange-800 border-orange-100' :
                   'bg-red-50 text-red-700 border-red-100'
                 }`}
               >
@@ -734,15 +755,20 @@ export default function UserDetailPage() {
               </span>
             </div>
 
-            {user.type_name !== "SYSTEM" && (
+            {user.type_name !== "SYSTEM" && currentStatus === "BLOCKED" ? (
+              <p className="text-xs text-center text-red-500 font-semibold py-2">
+                This account is permanently blocked. No further status changes are allowed.
+              </p>
+            ) : user.type_name !== "SYSTEM" && (
               <div className="flex flex-col gap-2">
                 {statusActions
                   .filter((a) => a.status !== currentStatus)
+                  .filter((a) => !(user.type_name === "DISTRIBUTOR" && a.status === "SUSPENDED"))
                   .map((action) => {
                     const hierarchyStyles = {
-                      'ACTIVE': 'bg-green-600 text-white hover:bg-green-700 shadow-sm',
-                      'SUSPENDED': 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100', // Soft warning
-                      'BLOCKED': 'bg-red-600 text-white hover:bg-red-700 shadow-md shadow-red-100' // Prominent destructive
+                      'ACTIVE': 'border-green-700 bg-green-600 text-white hover:bg-green-700 shadow-sm',
+                      'SUSPENDED': 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100',
+                      'BLOCKED': 'border-red-700 bg-red-600 text-white hover:bg-red-700 shadow-md shadow-red-100'
                     };
                     
                     return (
@@ -750,7 +776,7 @@ export default function UserDetailPage() {
                         key={action.status}
                         disabled={updating}
                         onClick={() => handleStatusChangeBtn(action.status)}
-                        className={`w-full rounded-xl py-2.5 text-xs font-bold transition-all active:scale-[0.98] disabled:opacity-50 border border-transparent ${hierarchyStyles[action.status] || 'bg-gray-100 text-gray-700'}`}
+                        className={`w-full rounded-xl py-2.5 text-xs font-bold transition-all active:scale-[0.98] disabled:opacity-50 border ${hierarchyStyles[action.status] || 'border-gray-200 bg-gray-100 text-gray-700'}`}
                       >
                         {updating ? "..." : action.label}
                       </button>
@@ -789,19 +815,26 @@ export default function UserDetailPage() {
               })()
             : modal.type === "PIN_RESET"
               ? `Are you sure you want to authorize a one-time PIN reset for ${user.full_name}?\n\nThis will allow the user to choose a new PIN from the login screen. Once used, it will be automatically disabled again.`
-              : `Are you sure you want to change ${user.full_name}'s status to ${modal.payload}?\n\nThis affects their ability to perform transactions immediately.`
+              : modal.payload === "SUSPENDED"
+                ? `Are you sure you want to suspend ${user.full_name}?\nAccount will remain suspended until ${formatDateTime(modal.suspendedUntil)}.\n\nYou can reactivate it early from this panel if needed.`
+                : modal.payload === "BLOCKED"
+                ? `Are you sure you want to permanently block ${user.full_name}?\n\nThis action is IRREVERSIBLE. The account will be permanently blocked and no further status changes can be made from the admin panel.${user.type_name === "DISTRIBUTOR" ? "\n\nAll assigned areas will be released and connected agents will lose B2B transfer access until a new distributor is assigned." : ""}`
+                : `Are you sure you want to change ${user.full_name}'s status to ${modal.payload}?\n\nThis affects their ability to perform transactions immediately.`
         }
         confirmLabel={
           modal.type === "WALLET_LIMIT"
             ? "Update limit"
             : modal.type === "PIN_RESET"
               ? "Authorize Reset"
-              : "Update status"
+              : modal.payload === "SUSPENDED"
+                ? "Suspend account"
+                : "Update status"
         }
         isDanger={
-          (modal.type === "STATUS" && ["SUSPENDED", "BLOCKED"].includes(modal.payload)) ||
+          modal.payload === "BLOCKED" ||
           modal.type === "PIN_RESET"
         }
+        isWarning={modal.payload === "SUSPENDED"}
         onConfirm={
           modal.type === "WALLET_LIMIT"
             ? confirmWalletLimit
@@ -810,6 +843,13 @@ export default function UserDetailPage() {
               : confirmStatusChange
         }
         onCancel={closeModal}
+      />
+
+      <SuspendDurationModal
+        isOpen={suspendModalOpen}
+        userName={user.full_name}
+        onConfirm={handleSuspendConfirm}
+        onCancel={() => setSuspendModalOpen(false)}
       />
 
       {/* Distributor Modal (for Agents) */}
@@ -888,6 +928,16 @@ export default function UserDetailPage() {
           <div className="custom-scrollbar max-h-[min(60vh,28rem)] space-y-3 overflow-y-auto pr-1">
             {user.agents.map((agent) => {
               const expanded = activeAgentId === agent.profile_id;
+              const agentStatus =
+                agent.account_status || agent.status || "N/A";
+              const agentStatusBadge =
+                agentStatus === "ACTIVE"
+                  ? "border-green-100 bg-green-50 text-green-700"
+                  : agentStatus === "PENDING_KYC"
+                    ? "border-amber-100 bg-amber-50 text-amber-800"
+                    : agentStatus === "SUSPENDED"
+                      ? "border-orange-100 bg-orange-50 text-orange-800"
+                      : "border-red-100 bg-red-50 text-red-700";
               return (
                 <div
                   key={agent.profile_id}
@@ -916,13 +966,9 @@ export default function UserDetailPage() {
                       </div>
                     </div>
                     <span
-                      className={`inline-flex h-7 w-[4.5rem] shrink-0 items-center justify-center rounded-md border text-[10px] font-bold uppercase tracking-wide ${
-                        agent.status === "ACTIVE"
-                          ? "border-green-100 bg-green-50 text-green-700"
-                          : "border-gray-200 bg-gray-100 text-gray-600"
-                      }`}
+                      className={`inline-flex min-h-7 min-w-[4.5rem] shrink-0 items-center justify-center rounded-md border px-1.5 text-[10px] font-bold uppercase tracking-wide ${agentStatusBadge}`}
                     >
-                      {agent.status}
+                      {agentStatus}
                     </span>
                   </button>
                   {expanded && (

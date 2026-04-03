@@ -6,93 +6,35 @@ import walletModel from '../models/walletModel.js';
 import transactionModel from '../models/transactionModel.js';
 import transactionTypeModel from '../models/transactionTypeModel.js';
 import feeService from './feeService.js';
-import limitService from './limitService.js';
 import ledgerService from './ledgerService.js';
 import authService from './authService.js';
 import auditLogService from './auditLogService.js';
 
-function maskPhone(phone) {
-  if (!phone || phone.length < 6) return phone;
-  return phone.slice(0, 3) + '****' + phone.slice(-3);
-}
-
 /**
- * Lock wallets in deterministic order (avoids deadlocks).
+ * Per-viewer fee/amount display: reversals show fee 0 and the user's wallet leg amount
+ * (gross refund for payer, net clawback for payee on merchant payments).
  */
-async function lockWalletsOrdered(client, walletIds) {
-  const sorted = [...new Set(walletIds)].sort((a, b) => a - b);
-  const map = new Map();
-  for (const wid of sorted) {
-    const row = await walletModel.findByWalletIdForUpdate(client, wid);
-    if (row) map.set(wid, row);
-  }
-  return map;
-}
-
-/**
- * Role validation rules: which profile types can send/receive for each tx type
- */
-const ROLE_RULES = {
-  SEND_MONEY:  { sender: [PROFILE_TYPES.CUSTOMER, PROFILE_TYPES.MERCHANT], receiver: [PROFILE_TYPES.CUSTOMER] },
-  CASH_IN:     { sender: [PROFILE_TYPES.AGENT],    receiver: [PROFILE_TYPES.CUSTOMER] },
-  CASH_OUT:    { sender: [PROFILE_TYPES.CUSTOMER, PROFILE_TYPES.MERCHANT],  receiver: [PROFILE_TYPES.AGENT] },
-  PAYMENT:     { sender: [PROFILE_TYPES.CUSTOMER, PROFILE_TYPES.MERCHANT],  receiver: [PROFILE_TYPES.MERCHANT] },
-  PAY_BILL:    { sender: [PROFILE_TYPES.CUSTOMER, PROFILE_TYPES.MERCHANT, PROFILE_TYPES.AGENT],  receiver: [PROFILE_TYPES.BILLER] },
-  B2B:         { sender: [PROFILE_TYPES.DISTRIBUTOR, PROFILE_TYPES.AGENT], receiver: [PROFILE_TYPES.AGENT, PROFILE_TYPES.DISTRIBUTOR] },
-};
-
-async function assertB2BReceiverAllowed(sender, receiver) {
-  if (
-    sender.type_id === PROFILE_TYPES.DISTRIBUTOR &&
-    receiver.type_id === PROFILE_TYPES.AGENT
-  ) {
-    const isConnected = await profileModel.isAgentConnectedToDistributor(
-      sender.profile_id,
-      receiver.profile_id,
-    );
-    if (!isConnected) {
-      throw new AppError(
-        'You can only transfer float to agents connected to your distributor account.',
-        403,
-      );
+function normalizeTransactionalForViewer(tx, profileId) {
+  if (!tx) return tx;
+  const pid = String(profileId ?? '');
+  const isSender = String(tx.sender_profile_id) === pid;
+  const isReceiver = String(tx.receiver_profile_id) === pid;
+  if (tx.original_transaction_id) {
+    tx.fee_amount = 0;
+    if (tx.profile_leg_amount != null) {
+      tx.amount = tx.profile_leg_amount;
     }
-    return;
-  }
-
-  if (
-    sender.type_id === PROFILE_TYPES.AGENT &&
-    receiver.type_id === PROFILE_TYPES.DISTRIBUTOR
-  ) {
-    const connectedDistributorId = await profileModel.getAgentDistributorId(sender.profile_id);
-    if (!connectedDistributorId || connectedDistributorId !== receiver.profile_id) {
-      throw new AppError(
-        'You can only transfer float to your connected distributor.',
-        403,
-      );
+    if (Object.prototype.hasOwnProperty.call(tx, 'profile_leg_amount')) {
+      delete tx.profile_leg_amount;
     }
-    return;
+    return tx;
   }
-}
-
-async function assertSenderCanTransact(sender) {
-  const senderStatus = await profileModel.getAccountStatus(
-    sender.profile_id,
-    sender.type_name,
-  );
-
-  if (senderStatus === 'PENDING_KYC') {
-    throw new AppError(
-      'Your account is pending verification. Please wait for admin approval before transacting.',
-      403,
-    );
+  if (isSender && tx.fee_bearer === 'RECEIVER') tx.fee_amount = 0;
+  if (isReceiver && tx.fee_bearer === 'SENDER') tx.fee_amount = 0;
+  if (Object.prototype.hasOwnProperty.call(tx, 'profile_leg_amount')) {
+    delete tx.profile_leg_amount;
   }
-
-  if (senderStatus === 'SUSPENDED' || senderStatus === 'BLOCKED') {
-    throw new AppError(
-      `Your account is ${senderStatus.toLowerCase()}. Contact support.`,
-      403,
-    );
-  }
+  return tx;
 }
 
 const transactionService = {
@@ -116,209 +58,89 @@ const transactionService = {
       throw new AppError('You cannot send money to yourself.', 400);
     }
 
-    // Validate roles
-    const rules = ROLE_RULES[typeCode];
-    if (rules) {
-      if (!rules.sender.includes(sender.type_id)) {
-        throw new AppError(`Your account type (${sender.type_name}) cannot initiate ${typeCode} transactions.`, 403);
-      }
-      if (!rules.receiver.includes(receiver.type_id)) {
-        throw new AppError(`Recipient account type (${receiver.type_name}) is not valid for ${typeCode}.`, 400);
-      }
-    }
-
-    if (typeCode === 'B2B') {
-      await assertB2BReceiverAllowed(sender, receiver);
-    }
-
-    await assertSenderCanTransact(sender);
-    // Verify PIN (with brute force protection)
+    // PIN Verification (Critical)
     await authService.verifyTransactionPin(senderProfileId, pin, meta);
 
-    // Transaction
+    // DB Transaction Execution
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
-      //Calculate fee
-      let fee;
-      if (typeCode === 'SEND_MONEY') {
-        const monthlyTotal = await transactionModel.getMonthlyTotalForUpdate(client, sender.profile_id, txType.type_id);
-        fee = feeService.calculateSendMoneyFee(amount, monthlyTotal);
-      } else if (typeCode === 'PAY_BILL') {
-        // Use biller-specific charges instead of system-wide fee
-        const billerRes = await client.query(
-          `SELECT sender_charge_flat, sender_charge_percent FROM ${DB_SCHEMA}.biller_profiles WHERE profile_id = $1`,
-          [receiver.profile_id],
-        );
-        const biller = billerRes.rows[0];
-        const flat = parseFloat(biller?.sender_charge_flat) || 0;
-        const pct = parseFloat(biller?.sender_charge_percent) || 0;
-        fee = Math.round((flat + (amount * pct) / 100) * 100) / 100;
-      } else {
-        fee = feeService.calculate(txType, amount);
-      }
-      const { senderDebit, receiverCredit } = feeService.applyFeeBearer(amount, fee, txType.fee_bearer);
+      // Identify Wallets (Required for Procedure parameters)
+      const swRes = await client.query(`SELECT wallet_id FROM wallets WHERE profile_id = $1`, [sender.profile_id]);
+      const rwRes = await client.query(`SELECT wallet_id FROM wallets WHERE profile_id = $1`, [receiver.profile_id]);
+      
+      if (!swRes.rows[0]?.wallet_id) throw new AppError("Sender wallet not found.", 404);
+      if (!rwRes.rows[0]?.wallet_id) throw new AppError("Receiver wallet not found.", 404);
 
-      const swRes = await client.query(
-        `SELECT wallet_id FROM ${DB_SCHEMA}.wallets WHERE profile_id = $1`,
-        [sender.profile_id]
-      );
-      const rwRes = await client.query(
-        `SELECT wallet_id FROM ${DB_SCHEMA}.wallets WHERE profile_id = $1`,
-        [receiver.profile_id]
-      );
-      if (!swRes.rows[0]?.wallet_id)
-        throw new AppError("Sender wallet not found.", 404);
-      if (!rwRes.rows[0]?.wallet_id)
-        throw new AppError("Receiver wallet not found.", 404);
-
-      const revLookup = await client.query(
-        `SELECT wallet_id FROM ${DB_SCHEMA}.wallets WHERE role = $1::${DB_SCHEMA}.wallet_role`,
-        [WALLET_ROLES.REVENUE]
-      );
-      const revenueWalletId = revLookup.rows[0]?.wallet_id;
-      if (!revenueWalletId) {
-        throw new AppError("Revenue wallet not configured.", 500);
-      }
-
-      const treasuryLookup = await client.query(
-        `SELECT wallet_id FROM ${DB_SCHEMA}.wallets WHERE role = $1::${DB_SCHEMA}.wallet_role`,
-        [WALLET_ROLES.TREASURY]
-      );
-      const treasuryWalletId = treasuryLookup.rows[0]?.wallet_id;
-      if (!treasuryWalletId) {
-        throw new AppError("Treasury wallet not configured.", 500);
-      }
-
-      const lockIds = [
-        swRes.rows[0].wallet_id,
-        rwRes.rows[0].wallet_id,
-        revenueWalletId,
-        treasuryWalletId,
-      ];
-
-      const locked = await lockWalletsOrdered(client, lockIds);
-      const senderWallet = locked.get(swRes.rows[0].wallet_id);
-      const receiverWallet = locked.get(rwRes.rows[0].wallet_id);
-      if (!senderWallet || !receiverWallet) throw new AppError('Wallet lock failed.', 500);
-
-      // Check limits
-      await limitService.check(client, sender.type_id, txType.type_id, sender.profile_id, amount);
-
-      // Check sender balance
-      if (parseFloat(senderWallet.balance) < senderDebit) {
-        throw new AppError(
-          `Insufficient balance. You need ৳${senderDebit.toFixed(2)} but have ৳${parseFloat(senderWallet.balance).toFixed(2)}.`,
-          400
-        );
-      }
-
-      // Check receiver max balance
-      if (parseFloat(receiverWallet.balance) + receiverCredit > parseFloat(receiverWallet.max_balance)) {
-        throw new AppError("Transaction would exceed the recipient's maximum wallet balance.", 400);
-      }
-
-      const balances = new Map();
-
-      const senderResult = await walletModel.debit(client, senderWallet.wallet_id, senderDebit);
-      balances.set(senderWallet.wallet_id, { before_balance: senderResult.before_balance, after_balance: senderResult.after_balance });
-
-      const receiverResult = await walletModel.credit(client, receiverWallet.wallet_id, receiverCredit);
-      balances.set(receiverWallet.wallet_id, { before_balance: receiverResult.before_balance, after_balance: receiverResult.after_balance });
-
-      if (fee > 0 && revenueWalletId) {
-        const revResult = await walletModel.credit(client, revenueWalletId, fee);
-        balances.set(revenueWalletId, { before_balance: revResult.before_balance, after_balance: revResult.after_balance });
-      }
-
-      // Insert transaction record (retry on rare transaction_ref collision)
-      let transaction;
-      let txRef;
+      // Execute Stored Procedure
+      // This handles: Role validation, Account status checks, Fee/Limit calculation, Atomic multi-locking,
+      // Sender balance check, Ledger entries, and Commission distribution.
+      let result;
       try {
-        ({ txRef, row: transaction } = await transactionModel.createWithTxRef(client, {
+        result = await transactionModel.executeProcedure(client, {
+          senderWalletId: swRes.rows[0].wallet_id,
+          receiverWalletId: rwRes.rows[0].wallet_id,
           amount,
-          fee,
+          fee: 0, // Fee is re-calculated in DB, passing 0 as placeholder
           typeId: txType.type_id,
-          senderWalletId: senderWallet.wallet_id,
-          receiverWalletId: receiverWallet.wallet_id,
           note,
-          status: 'COMPLETED',
-        }));
+        });
       } catch (e) {
-        if (e.code === 'TX_REF_EXHAUSTED') {
-          throw new AppError('Could not assign a transaction ID. Please try again.', 503);
-        }
+        if (e.code === 'P0001') throw new AppError(e.message, 400); // DB Raise Exception
         throw e;
       }
 
       // If PAY_BILL, write account/contact to the dedicated details table
       if (txType.type_name === 'PAY_BILL' && billAccountNumber && billContactNumber) {
         await transactionModel.createBillDetails(client, {
-          transactionId: transaction.transaction_id,
+          transactionId: result.transactionId,
           billAccountNumber,
           billContactNumber,
         });
       }
 
-      await ledgerService.recordMainTransactionLedger(client, transaction.transaction_id, {
-        senderWalletId: senderWallet.wallet_id,
-        receiverWalletId: receiverWallet.wallet_id,
-        revenueWalletId,
-        senderDebit,
-        receiverCredit,
-        fee,
-        amount,
-        typeLabel: txType.type_name,
-        balances,
-      });
-
-      await ledgerService.distributeCommissions(
-        client,
-        txType.type_id,
-        amount,
-        transaction.transaction_id,
-        {
-          senderProfileId: sender.profile_id,
-          senderTypeId: sender.type_id,
-          receiverProfileId: receiver.profile_id,
-          receiverTypeId: receiver.type_id,
-        }
-      );
-
       await client.query('COMMIT');
 
+      // Fetch Final Transaction Details for Audit Log and Response
+      // Must happen after COMMIT so the data is visible via the pool connection
+      const finalTx = await transactionModel.findByIdForProfile(result.transactionId, sender.profile_id);
+
+      // Final Audit & Response
       auditLogService.logAudit({
         eventType: txType.type_name,
         actorId: sender.profile_id,
         actorType: 'USER',
-        summary: `${sender.type_name} ${maskPhone(sender.phone_number)} sent ৳${parseFloat(amount)} to ${maskPhone(receiver.phone_number)} (fee: ৳${fee}, ref: ${txRef})`,
-        details: { type: txType.type_name, amount: parseFloat(amount), fee, senderDebit, receiverCredit },
-        relatedTransactionId: transaction.transaction_id,
+        summary: `${sender.type_name} ${sender.phone_number} sent ৳${parseFloat(amount)} to ${receiver.phone_number} (ref: ${result.txRef})`,
+        details: { 
+          type: txType.type_name, 
+          amount: parseFloat(finalTx.amount), 
+          fee: parseFloat(finalTx.fee_amount),
+          status: finalTx.status
+        },
+        relatedTransactionId: result.transactionId,
       });
 
+      const isSenderForExecute = String(finalTx.sender_profile_id) === String(sender.profile_id);
+      const isReceiverForExecute = String(finalTx.receiver_profile_id) === String(sender.profile_id);
+      let feeToDisplay = parseFloat(finalTx.fee_amount || 0);
+      if (isSenderForExecute && finalTx.fee_bearer === 'RECEIVER') feeToDisplay = 0;
+      if (isReceiverForExecute && finalTx.fee_bearer === 'SENDER') feeToDisplay = 0;
+
       return {
-        transactionRef: txRef,
-        transactionId: transaction.transaction_id,
+        transactionRef: result.txRef,
+        transactionId: result.transactionId,
         type: txType.type_name,
-        amount: parseFloat(amount),
-        fee,
-        totalDebit: senderDebit,
-        totalCredit: receiverCredit,
-        feeBearer: txType.fee_bearer,
-        sender: {
-          name: sender.full_name,
-          phone: sender.phone_number,
-        },
-        receiver: {
-          name: receiver.full_name,
-          phone: receiver.phone_number,
-        },
+        amount: parseFloat(finalTx.amount),
+        fee: feeToDisplay,
+        feeBearer: finalTx.fee_bearer,
+        sender: { name: sender.full_name, phone: sender.phone_number },
+        receiver: { name: receiver.full_name, phone: receiver.phone_number },
         note: note || null,
         billAccountNumber: billAccountNumber || null,
         billContactNumber: billContactNumber || null,
-        status: 'COMPLETED',
-        timestamp: transaction.transaction_time,
+        status: finalTx.status,
+        timestamp: finalTx.transaction_time,
       };
     } catch (error) {
       await client.query('ROLLBACK');
@@ -342,44 +164,32 @@ const transactionService = {
     if (!receiver) throw new AppError('Recipient not found.', 404);
     const receiverWallet = await walletModel.getBalance(receiver.profile_id);
 
-    if (sender.profile_id === receiver.profile_id) {
-      throw new AppError('You cannot send money to yourself.', 400);
+    // Perform unified preflight validation in DB (Roles, Status, Limits, B2B Connection)
+    const validationRes = await pool.query(
+      `SELECT fn_validate_transaction_preflight($1, $2, $3, $4) as error_msg`,
+      [sender.profile_id, receiver.profile_id, txType.type_id, amount]
+    );
+
+    if (validationRes.rows[0].error_msg) {
+      throw new AppError(validationRes.rows[0].error_msg, 400);
     }
 
-    const rules = ROLE_RULES[typeCode];
-    if (rules) {
-      if (!rules.sender.includes(sender.type_id)) {
-        throw new AppError(`Your account type cannot initiate ${typeCode} transactions.`, 403);
-      }
-      if (!rules.receiver.includes(receiver.type_id)) {
-        throw new AppError(`Recipient is not valid for ${typeCode}.`, 400);
-      }
+    // Calculate fee using database function
+    const feeRes = await pool.query(
+      `SELECT fn_calculate_transaction_fee($1, $2, $3, $4) as fee`,
+      [txType.type_id, amount, sender.profile_id, receiver.profile_id]
+    );
+    const fee = parseFloat(feeRes.rows[0].fee);
+
+    // Check limits using database function
+    const limitRes = await pool.query(
+      `SELECT fn_check_transaction_limits($1, $2, $3) as error_msg`,
+      [sender.profile_id, txType.type_id, amount]
+    );
+    if (limitRes.rows[0].error_msg) {
+      throw new AppError(limitRes.rows[0].error_msg, 400);
     }
 
-    if (typeCode === 'B2B') {
-      await assertB2BReceiverAllowed(sender, receiver);
-    }
-
-    await assertSenderCanTransact(sender);
-
-    // Tiered fee for SEND_MONEY, biller-specific for PAY_BILL, standard for others
-    let fee;
-    if (typeCode === 'SEND_MONEY') {
-      const monthlyTotal = await transactionModel.getMonthlyTotal(sender.profile_id, txType.type_id);
-      fee = feeService.calculateSendMoneyFee(amount, monthlyTotal);
-    } else if (typeCode === 'PAY_BILL') {
-      // Use biller-specific charges instead of system-wide fee
-      const billerRes = await pool.query(
-        `SELECT sender_charge_flat, sender_charge_percent FROM ${DB_SCHEMA}.biller_profiles WHERE profile_id = $1`,
-        [receiver.profile_id],
-      );
-      const biller = billerRes.rows[0];
-      const flat = parseFloat(biller?.sender_charge_flat) || 0;
-      const pct = parseFloat(biller?.sender_charge_percent) || 0;
-      fee = Math.round((flat + (amount * pct) / 100) * 100) / 100;
-    } else {
-      fee = feeService.calculate(txType, amount);
-    }
     const { senderDebit, receiverCredit } = feeService.applyFeeBearer(amount, fee, txType.fee_bearer);
 
     return {
@@ -408,7 +218,7 @@ const transactionService = {
   async getDetail(transactionId, profileId) {
     const tx = await transactionModel.findByIdForProfile(transactionId, profileId);
     if (!tx) throw new AppError('Transaction not found.', 404);
-    return tx;
+    return normalizeTransactionalForViewer(tx, profileId);
   },
 
   /**
@@ -417,6 +227,19 @@ const transactionService = {
   async getReceiptDataForPdf(transactionId, profileId) {
     const tx = await transactionModel.findByIdForProfile(transactionId, profileId);
     if (!tx) throw new AppError('Transaction not found.', 404);
+
+    if (tx.original_transaction_id) {
+      throw new AppError('Receipts are not available for reversal transactions.', 400);
+    }
+    if (tx.status === 'REVERSED') {
+      throw new AppError('Receipts are not available for reversed transactions.', 400);
+    }
+    
+    const isSender = String(tx.sender_profile_id) === String(profileId);
+    const isReceiver = String(tx.receiver_profile_id) === String(profileId);
+    if (isSender && tx.fee_bearer === 'RECEIVER') tx.fee_amount = 0;
+    if (isReceiver && tx.fee_bearer === 'SENDER') tx.fee_amount = 0;
+
     const amount = parseFloat(tx.amount);
     const fee = parseFloat(tx.fee_amount);
     const { senderDebit } = feeService.applyFeeBearer(amount, fee, tx.fee_bearer);
@@ -440,14 +263,19 @@ const transactionService = {
    * Get paginated transaction history
    */
   async getHistory(profileId, filters) {
-    return await transactionModel.findByProfileId(profileId, filters);
+    const result = await transactionModel.findByProfileId(profileId, filters);
+    result.transactions = (result.transactions || []).map((tx) =>
+      normalizeTransactionalForViewer(tx, profileId),
+    );
+    return result;
   },
 
   /**
    * Get mini statement (last N transactions)
    */
   async getMiniStatement(profileId, count = 5) {
-    return await transactionModel.miniStatement(profileId, count);
+    const txs = await transactionModel.miniStatement(profileId, count);
+    return (txs || []).map((tx) => normalizeTransactionalForViewer(tx, profileId));
   },
 
   async getConnectedB2BAgents(profileId) {
@@ -469,7 +297,14 @@ const transactionService = {
 
     const distributor = await profileModel.getConnectedDistributorForAgent(profileId);
     if (!distributor) {
-      throw new AppError('No connected distributor found for your agent account.', 404);
+      throw new AppError('No connected distributor found for your agent account.', 404, { code: 'B2B_SUSPENDED' });
+    }
+    if (distributor.b2bSuspended) {
+      throw new AppError(
+        'Your distributor account has been blocked. B2B transfers are temporarily unavailable until a new distributor is assigned to your area.',
+        403,
+        { code: 'B2B_SUSPENDED' },
+      );
     }
     return distributor;
   },

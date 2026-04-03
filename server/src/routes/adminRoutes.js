@@ -15,7 +15,7 @@ import {
 
 const router = Router();
 
-// All admin routes require admin JWT (password login at POST /api/v1/root/login)
+// All admin routes require admin JWT (password login at POST /api/v1/admin/login)
 router.use(adminAuthenticate);
 
 // Dashboard
@@ -40,6 +40,7 @@ router.post('/users/:id/load-wallet', validate(loadWalletSchema), adminControlle
 
 // Transaction management
 router.get('/transactions', adminController.listTransactions);
+router.get('/transactions/:id', adminController.getTransactionDetail);
 router.post('/transactions/:id/reverse', adminController.reverseTransaction);
 
 // Config: transaction types
@@ -65,8 +66,6 @@ router.get('/reports/user-growth', adminController.userGrowthReport);
 router.get('/reports/mfs-overview', adminController.mfsOverviewReport);
 
 // Logs
-router.get('/logs/security', adminController.getSecurityLogs);
-router.get('/logs/actions', adminController.getActionLogs);
 router.get('/logs/audit', adminController.getAuditLogs);
 
 export default router;

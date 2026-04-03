@@ -38,6 +38,7 @@ export default function PaymentPage() {
   const [loading, setLoading] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
   const pinInputRef = useRef(null);
+  const [stepError, setStepError] = useState("");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [savedRecipients, setSavedRecipients] = useState([]);
@@ -107,11 +108,30 @@ export default function PaymentPage() {
       setLookupError("Enter a valid 11-digit mobile number to look up");
       return;
     }
+    if (phoneToLookup === user?.phoneNumber) {
+      setLookupError("You cannot pay yourself");
+      return;
+    }
     setLoading(true);
     try {
       const { data } = await transactionApi.lookupRecipient(phoneToLookup);
       if (data.data.typeName !== "MERCHANT") {
         setLookupError("This number does not belong to a merchant.");
+        setRecipient(null);
+        return;
+      }
+      if (data.data.accountStatus === "PENDING_KYC") {
+        setLookupError("This merchant is not yet verified and cannot receive payments.");
+        setRecipient(null);
+        return;
+      }
+      if (data.data.accountStatus === "SUSPENDED") {
+        setLookupError("This account is suspended and cannot participate in transactions.");
+        setRecipient(null);
+        return;
+      }
+      if (data.data.accountStatus === "BLOCKED") {
+        setLookupError("This account is blocked and cannot participate in transactions.");
         setRecipient(null);
         return;
       }
@@ -130,6 +150,18 @@ export default function PaymentPage() {
   };
 
   const handleSelectContact = (contact) => {
+    if (contact.account_status === "PENDING_KYC") {
+      setLookupError("This merchant is not yet verified and cannot receive payments.");
+      return;
+    }
+    if (contact.account_status === "SUSPENDED") {
+      setLookupError("This account is suspended and cannot participate in transactions.");
+      return;
+    }
+    if (contact.account_status === "BLOCKED") {
+      setLookupError("This account is blocked and cannot participate in transactions.");
+      return;
+    }
     setRecipient({
       fullName: contact.target_name || contact.nickname,
       profilePictureUrl: contact.target_profile_picture_url ?? null,
@@ -142,6 +174,18 @@ export default function PaymentPage() {
   };
 
   const handleSelectRecent = (r) => {
+    if (r.account_status === "PENDING_KYC") {
+      setLookupError("This merchant is not yet verified and cannot receive payments.");
+      return;
+    }
+    if (r.account_status === "SUSPENDED") {
+      setLookupError("This account is suspended and cannot participate in transactions.");
+      return;
+    }
+    if (r.account_status === "BLOCKED") {
+      setLookupError("This account is blocked and cannot participate in transactions.");
+      return;
+    }
     setRecipient({
       fullName: r.name,
       profilePictureUrl: r.pictureUrl ?? null,
@@ -191,6 +235,7 @@ export default function PaymentPage() {
     if (!recipient) return toast.error("Look up a merchant first");
 
     setLoading(true);
+    setStepError("");
     try {
       const { data } = await transactionApi.preview("PAYMENT", {
         receiverPhone: form.receiverPhone,
@@ -200,7 +245,19 @@ export default function PaymentPage() {
       setStep("review");
       setTimeout(() => pinInputRef.current?.focus(), 100);
     } catch (error) {
-      toast.error(error.response?.data?.message || "Preview failed");
+      const msg = error.response?.data?.message || "Preview failed";
+      const code = error.response?.data?.data?.code;
+
+      if (
+        code === "RECEIVER_SUSPENDED" ||
+        code === "RECEIVER_BLOCKED" ||
+        msg.toLowerCase().includes("self") ||
+        msg.toLowerCase().includes("yourself")
+      ) {
+        setStepError(msg);
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -210,6 +267,7 @@ export default function PaymentPage() {
     if (form.pin.length !== 5) return toast.error("PIN must be 5 digits");
 
     setLoading(true);
+    setStepError("");
     try {
       const { data } = await transactionApi.payment({
         receiverPhone: form.receiverPhone,
@@ -453,6 +511,7 @@ export default function PaymentPage() {
                       const val = e.target.value;
                       if (/^\d*\.?\d*$/.test(val)) {
                         setForm((p) => ({ ...p, amount: val }));
+                        setStepError("");
                       }
                     }}
                     placeholder="0"
@@ -469,6 +528,9 @@ export default function PaymentPage() {
               </p>
               {amountExceedsBalance && (
                 <p className="mt-2 text-sm font-medium text-red-500">Insufficient balance</p>
+              )}
+              {stepError && (
+                <p className="mt-2 text-sm font-medium text-red-500">{stepError}</p>
               )}
             </div>
 

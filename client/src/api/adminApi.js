@@ -27,8 +27,8 @@ adminApiClient.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem("adminToken");
       const path = window.location.pathname || "";
-      if (!path.startsWith("/root")) {
-        window.location.href = "/root";
+      if (!path.startsWith("/admin/login")) {
+        window.location.href = "/admin/login";
       }
     }
     return Promise.reject(error);
@@ -37,7 +37,7 @@ adminApiClient.interceptors.response.use(
 
 /** Public: password login for admin panel */
 export const adminLoginRequest = (password) =>
-  axios.post(`${API_URL}/root/login`, { password });
+  axios.post(`${API_URL}/admin/login`, { password });
 
 export const adminApi = {
   getDashboard: () => adminApiClient.get("/admin/dashboard"),
@@ -45,8 +45,8 @@ export const adminApi = {
   getUsers: (params) => adminApiClient.get("/admin/users", { params }),
   createProfile: (data) => adminApiClient.post("/admin/users", data),
   getUserDetail: (id) => adminApiClient.get(`/admin/users/${id}`),
-  updateUserStatus: (id, status) =>
-    adminApiClient.patch(`/admin/users/${id}/status`, { status }),
+  updateUserStatus: (id, status, suspendedUntil) =>
+    adminApiClient.patch(`/admin/users/${id}/status`, { status, ...(suspendedUntil ? { suspendedUntil } : {}) }),
   loadWallet: (id, amount) =>
     adminApiClient.post(`/admin/users/${id}/load-wallet`, { amount }),
   updateWalletLimit: (id, maxBalance) =>
@@ -56,6 +56,8 @@ export const adminApi = {
 
   getTransactions: (params) =>
     adminApiClient.get("/admin/transactions", { params }),
+  getTransactionDetail: (id) =>
+    adminApiClient.get(`/admin/transactions/${id}`),
   reverseTransaction: (id) =>
     adminApiClient.post(`/admin/transactions/${id}/reverse`),
 
@@ -77,6 +79,9 @@ export const adminApi = {
     adminApiClient.delete(
       `/admin/config/commissions/${profileTypeId}/${txTypeId}`,
     ),
+
+
+  getAuditLogs: (params) => adminApiClient.get("/admin/logs/audit", { params }),
 
   getTransactionReport: (params) =>
     adminApiClient.get("/admin/reports/transactions", { params }),
