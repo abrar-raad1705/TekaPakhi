@@ -8,6 +8,7 @@ ALTER TABLE distributor_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ
 ALTER TABLE merchant_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
 ALTER TABLE biller_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
 
+DROP PROCEDURE IF EXISTS sp_execute_transaction;
 -- 2. Create the procedure
 CREATE OR REPLACE PROCEDURE sp_execute_transaction(
     p_sender_wallet_id BIGINT,
@@ -83,6 +84,26 @@ BEGIN
     END IF;
 
     -- 3. Precise Calculations (Pre-Lock)
+
+    -- Calculate fee via database function
+    v_calculated_fee := fn_calculate_transaction_fee(p_type_id, p_amount, v_sender_profile_id, v_receiver_profile_id);
+
+    -- Verify fee matches what the UI sent (tolerance check, skip if UI sent 0 as "trust DB")
+    IF p_user_fee > 0 AND ABS(v_calculated_fee - p_user_fee) > 0.01 THEN
+        RAISE EXCEPTION 'Fee mismatch. Expected: %, Got: %', v_calculated_fee, p_user_fee;
+    END IF;
+
+    -- Derive debit/credit amounts based on fee bearer
+    IF v_fee_bearer = 'SENDER' THEN
+        v_sender_debit  := p_amount + v_calculated_fee;
+        v_receiver_credit := p_amount;
+    ELSIF v_fee_bearer = 'RECEIVER' THEN
+        v_sender_debit  := p_amount;
+        v_receiver_credit := p_amount - v_calculated_fee;
+    ELSE -- SPLIT or fallback
+        v_sender_debit  := p_amount + ROUND(v_calculated_fee / 2, 2);
+        v_receiver_credit := p_amount - (v_calculated_fee - ROUND(v_calculated_fee / 2, 2));
+    END IF;
 
     -- Soft Balance Check
     SELECT balance INTO v_before_bal FROM wallets WHERE wallet_id = p_sender_wallet_id;

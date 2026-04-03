@@ -108,7 +108,15 @@ const transactionModel = {
               rw.profile_id AS receiver_profile_id,
               rp.full_name AS receiver_name, rp.phone_number AS receiver_phone,
               rp.profile_picture_url AS receiver_profile_picture_url,
-              bpd.bill_account_number, bpd.bill_contact_number
+              bpd.bill_account_number, bpd.bill_contact_number,
+              CASE WHEN t.original_transaction_id IS NOT NULL THEN
+                (SELECT le.amount FROM ${DB_SCHEMA}.ledger_entries le
+                 JOIN ${DB_SCHEMA}.wallets w ON le.wallet_id = w.wallet_id
+                 WHERE le.transaction_id = t.transaction_id
+                   AND w.profile_id = $2
+                   AND w.role IS NULL
+                 LIMIT 1)
+              END AS profile_leg_amount
        FROM ${DB_SCHEMA}.transactions t
        JOIN ${DB_SCHEMA}.transaction_types tt ON t.type_id = tt.type_id
        JOIN ${DB_SCHEMA}.wallets sw ON t.sender_wallet_id = sw.wallet_id
@@ -167,6 +175,7 @@ const transactionModel = {
           t.amount,
           t.fee_amount,
           tt.type_name,
+          tt.fee_bearer,
           NULL::varchar AS source_tx_type_name,
           t.user_note,
           t.status,
@@ -177,13 +186,24 @@ const transactionModel = {
           rw.profile_id AS receiver_profile_id,
           rp.full_name AS receiver_name,
           rp.phone_number AS receiver_phone,
-          rp.profile_picture_url AS receiver_profile_picture_url
+          rp.profile_picture_url AS receiver_profile_picture_url,
+          t.original_transaction_id,
+          orig_t.transaction_ref AS original_transaction_ref,
+          CASE WHEN t.original_transaction_id IS NOT NULL THEN
+            (SELECT le.amount FROM ${DB_SCHEMA}.ledger_entries le
+             JOIN ${DB_SCHEMA}.wallets w ON le.wallet_id = w.wallet_id
+             WHERE le.transaction_id = t.transaction_id
+               AND w.profile_id = $1
+               AND w.role IS NULL
+             LIMIT 1)
+          END AS profile_leg_amount
         FROM ${DB_SCHEMA}.transactions t
         JOIN ${DB_SCHEMA}.transaction_types tt ON t.type_id = tt.type_id
         JOIN ${DB_SCHEMA}.wallets sw ON t.sender_wallet_id = sw.wallet_id
         JOIN ${DB_SCHEMA}.profiles sp ON sw.profile_id = sp.profile_id
         JOIN ${DB_SCHEMA}.wallets rw ON t.receiver_wallet_id = rw.wallet_id
         JOIN ${DB_SCHEMA}.profiles rp ON rw.profile_id = rp.profile_id
+        LEFT JOIN ${DB_SCHEMA}.transactions orig_t ON t.original_transaction_id = orig_t.transaction_id
         WHERE (sw.profile_id = $1 OR rw.profile_id = $1)
 
         UNION ALL
@@ -198,6 +218,7 @@ const transactionModel = {
           le.amount,
           0::numeric AS fee_amount,
           'COMMISSION' AS type_name,
+          NULL AS fee_bearer,
           tt_src.type_name AS source_tx_type_name,
           le.description AS user_note,
           'COMPLETED'::${DB_SCHEMA}.transaction_status AS status,
@@ -208,7 +229,10 @@ const transactionModel = {
           w.profile_id AS receiver_profile_id,
           p.full_name AS receiver_name,
           p.phone_number AS receiver_phone,
-          p.profile_picture_url AS receiver_profile_picture_url
+          p.profile_picture_url AS receiver_profile_picture_url,
+          NULL::bigint AS original_transaction_id,
+          NULL::varchar AS original_transaction_ref,
+          NULL::numeric AS profile_leg_amount
         FROM ${DB_SCHEMA}.ledger_entries le
         JOIN ${DB_SCHEMA}.wallets w ON le.wallet_id = w.wallet_id
         JOIN ${DB_SCHEMA}.profiles p ON w.profile_id = p.profile_id
@@ -315,7 +339,15 @@ const transactionModel = {
               rw.profile_id AS receiver_profile_id,
               rp.full_name AS receiver_name, rp.phone_number AS receiver_phone,
               rp.profile_picture_url AS receiver_profile_picture_url,
-              rp.account_status AS receiver_account_status
+              rp.account_status AS receiver_account_status,
+              CASE WHEN t.original_transaction_id IS NOT NULL THEN
+                (SELECT le.amount FROM ${DB_SCHEMA}.ledger_entries le
+                 JOIN ${DB_SCHEMA}.wallets w ON le.wallet_id = w.wallet_id
+                 WHERE le.transaction_id = t.transaction_id
+                   AND w.profile_id = $1
+                   AND w.role IS NULL
+                 LIMIT 1)
+              END AS profile_leg_amount
        FROM ${DB_SCHEMA}.transactions t
        JOIN ${DB_SCHEMA}.transaction_types tt ON t.type_id = tt.type_id
        JOIN ${DB_SCHEMA}.wallets sw ON t.sender_wallet_id = sw.wallet_id

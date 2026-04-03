@@ -75,6 +75,23 @@ const walletModel = {
   },
 
   /**
+   * Debit a wallet without balance check (allows negative). Use only for system wallets (e.g. Revenue) during reversals.
+   */
+  async debitUnchecked(client, walletId, amount) {
+    const result = await client.query(
+      `UPDATE ${DB_SCHEMA}.wallets
+       SET balance = balance - $1, last_activity_date = NOW()
+       WHERE wallet_id = $2
+       RETURNING *, (balance + $1) AS before_balance, balance AS after_balance`,
+      [amount, walletId]
+    );
+    if (result.rows.length === 0) {
+      throw new AppError('Wallet not found.', 404);
+    }
+    return result.rows[0];
+  },
+
+  /**
    * Credit a wallet (use inside a transaction).
    */
   async credit(client, walletId, amount) {

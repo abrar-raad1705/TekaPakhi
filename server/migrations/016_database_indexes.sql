@@ -27,14 +27,6 @@ CREATE INDEX IF NOT EXISTS idx_distributor_areas_district ON distributor_areas(d
 CREATE INDEX IF NOT EXISTS idx_agent_profiles_distributor ON agent_profiles(distributor_id);
 
 -- Logging & Audit Indexes
-CREATE INDEX IF NOT EXISTS idx_security_logs_profile ON security_logs(profile_id);
-CREATE INDEX IF NOT EXISTS idx_security_logs_event   ON security_logs(event_type);
-CREATE INDEX IF NOT EXISTS idx_security_logs_time    ON security_logs(created_at);
-
-CREATE INDEX IF NOT EXISTS idx_admin_logs_admin  ON admin_action_logs(admin_id);
-CREATE INDEX IF NOT EXISTS idx_admin_logs_action ON admin_action_logs(action);
-CREATE INDEX IF NOT EXISTS idx_admin_logs_time   ON admin_action_logs(created_at);
-
 CREATE INDEX IF NOT EXISTS idx_audit_event ON audit_logs(event_type);
 CREATE INDEX IF NOT EXISTS idx_audit_time  ON audit_logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_logs(actor_id);

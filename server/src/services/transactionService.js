@@ -10,11 +10,32 @@ import ledgerService from './ledgerService.js';
 import authService from './authService.js';
 import auditLogService from './auditLogService.js';
 
-function maskPhone(phone) {
-  if (!phone || phone.length < 6) return phone;
-  return phone.slice(0, 3) + '****' + phone.slice(-3);
+/**
+ * Per-viewer fee/amount display: reversals show fee 0 and the user's wallet leg amount
+ * (gross refund for payer, net clawback for payee on merchant payments).
+ */
+function normalizeTransactionalForViewer(tx, profileId) {
+  if (!tx) return tx;
+  const pid = String(profileId ?? '');
+  const isSender = String(tx.sender_profile_id) === pid;
+  const isReceiver = String(tx.receiver_profile_id) === pid;
+  if (tx.original_transaction_id) {
+    tx.fee_amount = 0;
+    if (tx.profile_leg_amount != null) {
+      tx.amount = tx.profile_leg_amount;
+    }
+    if (Object.prototype.hasOwnProperty.call(tx, 'profile_leg_amount')) {
+      delete tx.profile_leg_amount;
+    }
+    return tx;
+  }
+  if (isSender && tx.fee_bearer === 'RECEIVER') tx.fee_amount = 0;
+  if (isReceiver && tx.fee_bearer === 'SENDER') tx.fee_amount = 0;
+  if (Object.prototype.hasOwnProperty.call(tx, 'profile_leg_amount')) {
+    delete tx.profile_leg_amount;
+  }
+  return tx;
 }
-
 
 const transactionService = {
   async execute({ senderProfileId, receiverPhone, amount, typeCode, pin, note, billAccountNumber = null, billContactNumber = null, meta }) {
@@ -79,17 +100,18 @@ const transactionService = {
         });
       }
 
-      // Fetch Final Transaction Details for Audit Log and Response
-      const finalTx = await transactionModel.findByIdForProfile(result.transactionId, sender.profile_id);
-      
       await client.query('COMMIT');
+
+      // Fetch Final Transaction Details for Audit Log and Response
+      // Must happen after COMMIT so the data is visible via the pool connection
+      const finalTx = await transactionModel.findByIdForProfile(result.transactionId, sender.profile_id);
 
       // Final Audit & Response
       auditLogService.logAudit({
         eventType: txType.type_name,
         actorId: sender.profile_id,
         actorType: 'USER',
-        summary: `${sender.type_name} ${maskPhone(sender.phone_number)} sent ৳${parseFloat(amount)} to ${maskPhone(receiver.phone_number)} (ref: ${result.txRef})`,
+        summary: `${sender.type_name} ${sender.phone_number} sent ৳${parseFloat(amount)} to ${receiver.phone_number} (ref: ${result.txRef})`,
         details: { 
           type: txType.type_name, 
           amount: parseFloat(finalTx.amount), 
@@ -99,12 +121,18 @@ const transactionService = {
         relatedTransactionId: result.transactionId,
       });
 
+      const isSenderForExecute = String(finalTx.sender_profile_id) === String(sender.profile_id);
+      const isReceiverForExecute = String(finalTx.receiver_profile_id) === String(sender.profile_id);
+      let feeToDisplay = parseFloat(finalTx.fee_amount || 0);
+      if (isSenderForExecute && finalTx.fee_bearer === 'RECEIVER') feeToDisplay = 0;
+      if (isReceiverForExecute && finalTx.fee_bearer === 'SENDER') feeToDisplay = 0;
+
       return {
         transactionRef: result.txRef,
         transactionId: result.transactionId,
         type: txType.type_name,
         amount: parseFloat(finalTx.amount),
-        fee: parseFloat(finalTx.fee_amount),
+        fee: feeToDisplay,
         feeBearer: finalTx.fee_bearer,
         sender: { name: sender.full_name, phone: sender.phone_number },
         receiver: { name: receiver.full_name, phone: receiver.phone_number },
@@ -190,7 +218,7 @@ const transactionService = {
   async getDetail(transactionId, profileId) {
     const tx = await transactionModel.findByIdForProfile(transactionId, profileId);
     if (!tx) throw new AppError('Transaction not found.', 404);
-    return tx;
+    return normalizeTransactionalForViewer(tx, profileId);
   },
 
   /**
@@ -199,6 +227,19 @@ const transactionService = {
   async getReceiptDataForPdf(transactionId, profileId) {
     const tx = await transactionModel.findByIdForProfile(transactionId, profileId);
     if (!tx) throw new AppError('Transaction not found.', 404);
+
+    if (tx.original_transaction_id) {
+      throw new AppError('Receipts are not available for reversal transactions.', 400);
+    }
+    if (tx.status === 'REVERSED') {
+      throw new AppError('Receipts are not available for reversed transactions.', 400);
+    }
+    
+    const isSender = String(tx.sender_profile_id) === String(profileId);
+    const isReceiver = String(tx.receiver_profile_id) === String(profileId);
+    if (isSender && tx.fee_bearer === 'RECEIVER') tx.fee_amount = 0;
+    if (isReceiver && tx.fee_bearer === 'SENDER') tx.fee_amount = 0;
+
     const amount = parseFloat(tx.amount);
     const fee = parseFloat(tx.fee_amount);
     const { senderDebit } = feeService.applyFeeBearer(amount, fee, tx.fee_bearer);
@@ -222,14 +263,19 @@ const transactionService = {
    * Get paginated transaction history
    */
   async getHistory(profileId, filters) {
-    return await transactionModel.findByProfileId(profileId, filters);
+    const result = await transactionModel.findByProfileId(profileId, filters);
+    result.transactions = (result.transactions || []).map((tx) =>
+      normalizeTransactionalForViewer(tx, profileId),
+    );
+    return result;
   },
 
   /**
    * Get mini statement (last N transactions)
    */
   async getMiniStatement(profileId, count = 5) {
-    return await transactionModel.miniStatement(profileId, count);
+    const txs = await transactionModel.miniStatement(profileId, count);
+    return (txs || []).map((tx) => normalizeTransactionalForViewer(tx, profileId));
   },
 
   async getConnectedB2BAgents(profileId) {

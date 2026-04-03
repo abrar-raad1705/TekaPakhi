@@ -30,6 +30,7 @@ function buildRecentSendMoneyRecipients(transactions, profileId) {
   const out = [];
   for (const tx of transactions || []) {
     if (tx.type_name !== 'SEND_MONEY') continue;
+    if (tx.original_transaction_id) continue;
     const isSender = String(tx.sender_profile_id) === pid;
     const name = isSender ? tx.receiver_name : tx.sender_name;
     const phoneRaw = isSender ? tx.receiver_phone : tx.sender_phone;

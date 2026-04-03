@@ -630,7 +630,7 @@ export default function UserDetailPage() {
                         );
                         setEditingWalletLimit(true);
                       }}
-                      className="shrink-0 rounded-xl bg-primary-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-primary-700 transition-all uppercase tracking-tight"
+                      className="shrink-0 rounded-xl border border-primary-700 bg-primary-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-primary-700 transition-all uppercase tracking-tight"
                     >
                       Update limit
                     </button>
@@ -722,7 +722,7 @@ export default function UserDetailPage() {
                   type="button"
                   disabled={pinGrantSaving}
                   onClick={handleAuthorizeBtn}
-                  className="rounded-xl bg-primary-600 px-4 py-2 text-[11px] font-black uppercase tracking-wider text-white transition-all hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50"
+                  className="rounded-xl border border-primary-700 bg-primary-600 px-4 py-2 text-[11px] font-black uppercase tracking-wider text-white transition-all hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50"
                 >
                   {pinGrantSaving ? "..." : "Authorize"}
                 </button>
@@ -731,7 +731,7 @@ export default function UserDetailPage() {
                   type="button"
                   disabled={pinGrantSaving}
                   onClick={() => handlePinResetGrant(false)}
-                  className="rounded-xl bg-primary-600 px-4 py-2 text-[11px] font-black uppercase tracking-wider text-white transition-all hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50"
+                  className="rounded-xl border border-primary-700 bg-primary-600 px-4 py-2 text-[11px] font-black uppercase tracking-wider text-white transition-all hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50"
                 >
                   {pinGrantSaving ? "..." : "Revoke"}
                 </button>
@@ -766,9 +766,9 @@ export default function UserDetailPage() {
                   .filter((a) => !(user.type_name === "DISTRIBUTOR" && a.status === "SUSPENDED"))
                   .map((action) => {
                     const hierarchyStyles = {
-                      'ACTIVE': 'bg-green-600 text-white hover:bg-green-700 shadow-sm',
-                      'SUSPENDED': 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100',
-                      'BLOCKED': 'bg-red-600 text-white hover:bg-red-700 shadow-md shadow-red-100'
+                      'ACTIVE': 'border-green-700 bg-green-600 text-white hover:bg-green-700 shadow-sm',
+                      'SUSPENDED': 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100',
+                      'BLOCKED': 'border-red-700 bg-red-600 text-white hover:bg-red-700 shadow-md shadow-red-100'
                     };
                     
                     return (
@@ -776,7 +776,7 @@ export default function UserDetailPage() {
                         key={action.status}
                         disabled={updating}
                         onClick={() => handleStatusChangeBtn(action.status)}
-                        className={`w-full rounded-xl py-2.5 text-xs font-bold transition-all active:scale-[0.98] disabled:opacity-50 border border-transparent ${hierarchyStyles[action.status] || 'bg-gray-100 text-gray-700'}`}
+                        className={`w-full rounded-xl py-2.5 text-xs font-bold transition-all active:scale-[0.98] disabled:opacity-50 border ${hierarchyStyles[action.status] || 'border-gray-200 bg-gray-100 text-gray-700'}`}
                       >
                         {updating ? "..." : action.label}
                       </button>

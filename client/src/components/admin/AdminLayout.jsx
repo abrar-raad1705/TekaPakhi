@@ -6,10 +6,8 @@ import {
   ChartBarIcon,
   ClipboardDocumentListIcon,
   Cog6ToothIcon,
-  ShieldCheckIcon,
   Squares2X2Icon,
   UsersIcon,
-  WrenchScrewdriverIcon,
 } from "@heroicons/react/24/outline";
 import { NavLink, useNavigate, Link } from "react-router-dom";
 
@@ -29,8 +27,6 @@ const navItems = [
   { to: "/admin/config", label: "Config", icon: Cog6ToothIcon },
   { to: "/admin/reports", label: "Reports", icon: ChartBarIcon },
   { type: "divider" },
-  { to: "/admin/logs/security", label: "Security Logs", icon: ShieldCheckIcon },
-  { to: "/admin/logs/actions", label: "Admin Actions", icon: WrenchScrewdriverIcon },
   { to: "/admin/logs/audit", label: "Audit Trail", icon: ClipboardDocumentListIcon },
 ];
 

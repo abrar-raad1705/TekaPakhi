@@ -46,6 +46,9 @@ function commissionTitleFromSource(sourceTxTypeName) {
 }
 
 function historyRowTitle(tx, isSender) {
+  if (tx.original_transaction_id) {
+    return isSender ? "Reversal Out" : "Reversal In";
+  }
   if (tx.type_name === "COMMISSION") {
     return commissionTitleFromSource(tx.source_tx_type_name);
   }
@@ -110,53 +113,60 @@ function aggregateMonth(transactions, profileId) {
   for (const tx of transactions) {
     const isSender = String(tx.sender_profile_id) === pid;
     const amount = parseFloat(tx.amount) || 0;
-    if (isSender) totalOut += amount;
-    else totalIn += amount;
+    const fee = parseFloat(tx.fee_amount) || 0;
+    if (isSender) totalOut += (amount + fee);
+    else totalIn += (amount - fee);
 
     let key;
     let label;
     let outgoing;
 
-    switch (tx.type_name) {
-      case "SEND_MONEY":
-        outgoing = isSender;
-        label = outgoing ? "Send Money" : "Received Money";
-        key = outgoing ? "SM_OUT" : "SM_IN";
-        break;
-      case "CASH_IN":
-        key = "CI";
-        label = "Cash In";
-        outgoing = false;
-        break;
-      case "CASH_OUT":
-        key = "CO";
-        label = "Cash Out";
-        outgoing = true;
-        break;
-      case "PAYMENT":
-        outgoing = isSender;
-        label = outgoing ? "Payment" : "Payment received";
-        key = outgoing ? "PY_OUT" : "PY_IN";
-        break;
-      case "PAY_BILL":
-        key = "PB";
-        label = "Pay Bill";
-        outgoing = true;
-        break;
-      case "B2B":
-        outgoing = isSender;
-        label = outgoing ? "B2B Transfer" : "B2B received";
-        key = outgoing ? "B2B_OUT" : "B2B_IN";
-        break;
-      case "COMMISSION":
-        key = `COMMISSION_${tx.source_tx_type_name || "OTHER"}`;
-        label = commissionTitleFromSource(tx.source_tx_type_name);
-        outgoing = false;
-        break;
-      default:
-        outgoing = isSender;
-        label = typeLabels[tx.type_name] || tx.type_name;
-        key = `${tx.type_name}_${outgoing ? "o" : "i"}`;
+    if (tx.original_transaction_id) {
+      outgoing = isSender;
+      label = outgoing ? "Reversal Out" : "Reversal In";
+      key = outgoing ? "REVERSAL_OUT" : "REVERSAL_IN";
+    } else {
+      switch (tx.type_name) {
+        case "SEND_MONEY":
+          outgoing = isSender;
+          label = outgoing ? "Send Money" : "Received Money";
+          key = outgoing ? "SM_OUT" : "SM_IN";
+          break;
+        case "CASH_IN":
+          key = "CI";
+          label = "Cash In";
+          outgoing = false;
+          break;
+        case "CASH_OUT":
+          key = "CO";
+          label = "Cash Out";
+          outgoing = true;
+          break;
+        case "PAYMENT":
+          outgoing = isSender;
+          label = outgoing ? "Payment" : "Payment received";
+          key = outgoing ? "PY_OUT" : "PY_IN";
+          break;
+        case "PAY_BILL":
+          key = "PB";
+          label = "Pay Bill";
+          outgoing = true;
+          break;
+        case "B2B":
+          outgoing = isSender;
+          label = outgoing ? "B2B Transfer" : "B2B received";
+          key = outgoing ? "B2B_OUT" : "B2B_IN";
+          break;
+        case "COMMISSION":
+          key = `COMMISSION_${tx.source_tx_type_name || "OTHER"}`;
+          label = commissionTitleFromSource(tx.source_tx_type_name);
+          outgoing = false;
+          break;
+        default:
+          outgoing = isSender;
+          label = typeLabels[tx.type_name] || tx.type_name;
+          key = `${tx.type_name}_${outgoing ? "o" : "i"}`;
+      }
     }
 
     const sign = outgoing ? -1 : 1;
@@ -165,7 +175,11 @@ function aggregateMonth(transactions, profileId) {
     }
     const row = map.get(key);
     row.count += 1;
-    row.total += amount;
+    if (outgoing) {
+      row.total += (amount + fee);
+    } else {
+      row.total += (amount - fee);
+    }
   }
 
   const rows = Array.from(map.values())
@@ -360,37 +374,33 @@ export default function TransactionHistoryPage() {
       <div
         className="sticky z-40 w-full border-b border-slate-200/90 bg-white/95 shadow-sm shadow-slate-200/30 backdrop-blur-md motion-reduce:backdrop-blur-none"
         style={{ top: "calc(env(safe-area-inset-top, 0px) + 3.5rem)" }}
-      >
-        <div className="mx-auto flex max-w-2xl">
+      >        <div className="mx-auto flex max-w-2xl">
           <button
             type="button"
             onClick={() => setTab("history")}
             className={`relative flex-1 py-3.5 text-center text-sm font-bold transition-colors ${
-              tab === "history" ? "" : "text-slate-500"
+              tab === "history" ? "text-primary-600" : "text-slate-500"
             }`}
-            style={
-              tab === "history"
-                ? { color: ACCENT, boxShadow: `inset 0 -3px 0 0 ${ACCENT}` }
-                : undefined
-            }
           >
             Transaction History
+            {tab === "history" && (
+              <div className="absolute bottom-0 inset-x-0 h-[3px] bg-blue-600" />
+            )}
           </button>
           <button
             type="button"
             onClick={() => setTab("summary")}
             className={`relative flex-1 py-3.5 text-center text-sm font-bold transition-colors ${
-              tab === "summary" ? "" : "text-slate-500"
+              tab === "summary" ? "text-primary-600" : "text-slate-500"
             }`}
-            style={
-              tab === "summary"
-                ? { color: ACCENT, boxShadow: `inset 0 -3px 0 0 ${ACCENT}` }
-                : undefined
-            }
           >
             Transaction Summary
+            {tab === "summary" && (
+              <div className="absolute bottom-0 inset-x-0 h-[3px] bg-primary-600" />
+            )}
           </button>
         </div>
+
       </div>
 
       <div className="mx-auto w-full max-w-2xl overflow-hidden">

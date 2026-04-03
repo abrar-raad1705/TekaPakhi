@@ -44,8 +44,7 @@ import TransactionMonitorPage from './pages/admin/TransactionMonitorPage';
 import ConfigPage from './pages/admin/ConfigPage';
 import ReportsPage from './pages/admin/ReportsPage';
 import DistributorLoadPage from './pages/admin/DistributorLoadPage';
-import SecurityLogsPage from './pages/admin/SecurityLogsPage';
-import AdminActionLogsPage from './pages/admin/AdminActionLogsPage';
+
 import AuditTrailPage from './pages/admin/AuditTrailPage';
 import ToastPlayground from './pages/admin/ToastPlayground';
 
@@ -92,7 +91,7 @@ export default function App() {
         {/* Transaction routes (role-validated on server) */}
         <Route path="/send-money" element={<PrivateRoute allowedRoles={['CUSTOMER', 'MERCHANT']} requireActiveStatus><SendMoneyPage /></PrivateRoute>} />
         <Route path="/cash-in" element={<PrivateRoute allowedRoles={['AGENT']} requireActiveStatus><CashInPage /></PrivateRoute>} />
-        <Route path="/cash-out" element={<PrivateRoute allowedRoles={['CUSTOMER', 'MERCHANT']} requireActiveStatus><CashOutPage /></PrivateRoute>} />
+        <Route path="/cash-out" element={<PrivateRoute allowedRoles={['CUSTOMER', 'MERCHANT', 'BILLER']} requireActiveStatus><CashOutPage /></PrivateRoute>} />
         <Route path="/payment" element={<PrivateRoute allowedRoles={['CUSTOMER', 'MERCHANT']} requireActiveStatus><PaymentPage /></PrivateRoute>} />
         <Route path="/b2b" element={<PrivateRoute allowedRoles={['DISTRIBUTOR', 'AGENT']} requireActiveStatus><B2BTransferPage /></PrivateRoute>} />
         <Route path="/pay-bill" element={<PrivateRoute allowedRoles={['CUSTOMER', 'MERCHANT', 'AGENT']} requireActiveStatus><PayBillPage /></PrivateRoute>} />
@@ -105,8 +104,7 @@ export default function App() {
         <Route path="/admin/load-emoney" element={<AdminRoute><DistributorLoadPage /></AdminRoute>} />
         <Route path="/admin/config" element={<AdminRoute><ConfigPage /></AdminRoute>} />
         <Route path="/admin/reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
-        <Route path="/admin/logs/security" element={<AdminRoute><SecurityLogsPage /></AdminRoute>} />
-        <Route path="/admin/logs/actions" element={<AdminRoute><AdminActionLogsPage /></AdminRoute>} />
+
         <Route path="/admin/logs/audit" element={<AdminRoute><AuditTrailPage /></AdminRoute>} />
         <Route path="/admin/toast-test" element={<AdminRoute><ToastPlayground /></AdminRoute>} />
 

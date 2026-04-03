@@ -1,6 +1,4 @@
 import adminService from '../services/adminService.js';
-import securityLogService from '../services/securityLogService.js';
-import adminActionLogService from '../services/adminActionLogService.js';
 import auditLogService from '../services/auditLogService.js';
 
 function adminCtx(req) {
@@ -106,6 +104,15 @@ const adminController = {
   async listTransactions(req, res, next) {
     try {
       const data = await adminService.listTransactions(req.query);
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getTransactionDetail(req, res, next) {
+    try {
+      const data = await adminService.getTransactionDetail(req.params.id);
       res.json({ success: true, data });
     } catch (error) {
       next(error);
@@ -237,38 +244,6 @@ const adminController = {
   },
 
   // Logs
-
-  async getSecurityLogs(req, res, next) {
-    try {
-      const data = await securityLogService.query({
-        page: parseInt(req.query.page) || 1,
-        limit: parseInt(req.query.limit) || 25,
-        eventType: req.query.eventType || undefined,
-        profileId: req.query.profileId || undefined,
-        startDate: req.query.startDate || undefined,
-        endDate: req.query.endDate || undefined,
-      });
-      res.json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  },
-
-  async getActionLogs(req, res, next) {
-    try {
-      const data = await adminActionLogService.query({
-        page: parseInt(req.query.page) || 1,
-        limit: parseInt(req.query.limit) || 25,
-        action: req.query.action || undefined,
-        adminId: req.query.adminId || undefined,
-        startDate: req.query.startDate || undefined,
-        endDate: req.query.endDate || undefined,
-      });
-      res.json({ success: true, data });
-    } catch (error) {
-      next(error);
-    }
-  },
 
   async getAuditLogs(req, res, next) {
     try {

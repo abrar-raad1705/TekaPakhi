@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { adminApi } from '../../api/adminApi';
 import { formatBDT } from '../../utils/formatCurrency';
-import { ChevronDownIcon, ClipboardDocumentIcon, ClipboardDocumentCheckIcon } from '@heroicons/react/24/outline';
+import { ChevronDownIcon, ClipboardDocumentIcon, ClipboardDocumentCheckIcon, EyeIcon } from '@heroicons/react/24/outline';
 import AdminLayout from '../../components/admin/AdminLayout';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
+import TransactionDetailDrawer from '../../components/admin/TransactionDetailDrawer';
 import { toast } from 'sonner';
 import {
   Select,
@@ -91,6 +92,11 @@ export default function TransactionMonitorPage() {
   const [data, setData] = useState({ transactions: [], total: 0, page: 1, totalPages: 0 });
   const [loading, setLoading] = useState(true);
   const [reversing, setReversing] = useState(null);
+
+  // Detail drawer
+  const [drawer, setDrawer] = useState({ isOpen: false, txId: null });
+  const openDrawer = (txId) => setDrawer({ isOpen: true, txId });
+  const closeDrawer = () => setDrawer({ isOpen: false, txId: null });
 
   // Reversal confirmation
   const [modal, setModal] = useState({ isOpen: false, txId: null });
@@ -252,10 +258,10 @@ export default function TransactionMonitorPage() {
                   const displayType = isReversal ? "Reversal" : tx.type_name.replace(/_/g, " ");
                   return (
                     <tr key={tx.transaction_id} className="bg-white odd:bg-gray-50/60 hover:bg-primary-50/40 transition-colors">
-                      <td className="px-4 py-3.5 align-top">
+                      <td className="px-4 py-3.5 align-middle">
                         <CopyableTrxId value={tx.transaction_ref} />
                       </td>
-                      <td className="px-4 py-3.5 align-top">
+                      <td className="px-4 py-3.5 align-middle">
                         <span className={`text-sm font-semibold ${isReversal ? REVERSAL_TYPE_CLASS : "text-gray-900"}`}>
                           {displayType}
                         </span>
@@ -265,34 +271,49 @@ export default function TransactionMonitorPage() {
                           </p>
                         )}
                       </td>
-                      <td className="px-4 py-3.5 align-top">
-                        <p className="text-sm font-semibold text-gray-900">{tx.sender_name}</p>
+                      <td className="px-4 py-3.5 align-middle text-gray-900">
+                        <p className="text-sm font-semibold">{tx.sender_name}</p>
                         <p className="text-xs text-gray-500">{tx.sender_phone}</p>
                       </td>
-                      <td className="px-4 py-3.5 align-top">
-                        <p className="text-sm font-semibold text-gray-900">{tx.receiver_name}</p>
+                      <td className="px-4 py-3.5 align-middle text-gray-900">
+                        <p className="text-sm font-semibold">{tx.receiver_name}</p>
                         <p className="text-xs text-gray-500">{tx.receiver_phone}</p>
                       </td>
-                      <td className="px-4 py-3.5 text-right align-top font-semibold tabular-nums text-gray-900">{formatBDT(tx.amount)}</td>
-                      <td className="px-4 py-3.5 text-right align-top text-xs font-medium tabular-nums text-gray-600">{formatBDT(tx.fee_amount)}</td>
-                      <td className="px-4 py-3.5 text-center align-top">
+                      <td className="px-4 py-3.5 text-right align-middle font-semibold tabular-nums text-gray-900">{formatBDT(tx.amount)}</td>
+                      <td className="px-4 py-3.5 text-right align-middle text-xs font-medium tabular-nums text-gray-600">{formatBDT(tx.fee_amount)}</td>
+                      <td className="px-4 py-3.5 text-center align-middle">
                         <span className={`${TX_STATUS_BADGE} ${TX_STATUS_STYLE[tx.status] || "bg-gray-100 text-gray-700 border border-gray-200"}`}>
                           {tx.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3.5 align-top text-xs font-medium text-gray-800 tabular-nums whitespace-nowrap">
-                        {new Date(tx.transaction_time).toLocaleString("en-BD", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      <td className="px-4 py-3.5 align-middle whitespace-nowrap tabular-nums">
+                        <div className="text-[13px] font-medium text-gray-800">
+                          {new Date(tx.transaction_time).toLocaleDateString("en-BD", { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </div>
+                        <div className="text-[12px] font-medium text-gray-500 mt-0.5">
+                          {new Date(tx.transaction_time).toLocaleTimeString("en-BD", { hour: 'numeric', minute: '2-digit' })}
+                        </div>
                       </td>
-                      <td className="px-4 py-3.5 text-right align-top">
-                        {tx.status === "COMPLETED" && !tx.original_transaction_id && (
+                      <td className="px-4 py-3.5 text-right align-middle">
+                        <div className="flex items-center justify-end gap-1.5">
                           <button
-                            disabled={reversing === tx.transaction_id}
-                            onClick={() => handleReverse(tx.transaction_id)}
-                            className="rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                            onClick={() => openDrawer(tx.transaction_id)}
+                            className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-primary-50 hover:text-primary-700 hover:border-primary-200 transition-colors shadow-sm"
+                            title="View Details"
                           >
-                            {reversing === tx.transaction_id ? "…" : "Reverse"}
+                            <EyeIcon className="h-3.5 w-3.5 inline-block mr-1 -mt-[1px]" />
+                            View
                           </button>
-                        )}
+                          {tx.status === "COMPLETED" && !tx.original_transaction_id && (
+                            <button
+                              disabled={reversing === tx.transaction_id}
+                              onClick={() => handleReverse(tx.transaction_id)}
+                              className="rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors shadow-sm"
+                            >
+                              {reversing === tx.transaction_id ? "…" : "Reverse"}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -339,6 +360,12 @@ export default function TransactionMonitorPage() {
         isDanger={true}
         onConfirm={confirmReverse}
         onCancel={closeModal}
+      />
+
+      <TransactionDetailDrawer
+        transactionId={drawer.txId}
+        isOpen={drawer.isOpen}
+        onClose={closeDrawer}
       />
     </AdminLayout>
   );

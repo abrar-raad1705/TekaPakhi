@@ -101,9 +101,10 @@ function resolveChromeExecutablePath() {
 }
 
 /**
- * Recipient-facing receipt HTML. Styles come from locally compiled Tailwind
- * (`assets/receipt.compiled.css`); keep class lists in sync with
- * `src/styles/receipt-pdf-utilities.html`.
+ * Build a modern, professional receipt HTML.
+ * Uses inline styles alongside Tailwind utility classes so the PDF
+ * renders a polished document even with minimal CSS processing.
+ * Keep class lists in sync with `src/styles/receipt-pdf-utilities.html`.
  */
 function buildReceiptHtml(receipt, logoDataUri) {
   const typeLabel = escapeHtml(TYPE_LABELS[receipt.type] || receipt.type || 'Transaction');
@@ -113,62 +114,137 @@ function buildReceiptHtml(receipt, logoDataUri) {
   const receiverName = escapeHtml(receipt.receiver?.name || '—');
 
   const logoHtml = logoDataUri
-    ? `<img src="${logoDataUri}" alt="TekaPakhi" class="mb-2 block h-9 w-auto object-contain object-left" />`
-    : `<span class="mb-2 block text-lg font-extrabold tracking-tight text-blue-600">TekaPakhi</span>`;
+    ? `<img src="${logoDataUri}" alt="TekaPakhi" style="height:32px;width:auto;" />`
+    : `<span style="font-size:20px;font-weight:800;color:#2563eb;letter-spacing:-0.02em;">TekaPakhi</span>`;
 
-  const noteSection = receipt.note
-    ? `<div class="ml-auto mt-5 w-1/2 max-w-full border-t border-slate-200 pt-3.5">
-         <p class="mb-2 m-0 text-right text-[7px] font-bold uppercase tracking-[0.12em] text-slate-400">NOTE</p>
-         <p class="m-0 text-right text-[10px] leading-snug text-slate-600 break-words [overflow-wrap:anywhere]">${escapeHtml(String(receipt.note))}</p>
-       </div>`
-    : '';
+  // Build optional rows for the details table
+  let extraRows = '';
+  if (receipt.billAccountNumber) {
+    extraRows += `
+      <tr>
+        <td style="padding:10px 0;color:#64748b;font-size:13px;font-weight:500;border-bottom:1px solid #f1f5f9;white-space:nowrap;">Account No.</td>
+        <td style="padding:10px 0;font-size:13px;font-weight:600;color:#1e293b;text-align:right;border-bottom:1px solid #f1f5f9;">${escapeHtml(receipt.billAccountNumber)}</td>
+      </tr>`;
+  }
+  if (receipt.billContactNumber) {
+    extraRows += `
+      <tr>
+        <td style="padding:10px 0;color:#64748b;font-size:13px;font-weight:500;border-bottom:1px solid #f1f5f9;white-space:nowrap;">Bill Contact</td>
+        <td style="padding:10px 0;font-size:13px;font-weight:600;color:#1e293b;text-align:right;border-bottom:1px solid #f1f5f9;">${formatPhone(receipt.billContactNumber)}</td>
+      </tr>`;
+  }
+  if (receipt.note) {
+    extraRows += `
+      <tr>
+        <td style="padding:10px 0;color:#64748b;font-size:13px;font-weight:500;white-space:nowrap;vertical-align:top;">Note</td>
+        <td style="padding:10px 0;font-size:13px;font-weight:500;color:#475569;text-align:right;word-break:break-word;overflow-wrap:anywhere;">&ldquo;${escapeHtml(String(receipt.note))}&rdquo;</td>
+      </tr>`;
+  }
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #ffffff;
+      color: #1e293b;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+  </style>
 </head>
-<body class="m-0 bg-white text-sm leading-normal text-slate-900 antialiased">
-  <div class="mx-auto max-w-[520px] px-10 pb-12 pt-9">
-    ${logoHtml}
-    <p class="mb-1 m-0 text-[8px] font-semibold uppercase tracking-[0.18em] text-slate-400">OFFICIAL RECEIPT</p>
-    <h1 class="mb-5 m-0 text-[13px] font-extrabold tracking-tight text-slate-900">${typeLabel}</h1>
-    <div class="mb-[18px] h-px w-full bg-slate-200" role="presentation"></div>
+<body>
+  <div style="max-width:540px;margin:0 auto;padding:40px 44px 36px;">
 
-    <p class="mb-1.5 m-0 text-[7px] font-bold uppercase tracking-[0.12em] text-slate-400">TRANSACTION ID</p>
-    <p class="mb-4 m-0 text-[10px] font-bold break-all text-slate-900">${ref}</p>
-    <p class="mb-1.5 m-0 text-[7px] font-bold uppercase tracking-[0.12em] text-slate-400">DATE &amp; TIME</p>
-    <p class="mb-4 m-0 text-[10px] text-slate-600">${formatWhen(receipt.timestamp)}</p>
-    ${receipt.billAccountNumber ? `<p class="mb-1.5 m-0 text-[7px] font-bold uppercase tracking-[0.12em] text-slate-400">BILL ACCOUNT NO.</p><p class="mb-4 m-0 text-[10px] text-slate-900">${escapeHtml(receipt.billAccountNumber)}</p>` : ''}
-    ${receipt.billContactNumber ? `<p class="mb-1.5 m-0 text-[7px] font-bold uppercase tracking-[0.12em] text-slate-400">BILL CONTACT</p><p class="mb-4 m-0 text-[10px] text-slate-900">${formatPhone(receipt.billContactNumber)}</p>` : ''}
-
-    <div class="mb-[22px] rounded-md bg-slate-50 px-5 pt-3.5 pb-4 text-center">
-      <p class="mb-2 m-0 text-[8px] font-semibold uppercase tracking-[0.12em] text-slate-500">AMOUNT (BDT)</p>
-      <p class="mb-2 m-0 text-2xl font-extrabold tracking-tight text-slate-900">${escapeHtml(formatBdt(receipt.amount))}</p>
-      <p class="m-0 text-[9px] text-slate-500">Status: ${status}</p>
-    </div>
-
-    <div class="mb-1 flex gap-6">
-      <div class="min-w-0 flex-1">
-        <p class="mb-2 m-0 text-[7px] font-bold uppercase tracking-[0.12em] text-slate-400">FROM</p>
-        <p class="mb-1.5 m-0 text-[10px] font-bold break-words text-slate-900">${senderName}</p>
-        <p class="m-0 text-[9px] text-slate-500">${formatPhone(receipt.sender?.phone)}</p>
+    <!-- ─── HEADER ─── -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:32px;">
+      <div>
+        ${logoHtml}
       </div>
-      <div class="min-w-0 flex-1">
-        <p class="mb-2 m-0 text-[7px] font-bold uppercase tracking-[0.12em] text-slate-400">TO</p>
-        <p class="mb-1.5 m-0 text-[10px] font-bold break-words text-slate-900">${receiverName}</p>
-        <p class="m-0 text-[9px] text-slate-500">${formatPhone(receipt.receiver?.phone)}</p>
+      <div style="text-align:right;">
+        <div style="font-size:10px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#94a3b8;">Official Receipt</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:2px;">${formatWhen(receipt.timestamp)}</div>
       </div>
     </div>
 
-    ${noteSection}
-
-    <div class="mb-3 mt-6 h-px w-full bg-slate-200" role="presentation"></div>
-    <div class="mb-3 flex items-center justify-between text-[7px]">
-      <span class="font-semibold text-emerald-600">Verified secure transaction</span>
-      <span class="font-bold text-slate-300">TekaPakhi</span>
+    <!-- ─── HERO BAND ─── -->
+    <div style="background:#f2f9fe;border:1px solid #dbeafe;border-radius:16px;padding:28px 32px;margin-bottom:28px;color:#1e293b;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+        <span style="font-size:13px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:#64748b;">${typeLabel}</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;background:#ffffff;border:1px solid #dbeafe;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;letter-spacing:0.04em;color:#2563eb;">
+          <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#16a34a;"></span>
+          ${status}
+        </span>
+      </div>
+      <div style="font-size:36px;font-weight:800;letter-spacing:-0.02em;line-height:1.1;color:#2563eb;">${escapeHtml(formatBdt(receipt.amount))}</div>
+      <div style="margin-top:20px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#94a3b8;">Transaction ID</div>
+      <div style="margin-top:4px;font-size:14px;font-weight:700;color:#1e293b;letter-spacing:0.02em;word-break:break-all;font-family:inherit;">${ref}</div>
     </div>
-    <p class="m-0 text-center text-[7px] leading-snug text-slate-400">This receipt is for your records. For support, use the TekaPakhi app.</p>
+
+    <!-- ─── FROM / TO CARDS ─── -->
+    <div style="display:flex;gap:16px;margin-bottom:28px;">
+      <div style="flex:1;background:#f2f9fe;border:1px solid #e2e8f0;border-radius:12px;padding:20px;">
+        <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;">From</div>
+        <div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:4px;">${senderName}</div>
+        <div style="font-size:13px;color:#64748b;font-weight:500;">${formatPhone(receipt.sender?.phone)}</div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:center;">
+        <div style="width:36px;height:36px;background:#eff6ff;border:1px solid #dbeafe;border-radius:50%;display:flex;align-items:center;justify-content:center;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+        </div>
+      </div>
+      <div style="flex:1;background:#f2f9fe;border:1px solid #e2e8f0;border-radius:12px;padding:20px;">
+        <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;">To</div>
+        <div style="font-size:15px;font-weight:700;color:#0f172a;margin-bottom:4px;">${receiverName}</div>
+        <div style="font-size:13px;color:#64748b;font-weight:500;">${formatPhone(receipt.receiver?.phone)}</div>
+      </div>
+    </div>
+
+    <!-- ─── BREAKDOWN TABLE ─── -->
+    <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:28px;">
+      <div style="background:#f2f9fe;padding:12px 20px;border-bottom:1px solid #e2e8f0;">
+        <span style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;">Transaction Details</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;">
+        <tbody>
+          <tr>
+            <td style="padding:12px 20px;color:#64748b;font-size:13px;font-weight:500;border-bottom:1px solid #f1f5f9;">Amount</td>
+            <td style="padding:12px 20px;font-size:13px;font-weight:600;color:#1e293b;text-align:right;border-bottom:1px solid #f1f5f9;">${escapeHtml(formatBdt(receipt.amount))}</td>
+          </tr>
+          <tr>
+            <td style="padding:12px 20px;color:#64748b;font-size:13px;font-weight:500;border-bottom:1px solid #f1f5f9;">Fee</td>
+            <td style="padding:12px 20px;font-size:13px;font-weight:600;color:#1e293b;text-align:right;border-bottom:1px solid #f1f5f9;">${escapeHtml(formatBdt(receipt.fee))}</td>
+          </tr>
+          <tr style="background:#f2f9fe;">
+            <td style="padding:14px 20px;color:#1e293b;font-size:14px;font-weight:700;">Total Debit</td>
+            <td style="padding:14px 20px;font-size:16px;font-weight:800;color:#2563eb;text-align:right;">${escapeHtml(formatBdt(receipt.totalDebit))}</td>
+          </tr>
+          ${extraRows ? `
+          <tr><td colspan="2" style="padding:0;"><div style="height:1px;background:#e2e8f0;"></div></td></tr>
+          ` : ''}
+          ${extraRows.replace(/padding:10px 0/g, 'padding:12px 20px')}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ─── FOOTER ─── -->
+    <div style="border-top:2px solid #e2e8f0;padding-top:20px;display:flex;align-items:center;justify-content:space-between;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>
+        <span style="font-size:10px;font-weight:700;color:#16a34a;letter-spacing:0.05em;text-transform:uppercase;">Verified &amp; Secure</span>
+      </div>
+      <span style="font-size:10px;font-weight:600;color:#cbd5e1;">TekaPakhi</span>
+    </div>
+    <div style="text-align:center;margin-top:16px;">
+      <p style="font-size:10px;color:#94a3b8;line-height:1.6;">
+        This is a computer-generated receipt and does not require a signature.<br/>
+        For support, contact us through the TekaPakhi app.
+      </p>
+    </div>
   </div>
 </body>
 </html>`;
