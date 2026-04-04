@@ -19,6 +19,7 @@
     "multer": "^2.1.1",
     "pg": "^8.13.3",
     "puppeteer": "^24.40.0",
+    "readline-sync": "^1.4.10",
     "zod": "^3.24.2"
   },
   "devDependencies": {
