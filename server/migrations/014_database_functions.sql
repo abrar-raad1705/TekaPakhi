@@ -205,8 +205,6 @@ BEGIN
             RETURN 'Only Agents can perform Cash In to Customers.';
         END IF;
     ELSIF v_type_name = 'CASH_OUT' THEN
-        -- Standard: Customer (1) or Merchant (3) to Agent (2)
-        -- ADDED: Biller (5) to Agent (2)
         IF NOT (v_sender_type_id IN (1, 3, 5) AND v_receiver_type_id = 2) THEN
             RETURN 'Account type incompatible for Cash Out.';
         END IF;

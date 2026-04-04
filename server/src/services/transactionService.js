@@ -82,7 +82,6 @@ const transactionService = {
           senderWalletId: swRes.rows[0].wallet_id,
           receiverWalletId: rwRes.rows[0].wallet_id,
           amount,
-          fee: 0, // Fee is re-calculated in DB, passing 0 as placeholder
           typeId: txType.type_id,
           note,
         });

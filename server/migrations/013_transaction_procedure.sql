@@ -14,7 +14,6 @@ CREATE OR REPLACE PROCEDURE sp_execute_transaction(
     p_sender_wallet_id BIGINT,
     p_receiver_wallet_id BIGINT,
     p_amount DECIMAL(15,2),
-    p_user_fee DECIMAL(15,2), -- Fee passed from UI/JS (will be re-verified)
     p_type_id INT,
     p_transaction_ref VARCHAR(100),
     INOUT p_transaction_id BIGINT DEFAULT NULL
@@ -87,11 +86,6 @@ BEGIN
 
     -- Calculate fee via database function
     v_calculated_fee := fn_calculate_transaction_fee(p_type_id, p_amount, v_sender_profile_id, v_receiver_profile_id);
-
-    -- Verify fee matches what the UI sent (tolerance check, skip if UI sent 0 as "trust DB")
-    IF p_user_fee > 0 AND ABS(v_calculated_fee - p_user_fee) > 0.01 THEN
-        RAISE EXCEPTION 'Fee mismatch. Expected: %, Got: %', v_calculated_fee, p_user_fee;
-    END IF;
 
     -- Derive debit/credit amounts based on fee bearer
     IF v_fee_bearer = 'SENDER' THEN

@@ -37,14 +37,14 @@ const transactionModel = {
    */
   async executeProcedure(
     client,
-    { senderWalletId, receiverWalletId, amount, fee, typeId, note },
+    { senderWalletId, receiverWalletId, amount, typeId, note },
     options
   ) {
     const { txRef, result: transactionId } = await allocateUniqueTxRef(
       async (txRefStr) => {
         const res = await client.query(
-          `CALL ${DB_SCHEMA}.sp_execute_transaction($1, $2, $3, $4, $5, $6, null)`,
-          [senderWalletId, receiverWalletId, amount, fee, typeId, txRefStr]
+          `CALL ${DB_SCHEMA}.sp_execute_transaction($1, $2, $3, $4, $5, null)`,
+          [senderWalletId, receiverWalletId, amount, typeId, txRefStr]
         );
         
         if (note) {
