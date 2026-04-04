@@ -1,7 +1,7 @@
 import pool, { DB_SCHEMA } from '../config/db.js';
 
 const adminModel = {
-  // ── Dashboard Stats ──────────────────────────────────────────
+  // Dashboard Stats
 
   async getUserCountsByType() {
     const result = await pool.query(
@@ -81,7 +81,7 @@ const adminModel = {
     return result.rows;
   },
 
-  // ── User Management ──────────────────────────────────────────
+  // User Management
 
   async getUsers({ page = 1, limit = 20, search, typeId, status }) {
     page = Number(page) || 1;
@@ -270,7 +270,7 @@ const adminModel = {
     return result.rows[0] || null;
   },
 
-  // ── Transaction Management (Admin) ───────────────────────────
+  // Transaction Management (Admin)
 
   async getAllTransactions({
     page = 1,
@@ -439,7 +439,7 @@ const adminModel = {
     return result.rows[0] || null;
   },
 
-  // ── Config Management ────────────────────────────────────────
+  // Config Management
 
   async getTransactionTypes() {
     const result = await pool.query(
@@ -560,7 +560,7 @@ const adminModel = {
     return result.rows;
   },
 
-  // ── Reports ──────────────────────────────────────────────────
+  // Reports
 
   async getTransactionReport({ fromDate, toDate, groupBy = "day" }) {
     const truncFn =
@@ -584,7 +584,7 @@ const adminModel = {
     return result.rows;
   },
 
-  // ── Platform Financial Stats ───────────────────────────────
+  // Platform Financial Stats
 
   async getPlatformFinancials() {
     const emoneyResult = await pool.query(

@@ -1011,7 +1011,7 @@ export default function UserDetailPage() {
   );
 }
 
-// ── Admin overlay modal (consistent with user detail cards) ───
+// Admin overlay modal (consistent with user detail cards)
 function FintechModal({ isOpen, onClose, title, subtitle, accentStripe, children }) {
   if (!isOpen) return null;
   return (

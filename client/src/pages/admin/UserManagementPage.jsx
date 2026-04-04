@@ -319,7 +319,7 @@ export default function UserManagementPage() {
   );
 }
 
-// ── Create Profile Form (Distributor / Biller) ────────────────
+// Create Profile Form (Distributor / Biller)
 
 const req = (label) => (
   <>

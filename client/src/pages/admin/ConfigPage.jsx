@@ -85,7 +85,7 @@ export default function ConfigPage() {
   );
 }
 
-// ── Transaction Types Tab ──────────────────────────────────────
+// Transaction Types Tab
 
 function TransactionTypesTab() {
   const [types, setTypes] = useState([]);
@@ -211,7 +211,7 @@ function TransactionTypesTab() {
   );
 }
 
-// ── Limits Tab ─────────────────────────────────────────────────
+// Limits Tab
 
 function LimitsTab({ setModal, closeModal }) {
   const [limits, setLimits] = useState([]);
@@ -384,7 +384,7 @@ function LimitsTab({ setModal, closeModal }) {
   );
 }
 
-// ── Commissions Tab ────────────────────────────────────────────
+// Commissions Tab
 
 function CommissionsTab({ setModal, closeModal }) {
   const [policies, setPolicies] = useState([]);

@@ -160,7 +160,7 @@ function buildReceiptHtml(receipt, logoDataUri) {
 <body>
   <div style="max-width:540px;margin:0 auto;padding:40px 44px 36px;">
 
-    <!-- ─── HEADER ─── -->
+    <!-- HEADER -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:32px;">
       <div>
         ${logoHtml}
@@ -171,7 +171,7 @@ function buildReceiptHtml(receipt, logoDataUri) {
       </div>
     </div>
 
-    <!-- ─── HERO BAND ─── -->
+    <!-- HERO BAND -->
     <div style="background:#f2f9fe;border:1px solid #dbeafe;border-radius:16px;padding:28px 32px;margin-bottom:28px;color:#1e293b;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
         <span style="font-size:13px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:#64748b;">${typeLabel}</span>
@@ -185,7 +185,7 @@ function buildReceiptHtml(receipt, logoDataUri) {
       <div style="margin-top:4px;font-size:14px;font-weight:700;color:#1e293b;letter-spacing:0.02em;word-break:break-all;font-family:inherit;">${ref}</div>
     </div>
 
-    <!-- ─── FROM / TO CARDS ─── -->
+    <!-- FROM / TO CARDS -->
     <div style="display:flex;gap:16px;margin-bottom:28px;">
       <div style="flex:1;background:#f2f9fe;border:1px solid #e2e8f0;border-radius:12px;padding:20px;">
         <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;">From</div>
@@ -204,7 +204,7 @@ function buildReceiptHtml(receipt, logoDataUri) {
       </div>
     </div>
 
-    <!-- ─── BREAKDOWN TABLE ─── -->
+    <!-- BREAKDOWN TABLE -->
     <div style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:28px;">
       <div style="background:#f2f9fe;padding:12px 20px;border-bottom:1px solid #e2e8f0;">
         <span style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#64748b;">Transaction Details</span>
@@ -231,7 +231,7 @@ function buildReceiptHtml(receipt, logoDataUri) {
       </table>
     </div>
 
-    <!-- ─── FOOTER ─── -->
+    <!-- FOOTER -->
     <div style="border-top:2px solid #e2e8f0;padding-top:20px;display:flex;align-items:center;justify-content:space-between;">
       <div style="display:flex;align-items:center;gap:6px;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>

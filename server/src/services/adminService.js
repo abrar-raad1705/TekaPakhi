@@ -19,7 +19,7 @@ function generateTempPin() {
 }
 
 const adminService = {
-  // ── Dashboard ────────────────────────────────────────────────
+  // Dashboard
 
   async getDashboard() {
     const [
@@ -75,7 +75,7 @@ const adminService = {
     };
   },
 
-  // ── User Management ──────────────────────────────────────────
+  // User Management
 
   async listUsers(filters) {
     return adminModel.getUsers(filters);
@@ -616,7 +616,7 @@ const adminService = {
     return detail;
   },
 
-  // ── Transaction Reversal ─────────────────────────────────────
+  // Transaction Reversal
 
   /**
    * Reverse a completed transaction by routing all legs through the Adjustment wallet.
@@ -819,7 +819,7 @@ const adminService = {
     }
   },
 
-  // ── Config Management ────────────────────────────────────────
+  // Config Management
 
   async getTransactionTypes() {
     return adminModel.getTransactionTypes();
@@ -885,7 +885,7 @@ const adminService = {
     return adminModel.getProfileTypes();
   },
 
-  // ── Reports ──────────────────────────────────────────────────
+  // Reports
 
   async getTransactionReport(filters) {
     return adminModel.getTransactionReport(filters);

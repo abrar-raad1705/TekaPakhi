@@ -65,7 +65,7 @@ const EVENT_LABEL = {
   REVOKE_PIN_RESET: 'Revoke PIN Reset',
 };
 
-/* ── Copyable inline element ──────────────────────────────────── */
+/* Copyable inline element */
 function Copyable({ children, value, className = '' }) {
   const [copied, setCopied] = useState(false);
 
@@ -94,7 +94,7 @@ function Copyable({ children, value, className = '' }) {
   );
 }
 
-/* ── Summary parser & renderer ────────────────────────────────── */
+/* Summary parser & renderer */
 /**
  * Tokenise an audit summary into structured segments for rich rendering.
  * Recognises: ৳amounts, phone numbers (01...), (ref: XYZ), ACTIVE/BLOCKED/…, role names, #id.

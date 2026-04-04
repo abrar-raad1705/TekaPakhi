@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, Fragment } from "react";
 import { Dialog, DialogPanel, DialogTitle, Menu, MenuButton, MenuItem, MenuItems, Transition } from "@headlessui/react";
 import { EllipsisVerticalIcon, ChevronLeftIcon, AdjustmentsHorizontalIcon, ListBulletIcon } from "@heroicons/react/24/outline";
 
-/* ───── Constants ───── */
+/* Constants */
 const ITEM_H = 40; 
 
 const PRESETS = [
@@ -16,7 +16,7 @@ const PRESETS = [
   { label: "3 months", days: 90 },
 ];
 
-/* ───── Helpers ───── */
+/* Helpers */
 function computeTimestamp(days) {
   return new Date(Date.now() + days * 86400000).toISOString();
 }

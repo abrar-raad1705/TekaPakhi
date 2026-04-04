@@ -17,7 +17,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { toast } from 'sonner';
 
-/* ── Helpers ─────────────────────────────────────────────── */
+/* Helpers */
 
 function fmtDate(iso) {
   if (!iso) return '—';
@@ -51,7 +51,7 @@ function CopyChip({ value }) {
   );
 }
 
-/* ── Styles ─────────────────────────────────────────────── */
+/* Styles */
 
 const TX_STATUS_STYLE = {
   COMPLETED: 'bg-green-50 text-green-700 border-green-100',
@@ -81,7 +81,7 @@ const ENTRY_STYLES = {
 const fieldLabelClass = "text-[10px] font-bold uppercase tracking-wider text-gray-600";
 const fieldValueClass = "text-sm font-bold text-gray-900";
 
-/* ── Section Components ──────────────────────────────────── */
+/* Section Components */
 
 function PartyCard({ label, name, phone, typeName }) {
   const accent = getProfileTypeAdmin(typeName);
@@ -112,7 +112,7 @@ function PartyCard({ label, name, phone, typeName }) {
   );
 }
 
-/* ── Main Drawer ─────────────────────────────────────────── */
+/* Main Drawer */
 
 export default function TransactionDetailDrawer({ transactionId, isOpen, onClose }) {
   const [data, setData] = useState(null);
