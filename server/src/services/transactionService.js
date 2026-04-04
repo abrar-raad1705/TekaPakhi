@@ -38,7 +38,7 @@ function normalizeTransactionalForViewer(tx, profileId) {
 }
 
 const transactionService = {
-  async execute({ senderProfileId, receiverPhone, amount, typeCode, pin, note, billAccountNumber = null, billContactNumber = null, meta }) {
+  async execute({ senderProfileId, receiverPhone, amount, typeCode, pin, note, billAccountNumber = null, billContactNumber = null }) {
     // Resolve transaction type
     const txType = await transactionTypeModel.findByName(typeCode);
     if (!txType) {
@@ -59,7 +59,7 @@ const transactionService = {
     }
 
     // PIN Verification (Critical)
-    await authService.verifyTransactionPin(senderProfileId, pin, meta);
+    await authService.verifyTransactionPin(senderProfileId, pin);
 
     // DB Transaction Execution
     const client = await pool.connect();

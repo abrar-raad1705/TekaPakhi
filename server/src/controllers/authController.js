@@ -18,7 +18,7 @@ const authController = {
    */
   async login(req, res, next) {
     try {
-      const result = await authService.login({ ...req.validatedBody, meta: req.meta });
+      const result = await authService.login(req.validatedBody);
       res.status(200).json({ success: true, data: result });
     } catch (error) {
       next(error);
@@ -31,7 +31,7 @@ const authController = {
   async requestOtp(req, res, next) {
     try {
       const { phoneNumber, purpose } = req.validatedBody;
-      const result = await authService.requestOtp(phoneNumber, purpose, req.meta);
+      const result = await authService.requestOtp(phoneNumber, purpose);
       res.status(200).json({ success: true, data: result });
     } catch (error) {
       next(error);
@@ -43,7 +43,7 @@ const authController = {
    */
   async verifyOtp(req, res, next) {
     try {
-      const result = await authService.verifyOtp({ ...req.validatedBody, meta: req.meta });
+      const result = await authService.verifyOtp(req.validatedBody);
       res.status(200).json({ success: true, data: result });
     } catch (error) {
       next(error);
@@ -56,7 +56,7 @@ const authController = {
   async forgotPin(req, res, next) {
     try {
       const { phoneNumber } = req.validatedBody;
-      const result = await authService.requestOtp(phoneNumber, 'RESET_PIN', req.meta);
+      const result = await authService.requestOtp(phoneNumber, 'RESET_PIN');
       res.status(200).json({ success: true, data: result });
     } catch (error) {
       next(error);
@@ -68,7 +68,7 @@ const authController = {
    */
   async resetPin(req, res, next) {
     try {
-      const result = await authService.resetPin({ ...req.validatedBody, meta: req.meta });
+      const result = await authService.resetPin(req.validatedBody);
       res.status(200).json({ success: true, data: result });
     } catch (error) {
       next(error);
@@ -83,7 +83,6 @@ const authController = {
       const result = await authService.changePin({
         profileId: req.user.profileId,
         ...req.validatedBody,
-        meta: req.meta,
       });
       res.status(200).json({ success: true, data: result });
     } catch (error) {

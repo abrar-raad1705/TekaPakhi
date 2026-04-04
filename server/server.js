@@ -1,19 +1,18 @@
 import app from "./src/app.js";
 import env from "./src/config/env.js";
 import pool from "./src/config/db.js";
-import logger from "./src/config/logger.js";
 
 const startServer = async () => {
   try {
     const client = await pool.connect();
-    logger.info("Connected to PostgreSQL successfully");
+    console.log("Connected to PostgreSQL successfully");
     client.release();
 
     app.listen(env.PORT, "0.0.0.0", () => {
-      logger.info({ port: env.PORT, env: env.NODE_ENV }, "API server started");
+      console.log(`API server started on port ${env.PORT} [${env.NODE_ENV}]`);
     });
   } catch (error) {
-    logger.fatal({ err: error }, "Failed to start server");
+    console.error("Failed to start server:", error);
     process.exit(1);
   }
 };

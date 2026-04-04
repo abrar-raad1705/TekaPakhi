@@ -2,7 +2,7 @@ import adminService from '../services/adminService.js';
 import auditLogService from '../services/auditLogService.js';
 
 function adminCtx(req) {
-  return { adminId: 'ADMIN', ip: req.meta?.ip };
+  return { adminId: 'ADMIN' };
 }
 
 const adminController = {

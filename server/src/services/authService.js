@@ -174,7 +174,7 @@ const authService = {
   },
 
 
-  async login({ phoneNumber, securityPin, meta }) {
+  async login({ phoneNumber, securityPin }) {
     const profile = await profileModel.findByPhone(phoneNumber);
     if (!profile) {
       throw new AppError("Invalid phone number or PIN.", 401);
@@ -352,7 +352,7 @@ const authService = {
   /**
    * Verify phone number with OTP
    */
-  async verifyOtp({ phoneNumber, otpCode, purpose = "VERIFY_PHONE", isCheckOnly = false, meta }) {
+  async verifyOtp({ phoneNumber, otpCode, purpose = "VERIFY_PHONE", isCheckOnly = false }) {
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -377,7 +377,7 @@ const authService = {
   /**
    * Request OTP for PIN reset or phone verification
    */
-  async requestOtp(phoneNumber, purpose = "RESET_PIN", meta) {
+  async requestOtp(phoneNumber, purpose = "RESET_PIN") {
     const profile = await profileModel.findByPhone(phoneNumber);
 
     if (purpose === "VERIFY_PHONE") {
@@ -413,7 +413,7 @@ const authService = {
   /**
    * Reset PIN with OTP verification
    */
-  async resetPin({ phoneNumber, otpCode, newPin, meta }) {
+  async resetPin({ phoneNumber, otpCode, newPin }) {
     const profile = await profileModel.findByPhone(phoneNumber);
     if (!profile) {
       throw new AppError("Profile not found.", 404);
@@ -455,7 +455,7 @@ const authService = {
   /**
    * Change PIN (authenticated user, requires old PIN)
    */
-  async changePin({ profileId, oldPin, newPin, meta }) {
+  async changePin({ profileId, oldPin, newPin }) {
     const profile = await profileModel.findById(profileId);
     if (!profile) {
       throw new AppError("Profile not found.", 404);
@@ -483,7 +483,7 @@ const authService = {
     return { message: "PIN changed successfully." };
   },
 
-  async verifyTransactionPin(profileId, pin, meta) {
+  async verifyTransactionPin(profileId, pin) {
     const profile = await profileModel.findById(profileId);
     if (!profile) {
       throw new AppError("Profile not found.", 404);

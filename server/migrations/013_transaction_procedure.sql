@@ -61,7 +61,7 @@ DECLARE
     v_comm_amounts DECIMAL(15,2) [] := '{}';
     v_comm_descriptions TEXT[] := '{}';
 BEGIN
-    -- 1. Metadata Retrieval (Pre-Lock)
+    -- 1. Metadata Retrieval
     SELECT type_name, fee_bearer INTO v_type_name, v_fee_bearer 
     FROM transaction_types WHERE type_id = p_type_id;
 
@@ -76,13 +76,13 @@ BEGIN
     SELECT profile_id, type_id, account_status INTO v_receiver_profile_id, v_receiver_type_id, v_receiver_status
     FROM wallets JOIN profiles USING (profile_id) WHERE wallet_id = p_receiver_wallet_id;
 
-    -- 2. Validation (Pre-Lock)
+    -- 2. Validation
     SELECT fn_validate_transaction_preflight(v_sender_profile_id, v_receiver_profile_id, p_type_id, p_amount) INTO v_limit_error;
     IF v_limit_error IS NOT NULL THEN
         RAISE EXCEPTION '%', v_limit_error;
     END IF;
 
-    -- 3. Precise Calculations (Pre-Lock)
+    -- 3. Precise Calculations
 
     -- Calculate fee via database function
     v_calculated_fee := fn_calculate_transaction_fee(p_type_id, p_amount, v_sender_profile_id, v_receiver_profile_id);
@@ -102,15 +102,16 @@ BEGIN
         RAISE EXCEPTION 'Insufficient balance. Required: %, Available: %', v_sender_debit, v_before_bal;
     END IF;
 
-    -- 4. Identify Auxiliary Parties (Pre-Lock)
+    -- 4. Identify Auxiliary Parties
     SELECT wallet_id INTO v_revenue_wallet_id FROM wallets WHERE role = 'REVENUE' LIMIT 1;
     SELECT wallet_id INTO v_treasury_wallet_id FROM wallets WHERE role = 'TREASURY' LIMIT 1;
 
-    -- 5. Commission Pre-Calculation (Pre-Lock)
+    -- 5. Commission Pre-Calculation
     FOR v_policy IN SELECT cp.*, pt.type_name as beneficiary_type_name 
                     FROM commission_policies cp
                     JOIN profile_types pt ON cp.profile_type_id = pt.type_id
-                    WHERE cp.transaction_type_id = p_type_id LOOP
+                    WHERE cp.transaction_type_id = p_type_id 
+    LOOP
         v_beneficiary_profile_id := NULL;
         IF v_policy.profile_type_id = v_sender_type_id THEN
             v_beneficiary_profile_id := v_sender_profile_id;
@@ -144,17 +145,18 @@ BEGIN
     IF v_treasury_wallet_id IS NOT NULL THEN v_lock_wallets := array_append(v_lock_wallets, v_treasury_wallet_id); END IF;
     v_lock_wallets := v_lock_wallets || v_comm_wallet_ids;
     
-    FOR v_wid IN SELECT DISTINCT UNNEST(v_lock_wallets) AS id ORDER BY id LOOP
+    FOR v_wid IN SELECT DISTINCT UNNEST(v_lock_wallets) AS id ORDER BY id 
+    LOOP
         PERFORM * FROM wallets WHERE wallet_id = v_wid FOR UPDATE;
     END LOOP;
 
-    -- 7. Hard Balance Check (Atomic)
+    -- 7. Hard Balance Check
     SELECT balance INTO v_before_bal FROM wallets WHERE wallet_id = p_sender_wallet_id;
     IF v_before_bal < v_sender_debit THEN
         RAISE EXCEPTION 'Insufficient balance after lock acquisition. Required: %, Available: %', v_sender_debit, v_before_bal;
     END IF;
 
-    -- 8. Execution Phase (Fast Updates)
+    -- 8. Execution Phase
     PERFORM set_config('app.internal_op', 'true', true);
 
     -- Create Transaction Record
