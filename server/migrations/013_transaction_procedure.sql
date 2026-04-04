@@ -100,9 +100,6 @@ BEGIN
     ELSIF v_fee_bearer = 'RECEIVER' THEN
         v_sender_debit  := p_amount;
         v_receiver_credit := p_amount - v_calculated_fee;
-    ELSE -- SPLIT or fallback
-        v_sender_debit  := p_amount + ROUND(v_calculated_fee / 2, 2);
-        v_receiver_credit := p_amount - (v_calculated_fee - ROUND(v_calculated_fee / 2, 2));
     END IF;
 
     -- Soft Balance Check
