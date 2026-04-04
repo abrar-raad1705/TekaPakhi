@@ -10,6 +10,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationPrevious,
+  PaginationNext,
+  PaginationEllipsis,
+} from "../../components/ui/pagination";
+import { getPaginationRange } from "../../utils/paginationRange";
 
 const EVENT_TYPES = [
   { id: '', label: 'All Events' },
@@ -287,24 +297,47 @@ export default function AuditTrailPage() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-500">Page {page} of {totalPages} ({total} total)</span>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-50"
-              >
-                Prev
-              </button>
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-                className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-gray-50"
-              >
-                Next
-              </button>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-gray-100 px-5 py-3 mt-4">
+            <div className="text-sm text-gray-500 font-medium sm:flex-1 text-center sm:text-left">
+              Page <span className="font-semibold text-gray-800">{page}</span> of {totalPages} ({total} total)
             </div>
+            <div className="sm:flex-1 flex justify-center">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page <= 1}
+                      className={page <= 1 ? 'pointer-events-none opacity-40' : ''}
+                    />
+                  </PaginationItem>
+                  {getPaginationRange(page, totalPages).map((p, i) =>
+                    p === '…' ? (
+                      <PaginationItem key={`e-${i}`}>
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    ) : (
+                      <PaginationItem key={p}>
+                        <PaginationLink
+                          isActive={p === page}
+                          onClick={() => setPage(p)}
+                        >
+                          {p}
+                        </PaginationLink>
+                      </PaginationItem>
+                    )
+                  )}
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page >= totalPages}
+                      className={page >= totalPages ? 'pointer-events-none opacity-40' : ''}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+            <div className="hidden sm:block sm:flex-1" />
           </div>
         )}
       </div>

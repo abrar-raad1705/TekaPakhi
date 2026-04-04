@@ -143,6 +143,8 @@ const transactionModel = {
    * Paginated transaction history for a profile
    */
   async findByProfileId(profileId, { page = 1, limit = 20, type = null, fromDate = null, toDate = null } = {}) {
+    page = Number(page) || 1;
+    limit = Number(limit) || 20;
     const offset = (page - 1) * limit;
     const params = [profileId];
     let paramIdx = 2;

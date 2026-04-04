@@ -12,6 +12,8 @@ const auditLogModel = {
   },
 
   async findAll({ page = 1, limit = 25, eventType, actorType, startDate, endDate } = {}) {
+    page = Number(page) || 1;
+    limit = Number(limit) || 25;
     const conditions = [];
     const params = [];
     let idx = 1;

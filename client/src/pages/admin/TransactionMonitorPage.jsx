@@ -15,6 +15,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationPrevious,
+  PaginationNext,
+  PaginationEllipsis,
+} from "../../components/ui/pagination";
+import { getPaginationRange } from "../../utils/paginationRange";
 
 function CopyableTrxId({ value, inline = false }) {
   const [copied, setCopied] = useState(false);
@@ -325,26 +335,47 @@ export default function TransactionMonitorPage() {
 
         {/* Pagination */}
         {data.totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-gray-100 bg-gray-50/80 px-5 py-3">
-            <p className="text-xs text-gray-500 font-medium">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-gray-100 bg-gray-50/80 px-5 py-3">
+            <div className="text-xs text-gray-500 font-medium sm:flex-1 text-center sm:text-left">
               Page <span className="text-gray-800 font-semibold">{data.page}</span> of {data.totalPages} · {data.total.toLocaleString()} results
-            </p>
-            <div className="flex gap-2">
-              <button
-                disabled={data.page <= 1}
-                onClick={() => updateParams('page', String(data.page - 1))}
-                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors shadow-sm"
-              >
-                Previous
-              </button>
-              <button
-                disabled={data.page >= data.totalPages}
-                onClick={() => updateParams('page', String(data.page + 1))}
-                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors shadow-sm"
-              >
-                Next
-              </button>
             </div>
+            <div className="sm:flex-1 flex justify-center">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() => updateParams('page', String(data.page - 1))}
+                      disabled={data.page <= 1}
+                      className={data.page <= 1 ? 'pointer-events-none opacity-40' : ''}
+                    />
+                  </PaginationItem>
+                  {getPaginationRange(data.page, data.totalPages).map((p, i) =>
+                    p === '…' ? (
+                      <PaginationItem key={`e-${i}`}>
+                        <PaginationEllipsis />
+                      </PaginationItem>
+                    ) : (
+                      <PaginationItem key={p}>
+                        <PaginationLink
+                          isActive={p === data.page}
+                          onClick={() => updateParams('page', String(p))}
+                        >
+                          {p}
+                        </PaginationLink>
+                      </PaginationItem>
+                    )
+                  )}
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() => updateParams('page', String(data.page + 1))}
+                      disabled={data.page >= data.totalPages}
+                      className={data.page >= data.totalPages ? 'pointer-events-none opacity-40' : ''}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+            <div className="hidden sm:block sm:flex-1" />
           </div>
         )}
       </div>

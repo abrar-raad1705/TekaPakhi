@@ -84,6 +84,8 @@ const adminModel = {
   // ── User Management ──────────────────────────────────────────
 
   async getUsers({ page = 1, limit = 20, search, typeId, status }) {
+    page = Number(page) || 1;
+    limit = Number(limit) || 20;
     const params = [];
     let paramIdx = 1;
     let whereExtra = " AND pt.type_name != 'SYSTEM'";
@@ -279,6 +281,8 @@ const adminModel = {
     fromDate,
     toDate,
   }) {
+    page = Number(page) || 1;
+    limit = Number(limit) || 20;
     const params = [];
     let paramIdx = 1;
     let whereExtra = "";

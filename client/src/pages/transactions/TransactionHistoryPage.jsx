@@ -15,6 +15,16 @@ import TransactionDetailPanel from "../../components/transaction/TransactionDeta
 import ProfileAvatar from "../../components/common/ProfileAvatar";
 import { formatPhone } from "../../utils/formatCurrency";
 import { formatTaka, typeLabels } from "../../utils/transactionDetailFormat";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationPrevious,
+  PaginationNext,
+  PaginationEllipsis,
+} from "../../components/ui/pagination";
+import { getPaginationRange } from "../../utils/paginationRange";
 
 const ACCENT = "#2563EB";
 
@@ -475,31 +485,47 @@ export default function TransactionHistoryPage() {
             </div>
 
             {!loading && totalPages > 1 && (
-              <div className="mt-4 flex items-center justify-between gap-3">
-                <button
-                  type="button"
-                  onClick={() => fetchHistory(page - 1)}
-                  disabled={page <= 1}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-3 text-sm font-bold text-slate-700 disabled:opacity-40"
-                >
-                  <ChevronLeftIcon className="h-5 w-5" />
-                  Previous
-                </button>
-                <span
-                  className="text-sm font-bold"
-                  style={{ color: ACCENT }}
-                >
-                  {page} / {totalPages}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => fetchHistory(page + 1)}
-                  disabled={page >= totalPages}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-3 text-sm font-bold text-slate-700 disabled:opacity-40"
-                >
-                  Next
-                  <ChevronRightIcon className="h-5 w-5" />
-                </button>
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-100 mt-4 pt-4">
+                <div className="text-sm text-slate-500 font-medium sm:flex-1 text-center sm:text-left">
+                  Page <span className="font-bold text-slate-700">{page}</span> of {totalPages}
+                </div>
+                <div className="sm:flex-1 flex justify-center">
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          onClick={() => fetchHistory(page - 1)}
+                          disabled={page <= 1}
+                          className={page <= 1 ? 'pointer-events-none opacity-40' : ''}
+                        />
+                      </PaginationItem>
+                      {getPaginationRange(page, totalPages).map((p, i) =>
+                        p === '…' ? (
+                          <PaginationItem key={`e-${i}`}>
+                            <PaginationEllipsis />
+                          </PaginationItem>
+                        ) : (
+                          <PaginationItem key={p}>
+                            <PaginationLink
+                              isActive={p === page}
+                              onClick={() => fetchHistory(p)}
+                            >
+                              {p}
+                            </PaginationLink>
+                          </PaginationItem>
+                        )
+                      )}
+                      <PaginationItem>
+                        <PaginationNext
+                          onClick={() => fetchHistory(page + 1)}
+                          disabled={page >= totalPages}
+                          className={page >= totalPages ? 'pointer-events-none opacity-40' : ''}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+                <div className="hidden sm:block sm:flex-1" />
               </div>
             )}
           </section>
